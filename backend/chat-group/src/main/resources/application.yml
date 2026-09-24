@@ -1,0 +1,30 @@
+server:
+  port: 8084
+
+spring:
+  application:
+    name: chat-group
+
+  datasource:
+    url: jdbc:postgresql://172.20.70.38:5432/chat
+    username: postgres
+    password: 123456
+    driver-class-name: org.postgresql.Driver
+
+  jpa:
+    open-in-view: false
+    hibernate:
+      ddl-auto: validate
+    show-sql: false
+    properties:
+      hibernate:
+        format_sql: true
+
+# 校验浏览器 access token，必须与 chat-user 的 jwt.secret 一致
+jwt:
+  secret: ${JWT_SECRET:chat-system-jwt-secret-key-must-be-at-least-256-bits-long-for-hs256}
+
+# 校验/签发服务间短期令牌，必须与 chat-gateway 的 INTERNAL_JWT_SECRET 一致
+internal:
+  jwt:
+    secret: ${INTERNAL_JWT_SECRET:}

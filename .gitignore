@@ -1,0 +1,48 @@
+# === Java / Maven / Spring Boot ===
+**/target/
+**/*.class
+**/*.jar
+**/*.war
+**/*.ear
+**/*.log
+
+# === IDE ===
+.idea/
+*.iml
+*.iws
+*.ipr
+.vscode/
+.settings/
+.project
+.classpath
+*.swp
+*.swo
+*~
+
+# === Node / Vue ===
+**/node_modules/
+**/dist/
+**/.cache/
+*.local
+.env
+.env.*
+
+# === OS ===
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# === Gateway (Go) ===
+gateway/**/*.exe
+gateway/**/*.test
+gateway/**/*.out
+
+# === 本机量具与缓存（不是工程产物，clone 下来也用不上）===
+/out/
+/.npm-cache/
+frontend/chat-web/debug-*.png
+/obsidian-skills/
+/kepano-obsidian-skills/
+
+# 内部排障笔记库，不对外发布（历史提交里仍在，只是以后不再跟踪）
+/Obsidian/

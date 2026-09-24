@@ -1,0 +1,254 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>WebSocket 连接测试</title>
+    <style>
+        * { box-sizing: border-box; }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            max-width: 800px;
+            margin: 40px auto;
+            padding: 20px;
+            background: #f5f5f5;
+        }
+        .card {
+            background: white;
+            border-radius: 12px;
+            padding: 24px;
+            margin-bottom: 20px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+        }
+        h1 { margin-bottom: 24px; color: #303133; }
+        h3 { margin-bottom: 12px; color: #606266; }
+        input {
+            width: 100%;
+            padding: 12px;
+            border: 1px solid #dcdfe6;
+            border-radius: 6px;
+            font-size: 14px;
+            margin-bottom: 12px;
+        }
+        input:focus { outline: none; border-color: #409eff; }
+        .btn-group { display: flex; gap: 8px; flex-wrap: wrap; }
+        button {
+            padding: 10px 20px;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 14px;
+            transition: all 0.2s;
+        }
+        .btn-primary { background: #409eff; color: white; }
+        .btn-primary:hover { background: #337ecc; }
+        .btn-success { background: #67c23a; color: white; }
+        .btn-success:hover { background: #5daf34; }
+        .btn-danger { background: #f56c6c; color: white; }
+        .btn-danger:hover { background: #dd6161; }
+        button:disabled { background: #c0c4cc; cursor: not-allowed; }
+        .status {
+            padding: 12px;
+            border-radius: 6px;
+            margin-bottom: 16px;
+            font-weight: 500;
+        }
+        .status.connected { background: #f0f9eb; color: #67c23a; }
+        .status.disconnected { background: #fef0f0; color: #f56c6c; }
+        .status.connecting { background: #fdf6ec; color: #e6a23c; }
+        .log {
+            background: #1e1e1e;
+            color: #00ff00;
+            padding: 16px;
+            border-radius: 6px;
+            font-family: 'Consolas', 'Monaco', monospace;
+            font-size: 13px;
+            max-height: 400px;
+            overflow-y: auto;
+            line-height: 1.6;
+        }
+        .log .error { color: #ff6b6b; }
+        .log .success { color: #51cf66; }
+        .log .info { color: #74c0fc; }
+        .log .warn { color: #ffd43b; }
+        .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+        @media (max-width: 600px) { .grid { grid-template-columns: 1fr; } }
+    </style>
+</head>
+<body>
+    <h1>🔌 WebSocket 连接测试</h1>
+
+    <div class="card">
+        <h3>📋 连接状态</h3>
+        <div id="status" class="status disconnected">❌ 未连接</div>
+    </div>
+
+    <div class="grid">
+        <div class="card">
+            <h3>1️⃣ 输入 Token</h3>
+            <input type="text" id="tokenInput" placeholder="粘贴 JWT Token..." />
+        </div>
+        <div class="card">
+            <h3>2️⃣ 连接</h3>
+            <div class="btn-group">
+                <button class="btn-primary" onclick="testDirect()">直连 (8082)</button>
+                <button class="btn-success" onclick="testProxy()">代理 (3000)</button>
+                <button class="btn-danger" onclick="disconnect()">断开</button>
+            </div>
+        </div>
+    </div>
+
+    <div class="card">
+        <h3>3️⃣ 发送消息</h3>
+        <div class="btn-group">
+            <button class="btn-primary" onclick="sendPing()" id="btnPing" disabled>PING</button>
+            <button class="btn-primary" onclick="sendTest()" id="btnTest" disabled>测试消息</button>
+            <button class="btn-primary" onclick="sendSync()" id="btnSync" disabled>同步会话</button>
+        </div>
+    </div>
+
+    <div class="card">
+        <h3>4️⃣ 日志</h3>
+        <div class="log" id="log"></div>
+    </div>
+
+    <script>
+        let ws = null;
+        const logDiv = document.getElementById('log');
+        const statusDiv = document.getElementById('status');
+        const btnPing = document.getElementById('btnPing');
+        const btnTest = document.getElementById('btnTest');
+        const btnSync = document.getElementById('btnSync');
+
+        function log(message, type = 'info') {
+            const time = new Date().toLocaleTimeString();
+            logDiv.innerHTML += `<div class="${type}">[${time}] ${message}</div>`;
+            logDiv.scrollTop = logDiv.scrollHeight;
+            console.log(`[${type}] ${message}`);
+        }
+
+        function updateStatus(state, text) {
+            statusDiv.className = `status ${state}`;
+            statusDiv.textContent = text;
+            btnPing.disabled = state !== 'connected';
+            btnTest.disabled = state !== 'connected';
+            btnSync.disabled = state !== 'connected';
+        }
+
+        function getToken() {
+            const token = document.getElementById('tokenInput').value.trim();
+            if (!token) {
+                log('⚠️ 请先输入 Token', 'warn');
+                return null;
+            }
+            return token;
+        }
+
+        function setupCallbacks(method) {
+            if (!ws) return;
+
+            ws.onopen = () => {
+                log(`✅ ${method}连接成功!`, 'success');
+                updateStatus('connected', '✅ 已连接');
+            };
+
+            ws.onmessage = (event) => {
+                try {
+                    const data = JSON.parse(event.data);
+                    log(`📩 收到: ${JSON.stringify(data, null, 2)}`, 'info');
+                } catch (e) {
+                    log(`📩 收到原始数据: ${event.data}`, 'info');
+                }
+            };
+
+            ws.onclose = (event) => {
+                log(`❌ 连接关闭: code=${event.code}, reason=${event.reason || '无'}`, 'error');
+                updateStatus('disconnected', '❌ 未连接');
+            };
+
+            ws.onerror = (error) => {
+                log(`❌ 连接错误`, 'error');
+                updateStatus('disconnected', '❌ 连接失败');
+            };
+        }
+
+        function testDirect() {
+            const token = getToken();
+            if (!token) return;
+
+            log('🔌 尝试直连 ws://localhost:8082/ws', 'info');
+            updateStatus('connecting', '🔄 连接中...');
+
+            try {
+                ws = new WebSocket(`ws://localhost:8082/ws?token=${token}&deviceId=web`);
+                setupCallbacks('直连');
+            } catch (e) {
+                log(`❌ 连接失败: ${e.message}`, 'error');
+                updateStatus('disconnected', '❌ 连接失败');
+            }
+        }
+
+        function testProxy() {
+            const token = getToken();
+            if (!token) return;
+
+            const host = window.location.host;
+            log(`🔌 尝试通过代理 ws://${host}/ws`, 'info');
+            updateStatus('connecting', '🔄 连接中...');
+
+            try {
+                ws = new WebSocket(`ws://${host}/ws?token=${token}&deviceId=web`);
+                setupCallbacks('代理');
+            } catch (e) {
+                log(`❌ 连接失败: ${e.message}`, 'error');
+                updateStatus('disconnected', '❌ 连接失败');
+            }
+        }
+
+        function disconnect() {
+            if (ws) {
+                ws.close();
+                ws = null;
+                log('🔌 已断开连接', 'info');
+                updateStatus('disconnected', '❌ 未连接');
+            }
+        }
+
+        function send(type, data) {
+            if (!ws || ws.readyState !== WebSocket.OPEN) {
+                log('⚠️ WebSocket 未连接', 'warn');
+                return;
+            }
+
+            const msg = {
+                type,
+                requestId: `req-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+                data: data || {}
+            };
+
+            ws.send(JSON.stringify(msg));
+            log(`📤 发送: ${JSON.stringify(msg)}`, 'success');
+        }
+
+        function sendPing() { send('PING'); }
+        function sendTest() {
+            send('MESSAGE_SEND', {
+                conversationId: 'test-001',
+                messageType: 'TEXT',
+                content: 'Hello from test!'
+            });
+        }
+        function sendSync() { send('SYNC_CONVERSATIONS', {}); }
+
+        // 从 URL 获取 token
+        window.onload = () => {
+            const urlParams = new URLSearchParams(window.location.search);
+            const token = urlParams.get('token');
+            if (token) {
+                document.getElementById('tokenInput').value = token;
+                log('📥 已从 URL 加载 Token', 'info');
+            }
+        };
+    </script>
+</body>
+</html>

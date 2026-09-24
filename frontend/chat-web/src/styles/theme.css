@@ -1,0 +1,124 @@
+/* ============================================================
+   浅色蓝主题 · 覆盖 nebula.css 的同名令牌
+   主色取自设计稿（企业 IM 蓝），保留 nebula.css 的变量名，
+   所以全站 170+ 处 var(--nb-*) 引用一次性翻成浅色，不用逐条改。
+   引入顺序必须在 nebula.css 之后（见 main.js）。
+   ============================================================ */
+
+:root {
+  /* ---- 品牌蓝 ---- */
+  --brand: #2b6be8;
+  --brand-strong: #1f56c4;
+  --brand-soft: #eaf1ff;
+  --brand-line: rgba(43, 107, 232, 0.28);
+
+  /* ---- 语义色（浅色底上要够深才能读） ---- */
+  --danger: #d94860;
+  --warn: #b76e10;
+  --ok: #1f9d55;
+
+  /* ---- 覆盖星环调色板的同名变量 ---- */
+  --nb-cyan: var(--brand);
+  --nb-cyan-soft: var(--brand-strong);
+  --nb-magenta: var(--danger);
+  --nb-purple: var(--brand);
+  --nb-green: var(--ok);
+  --nb-amber: var(--warn);
+
+  /* ---- 表面：从深空翻成纸白 ---- */
+  --nb-bg-0: #f4f6fa;
+  --nb-bg-1: #ffffff;
+  --nb-bg-2: #ffffff;
+  --nb-bg-3: #f0f3f8;
+  --nb-panel: #ffffff;
+  --nb-panel-solid: #ffffff;
+  --nb-line: #e2e7f0;
+  --nb-text: #1b2434;
+  --nb-dim: #69788f;
+  --nb-dim-2: #8a97ab;
+
+  /* ---- 辉光改成柔和投影，浅色底上发光只会显脏 ---- */
+  --nb-glow-cyan: rgba(43, 107, 232, 0.18);
+  --nb-glow-magenta: rgba(217, 72, 96, 0.16);
+  --shadow-1: 0 1px 2px rgba(20, 32, 56, 0.06);
+  --shadow-2: 0 6px 20px rgba(20, 32, 56, 0.10);
+
+  /* ---- 弹窗/邀请框共用令牌 ---- */
+  --invite-cyan: var(--brand);
+  --invite-magenta: var(--danger);
+  --invite-purple: var(--brand);
+  --invite-green: var(--ok);
+  --invite-dim: var(--nb-dim);
+  --invite-line: var(--brand-line);
+
+  /* ---- 骨架尺寸：四栏 ---- */
+  --rail-w: 56px;
+  --list-w: 268px;
+  /* 内容详情栏：1280 下 360px（原来 316），往上按窗口比例放宽，520 封顶再多就吃消息列。
+     数字要换只改这一行。 */
+  --drawer-w: clamp(360px, 28.1vw, 520px);
+
+  /* 桌面壳的自绘标题栏高度，由 WinBar 挂载时改成 36px */
+  --winbar-h: 0px;
+}
+
+/* 深空底 + 科技网格 + CRT 扫描线在浅色主题里全部撤掉 */
+body {
+  background: var(--nb-bg-0) !important;
+  background-attachment: scroll !important;
+  color: var(--nb-text);
+}
+
+body::before,
+body::after {
+  content: none !important;
+}
+
+/* 浅色底上任何 text-shadow 发光都只会糊字 */
+* {
+  text-shadow: none !important;
+}
+
+/* ---- 主按钮 ----
+   登录/注册页用的是 .nebula-btn，而这个类在项目里从来没有定义过，
+   所以按钮一直是浏览器默认控件（灰底黑边 + 黑色 focus 环）。 */
+.nebula-btn {
+  appearance: none;
+  -webkit-appearance: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  border: 0;
+  border-radius: 4px;
+  background: var(--brand);
+  color: #fff;
+  font: inherit;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background 0.16s ease, box-shadow 0.16s ease;
+}
+
+.nebula-btn:hover {
+  background: var(--brand-strong);
+}
+
+.nebula-btn:focus-visible {
+  outline: 0;
+  box-shadow: 0 0 0 3px rgba(43, 107, 232, 0.28);
+}
+
+.nebula-btn:disabled {
+  background: #c3ccdb;
+  color: #f5f7fa;
+  cursor: not-allowed;
+}
+
+/* nebula.css 里有一批把文字色写死成白色的规则，翻成浅色后压在白底上直接看不见
+   （实测 .modal-title 的 -webkit-text-fill-color 仍是 rgb(255,255,255)）。
+   带渐变/彩色底的 .btn-primary、.btn-danger、.avatar 是故意白字，不动。 */
+.modal-title { color: var(--nb-text); font-family: inherit; letter-spacing: 0; }
+.btn-ghost:hover:not(:disabled) { color: var(--danger); }
+.btn-link:hover:not(:disabled) { color: var(--brand-strong); }
+.btn-link-danger:hover:not(:disabled) { color: var(--danger); }
+.chip-close:hover { color: var(--nb-text); }

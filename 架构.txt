@@ -1,0 +1,2326 @@
+一、最终技术架构
+
+先把最终架构定死，后面开发尽量不要反复换技术。
+
+                         ┌──────────────────────┐
+                         │      Client          │
+                         │                      │
+                         │ Vue3 / Electron      │
+                         │ Android / iOS        │
+                         └──────────┬───────────┘
+                                    │
+                    ┌───────────────┼────────────────┐
+                    │               │                │
+                   HTTP         WebSocket          WebRTC
+                    │               │                │
+                    ▼               ▼                ▼
+              ┌──────────┐   ┌─────────────┐   ┌─────────────┐
+              │ Gateway  │   │ Go Chat     │   │ LiveKit/SFU │
+              │          │   │ Gateway     │   │             │
+              └────┬─────┘   └──────┬──────┘   └─────────────┘
+                   │                │
+                   │                ▼
+                   │             Redis
+                   │                │
+                   │                │
+                   ▼                ▼
+              Java Microservice   RabbitMQ
+                   │                │
+              ┌────┴────┐           │
+              │         │           │
+              ▼         ▼           ▼
+            User      Group       Message
+           Service   Service      Service
+              │         │           │
+              └────┬────┴───────────┘
+                   │
+                  Dubbo
+                   │
+                Consul
+                   │
+          ┌────────┴─────────┐
+          ▼                  ▼
+       PostgreSQL             Cassandra
+二、第一阶段：基础环境
+第 1 步：确定项目仓库
+
+建议直接采用：
+
+chat-system/
+│
+├── chat-gateway/          # Go WebSocket
+│
+├── chat-user/             # 用户服务
+├── chat-friend/           # 好友服务
+├── chat-group/            # 群组服务
+├── chat-message/          # 消息服务
+├── chat-file/             # 文件服务
+├── chat-call/             # 音视频信令
+├── chat-notification/     # 通知服务
+│
+├── chat-web/              # Vue3
+├── chat-desktop/          # Electron
+│
+├── deploy/
+│   ├── docker/
+│   ├── consul/
+│   ├── redis/
+│   ├── rabbitmq/
+│   ├── mysql/
+│   └── cassandra/
+│
+└── docs/
+
+第一阶段不要拆太多服务。
+
+实际上最开始只需要：
+
+chat-gateway
+chat-user
+chat-message
+chat-web
+
+后面的服务逐步增加。
+
+三、第二阶段：用户系统
+
+先把账号体系做出来。
+
+实现：
+
+注册
+登录
+退出
+刷新 Token
+修改密码
+头像
+昵称
+在线状态
+
+推荐：
+
+Spring Boot
++
+PostgreSQL
++
+Redis
++
+JWT
+
+数据库：
+
+user
+user_session
+user_device
+
+例如：
+
+user
+----------------
+id
+username
+password
+nickname
+avatar
+status
+create_time
+四、第三阶段：Go WebSocket Gateway
+
+这是整个系统最核心的部分之一。
+
+先不要做群聊。
+
+只做：
+
+用户登录
+      ↓
+建立 WebSocket
+      ↓
+认证 Token
+      ↓
+保存连接
+      ↓
+心跳
+      ↓
+断线
+      ↓
+重连
+
+Go：
+
+chat-gateway
+
+内部结构：
+
+chat-gateway/
+├── main.go
+├── config/
+├── handler/
+│   └── websocket.go
+├── connection/
+│   ├── client.go
+│   ├── manager.go
+│   └── heartbeat.go
+├── message/
+├── router/
+├── middleware/
+└── redis/
+
+重点实现：
+
+Client
+UserID
+ConnectionID
+WebSocket
+LastActiveTime
+DeviceID
+Connection Manager
+UserID
+    ↓
+Connection
+
+必须支持：
+
+一个用户多个设备
+
+例如：
+
+张三
+ ├── PC
+ ├── 手机
+ └── Web
+五、第四阶段：Redis 在线状态
+
+建立：
+
+user:online:{userId}
+
+例如：
+
+user:online:10001
+
+内容：
+
+{
+  "gateway": "gateway-01",
+  "device": "pc",
+  "lastActive": 1750000000
+}
+
+同时建立：
+
+user:connections:{userId}
+
+用于多设备。
+
+六、第五阶段：一对一聊天
+
+现在才真正开始聊天。
+
+消息格式统一。
+
+例如：
+
+{
+  "messageId": "01J...",
+  "type": "CHAT",
+  "conversationId": "10001_10002",
+  "senderId": 10001,
+  "receiverId": 10002,
+  "content": "你好",
+  "timestamp": 1750000000
+}
+
+WebSocket：
+
+A
+│
+│ message
+▼
+Go Gateway
+│
+├── Redis
+│
+▼
+B
+
+做到：
+
+发送
+接收
+ACK
+消息 ID
+时间戳
+重复消息检测
+断线重连
+消息补偿
+七、第六阶段：消息可靠性
+
+这是聊天系统非常重要的一步。
+
+不要做到：
+
+发送成功
+=
+WebSocket write 成功
+
+应该设计：
+
+发送
+ ↓
+消息 ID
+ ↓
+服务端确认
+ ↓
+持久化
+ ↓
+投递
+ ↓
+客户端 ACK
+
+状态：
+
+CREATED
+   ↓
+SENT
+   ↓
+DELIVERED
+   ↓
+READ
+
+例如：
+
+CREATED
+消息已经创建
+
+SENT
+服务器接受
+
+DELIVERED
+对方设备收到
+
+READ
+对方打开聊天窗口
+八、第七阶段：Cassandra 消息存储
+
+这时候加入 Cassandra。
+
+建议：
+
+conversation
+message
+message_read
+
+消息表重点按照查询模式设计。
+
+例如：
+
+message
+--------------------------------
+conversation_id
+message_id
+sender_id
+message_type
+content
+create_time
+
+查询：
+
+conversation_id
++
+create_time
+
+不要按照传统 MySQL 思路随便设计 Cassandra。
+
+九、第八阶段：RabbitMQ
+
+现在才加入 RabbitMQ。
+
+用途：
+
+消息异步处理
+
+例如：
+
+Go Gateway
+     │
+     ▼
+Message Service
+     │
+     ├──────────► Cassandra
+     │
+     └──────────► RabbitMQ
+                       │
+          ┌────────────┼────────────┐
+          ▼            ▼            ▼
+      Notification   Audit       Offline
+
+例如：
+
+用户 A 发消息
+       ↓
+Message Service
+       ↓
+Cassandra
+       ↓
+RabbitMQ
+       ↓
+通知服务
+十、第九阶段：群聊
+
+现在做群。
+
+数据库：
+
+group
+group_member
+group_message
+group_role
+
+支持：
+
+创建群
+邀请
+踢人
+退出
+群主
+管理员
+普通成员
+禁言
+公告
+群头像
+十一、500 人群聊测试
+
+这时候先不要急着上音视频。
+
+重点测试：
+
+500 人
+同时在线
+同时发送消息
+
+测试：
+
+500 WebSocket
+1000 WebSocket
+5000 WebSocket
+
+测试：
+
+100 msg/s
+500 msg/s
+1000 msg/s
+
+重点观察：
+
+CPU
+内存
+GC
+网络
+Redis
+Cassandra
+RabbitMQ
+消息延迟
+十二、第十阶段：文件系统
+
+聊天软件不能只有文字。
+
+实现：
+
+图片
+文件
+语音消息
+视频文件
+表情
+
+不要把文件放 Cassandra。
+
+建议：
+
+客户端
+ ↓
+对象存储
+ ↓
+MinIO / S3
+
+数据库只保存：
+
+fileId
+url
+size
+mimeType
+hash
+
+例如：
+
+{
+  "fileId": "xxx",
+  "name": "test.jpg",
+  "size": 1024000,
+  "mimeType": "image/jpeg"
+}
+十三、第十一阶段：音视频信令
+
+这一步才开始 WebRTC。
+
+注意：
+
+WebSocket 负责信令，不负责传输音视频数据。
+
+例如：
+
+A                         B
+│                         │
+│ WebSocket               │
+│ offer                   │
+├────────────────────────►│
+│                         │
+│ answer                  │
+│◄────────────────────────┤
+│                         │
+│ ICE Candidate           │
+├────────────────────────►│
+│                         │
+└────── WebRTC ───────────┘
+
+WebSocket：
+
+offer
+answer
+candidate
+join
+leave
+mute
+unmute
+
+WebRTC：
+
+真正的音频
+真正的视频
+十四、第十二阶段：加入 LiveKit / SFU
+
+不要自己开发 SFU。
+
+直接：
+
+LiveKit
+
+架构：
+
+             Go/Java
+                │
+             信令/Token
+                │
+                ▼
+             LiveKit
+          ┌─────┼─────┐
+          │     │     │
+          ▼     ▼     ▼
+          A     B     C
+
+实现：
+
+一对一语音
+一对一视频
+多人语音
+多人视频
+十五、第十三阶段：屏幕共享
+
+WebRTC 本身支持屏幕采集。
+
+实现：
+
+共享屏幕
+停止共享
+切换窗口
+切换屏幕
+
+例如：
+
+用户 A
+   │
+   ├── Camera
+   ├── Microphone
+   └── Screen
+          │
+          ▼
+       LiveKit
+          │
+          ▼
+       用户 B/C/D
+十六、第十四阶段：通话控制
+
+增加：
+
+发起通话
+接听
+拒绝
+挂断
+邀请成员
+踢出成员
+静音
+关闭摄像头
+屏幕共享
+
+建立：
+
+call
+call_member
+call_record
+
+状态：
+
+CREATED
+ ↓
+RINGING
+ ↓
+CONNECTED
+ ↓
+ENDED
+十七、第十五阶段：远程控制
+
+最后再做。
+
+不要一开始碰。
+
+架构：
+
+控制端
+   │
+   │ WebRTC
+   ▼
+Remote Agent
+   │
+   ├── 屏幕捕获
+   ├── H264 编码
+   ├── 鼠标
+   └── 键盘
+
+Windows 客户端建议单独开发：
+
+Remote Agent
+
+可以考虑：
+
+Go
+C++
+Rust
+
+而不是塞进聊天服务。
+
+十八、第十六阶段：安全
+
+这时候开始做安全强化。
+
+至少：
+
+TLS
+WSS
+JWT
+Refresh Token
+消息权限
+群权限
+文件权限
+通话权限
+远程控制授权
+
+尤其远程控制：
+
+用户 A 请求控制 B
+          ↓
+       B 同意
+          ↓
+      临时 Token
+          ↓
+       建立连接
+
+不能：
+
+只要知道 userId
+↓
+直接控制电脑
+十九、第十七阶段：集群
+
+第一版：
+
+                    Nginx
+                      │
+          ┌───────────┼───────────┐
+          ▼           ▼           ▼
+       Gateway1    Gateway2    Gateway3
+          │           │           │
+          └───────────┼───────────┘
+                      ▼
+                    Redis
+
+这样：
+
+用户 A → Gateway1
+
+用户 B → Gateway3
+
+仍然能够通信。
+
+二十、第十八阶段：Go Gateway 集群
+
+最终：
+
+                   Load Balancer
+                         │
+          ┌──────────────┼──────────────┐
+          ▼              ▼              ▼
+     Go Gateway 01  Go Gateway 02  Go Gateway 03
+          │              │              │
+          └──────────────┼──────────────┘
+                         ▼
+                       Redis
+
+Redis负责：
+
+用户 → Gateway
+
+RabbitMQ负责：
+
+异步业务事件
+
+Cassandra负责：
+
+历史消息
+
+LiveKit负责：
+
+音视频
+二十一、第十九阶段：服务拆分
+
+系统稳定后，再逐渐拆成：
+
+┌──────────────────────────┐
+│        Gateway           │
+└────────────┬─────────────┘
+             │
+ ┌───────────┼────────────────────────┐
+ │           │          │             │
+ ▼           ▼          ▼             ▼
+User       Friend      Group        Message
+Service    Service     Service      Service
+ │           │          │             │
+ └───────────┴──────────┴─────────────┘
+                         │
+                         ▼
+                     Notification
+                         │
+                         ▼
+                       File
+                         │
+                         ▼
+                       Call
+
+然后：
+
+Dubbo
+ +
+Consul
+
+负责内部服务通信和服务发现。
+
+二十二、推荐开发顺序
+
+你实际执行的时候，严格按照这个顺序：
+
+01  项目初始化
+ ↓
+02  用户注册/登录
+ ↓
+03  JWT
+ ↓
+04  Go WebSocket
+ ↓
+05  心跳/断线/重连
+ ↓
+06  Redis 在线状态
+ ↓
+07  一对一聊天
+ ↓
+08  ACK/消息状态
+ ↓
+09  Cassandra
+ ↓
+10  RabbitMQ
+ ↓
+11  群聊
+ ↓
+12  500人压力测试
+ ↓
+13  图片/文件
+ ↓
+14  WebRTC 信令
+ ↓
+15  一对一语音
+ ↓
+16  一对一视频
+ ↓
+17  LiveKit
+ ↓
+18  多人语音
+ ↓
+19  多人视频
+ ↓
+20  屏幕共享
+ ↓
+21  通话管理
+ ↓
+22  Remote Agent
+ ↓
+23  远程控制
+ ↓
+24  Gateway 集群
+ ↓
+25  服务拆分
+ ↓
+26  Dubbo + Consul
+ ↓
+27  监控
+ ↓
+28  压测
+ ↓
+29  安全
+ ↓
+30  正式部署
+二十三、第一版千万不要做这些
+
+一开始不要：
+
+❌ Kubernetes
+❌ 微服务几十个
+❌ 自己写 SFU
+❌ 自己实现 WebRTC
+❌ 自己实现视频编码
+❌ 自己写 STUN
+❌ 自己写 TURN
+❌ 自己做远程桌面
+❌ Cassandra 一开始就搞集群
+❌ RabbitMQ 什么都往里面塞
+
+否则很容易变成：
+
+基础设施写了两个月，聊天功能还没出来。
+
+二十四、第一阶段的 MVP
+
+我建议你给自己定一个非常明确的第一个目标：
+
+30 天内完成一个可以真正使用的文字聊天系统。
+
+只做：
+
+注册
+登录
+好友
+一对一聊天
+群聊
+500 人群
+在线状态
+消息历史
+未读消息
+图片
+文件
+断线重连
+多设备登录
+
+技术：
+
+Vue3
++
+Go
++
+WebSocket
++
+Redis
++
+RabbitMQ
++
+Cassandra
++
+MySQL
+
+暂时不做：
+
+WebRTC
+LiveKit
+远程控制
+Dubbo
+Consul
+K8s
+
+等文字聊天跑通以后，再逐步加入。
+
+二十五、我建议你现在第一步就做这个
+
+你的第一个 Sprint 不要直接开始写聊天业务。
+
+先建立：
+
+chat-system
+│
+├── chat-gateway
+│      └── Go
+│
+├── chat-user
+│      └── Spring Boot
+│
+├── chat-web
+│      └── Vue3
+│
+└── docker-compose.yml
+       ├── Redis
+       ├── RabbitMQ
+       ├── Cassandra
+       └── MySQL
+
+然后首先实现：
+
+Vue3
+  │
+  │ login
+  ▼
+Spring Boot User Service
+  │
+  ▼
+JWT
+  │
+  ▼
+Vue3
+  │
+  │ WebSocket + JWT
+  ▼
+Go Gateway
+  │
+  ▼
+Redis
+
+只要这条链路跑通，你的聊天系统就算正式开工了。
+
+接下来再实现：
+
+A 登录
+ ↓
+A 建立 WebSocket
+ ↓
+A 发消息
+ ↓
+Go Gateway
+ ↓
+Redis
+ ↓
+B Gateway
+ ↓
+B WebSocket
+ ↓
+B 收到消息
+
+这会是整个项目最关键的第一个里程碑。
+
+另外，考虑到你之前已经在使用 Spring Boot 4.0 + Alibaba 微服务
+
+
+可以。上一版是**整体路线图**，这一版我们直接进入“可执行开发版本”。
+
+我建议把它定义为：
+
+> **《Chat System V1.0 开发实施方案》**
+>
+> 目标：先完成一个真正能跑起来的“文字聊天 MVP”，然后在此基础上继续扩展音视频、屏幕共享和远程控制。
+
+---
+
+# 一、V1.0 第一阶段最终目标
+
+第一阶段不要碰音视频，先完成：
+
+```text
+用户
+├── 注册
+├── 登录
+├── JWT
+├── 修改资料
+└── 在线状态
+
+好友
+├── 添加好友
+├── 删除好友
+├── 好友列表
+└── 好友在线状态
+
+聊天
+├── 一对一聊天
+├── 群聊
+├── 文字消息
+├── 图片消息
+├── 文件消息
+├── 消息已发送
+├── 消息已送达
+├── 消息已读
+├── 未读消息
+├── 历史消息
+└── 断线重连
+
+群组
+├── 创建群
+├── 邀请成员
+├── 移除成员
+├── 群主
+├── 管理员
+├── 禁言
+└── 群公告
+
+系统
+├── WebSocket
+├── Redis
+├── RabbitMQ
+├── Cassandra
+├── MySQL
+└── Docker
+```
+
+第一阶段验收标准：
+
+> **500 人群聊可以稳定运行。**
+
+---
+
+# 二、第一版技术栈确定
+
+我建议最终固定成：
+
+| 模块        | 技术                        |
+| --------- | ------------------------- |
+| Web 前端    | Vue 3                     |
+| UI        | Element Plus              |
+| HTTP      | REST                      |
+| WebSocket | Go + Gorilla/WebSocket    |
+| 用户/业务服务   | Spring Boot 4             |
+| RPC       | Dubbo                     |
+| 服务发现      | Consul                    |
+| 缓存        | Redis                     |
+| MQ        | RabbitMQ                  |
+| 用户数据库     | MySQL                     |
+| 消息数据库     | Cassandra                 |
+| 文件        | MinIO                     |
+| 网关        | Nginx                     |
+| 音视频       | 后续 LiveKit/WebRTC         |
+| 部署        | Docker Compose            |
+| 构建        | Maven + Go Modules + pnpm |
+
+---
+
+# 三、项目目录
+
+建议直接按照这个创建：
+
+```text
+chat-system/
+│
+├── backend/
+│   │
+│   ├── chat-user/
+│   ├── chat-friend/
+│   ├── chat-group/
+│   ├── chat-message/
+│   ├── chat-file/
+│   ├── chat-notification/
+│   └── chat-common/
+│
+├── gateway/
+│   └── chat-gateway/
+│
+├── frontend/
+│   └── chat-web/
+│
+├── deploy/
+│   ├── docker-compose.yml
+│   ├── mysql/
+│   ├── redis/
+│   ├── rabbitmq/
+│   ├── cassandra/
+│   ├── minio/
+│   └── nginx/
+│
+├── docs/
+│   ├── architecture/
+│   ├── api/
+│   ├── websocket/
+│   └── database/
+│
+└── README.md
+```
+
+不过这里有一个原则：
+
+**目录可以先全部建立，但服务不要全部启动。**
+
+第一阶段实际上只开发：
+
+```text
+chat-user
+chat-gateway
+chat-web
+```
+
+---
+
+# 四、第一步：基础中间件
+
+先使用 Docker Compose。
+
+启动：
+
+```text
+MySQL
+Redis
+RabbitMQ
+Cassandra
+MinIO
+Consul
+```
+
+最终：
+
+```text
+Docker
+│
+├── mysql
+├── redis
+├── rabbitmq
+├── cassandra
+├── minio
+└── consul
+```
+
+开发阶段：
+
+```text
+Spring Boot
+      │
+      ├── MySQL
+      ├── Redis
+      ├── RabbitMQ
+      └── Consul
+
+Go
+      │
+      └── Redis
+```
+
+---
+
+# 五、MySQL 数据库
+
+第一版 MySQL 只保存：
+
+> **业务数据**
+
+不要把聊天消息全部塞进 MySQL。
+
+---
+
+## 1. 用户表
+
+```sql
+CREATE TABLE chat_user (
+    id BIGINT NOT NULL,
+    username VARCHAR(64) NOT NULL,
+    password VARCHAR(255) NOT NULL,
+    nickname VARCHAR(64),
+    avatar VARCHAR(512),
+    status TINYINT DEFAULT 1,
+    create_time DATETIME NOT NULL,
+    update_time DATETIME NOT NULL,
+    PRIMARY KEY (id),
+    UNIQUE KEY uk_username (username)
+);
+```
+
+---
+
+# 六、好友关系
+
+```sql
+CREATE TABLE chat_friend (
+    id BIGINT NOT NULL,
+    user_id BIGINT NOT NULL,
+    friend_id BIGINT NOT NULL,
+    status TINYINT DEFAULT 1,
+    create_time DATETIME NOT NULL,
+    PRIMARY KEY (id),
+    UNIQUE KEY uk_friend (user_id, friend_id),
+    KEY idx_user_id (user_id)
+);
+```
+
+这里建议：
+
+```text
+A → B
+B → A
+```
+
+分别保存。
+
+这样查询好友列表简单很多。
+
+---
+
+# 七、群组
+
+```sql
+CREATE TABLE chat_group (
+    id BIGINT NOT NULL,
+    name VARCHAR(100) NOT NULL,
+    avatar VARCHAR(512),
+    owner_id BIGINT NOT NULL,
+    announcement VARCHAR(1000),
+    status TINYINT DEFAULT 1,
+    create_time DATETIME NOT NULL,
+    update_time DATETIME NOT NULL,
+    PRIMARY KEY (id)
+);
+```
+
+群成员：
+
+```sql
+CREATE TABLE chat_group_member (
+    id BIGINT NOT NULL,
+    group_id BIGINT NOT NULL,
+    user_id BIGINT NOT NULL,
+    role TINYINT DEFAULT 0,
+    mute_until DATETIME NULL,
+    join_time DATETIME NOT NULL,
+    PRIMARY KEY (id),
+    UNIQUE KEY uk_group_user (group_id, user_id),
+    KEY idx_group_id (group_id),
+    KEY idx_user_id (user_id)
+);
+```
+
+角色：
+
+```text
+0 普通成员
+1 管理员
+2 群主
+```
+
+---
+
+# 八、会话设计
+
+这个非常重要。
+
+不要把：
+
+```text
+好友
+群
+消息
+```
+
+混在一起。
+
+建立：
+
+```text
+conversation
+```
+
+概念。
+
+例如：
+
+```text
+A 和 B
+↓
+conversationId = c10001
+```
+
+群：
+
+```text
+群 10001
+↓
+conversationId = g10001
+```
+
+所以消息系统只需要认识：
+
+```text
+conversationId
+```
+
+---
+
+# 九、会话表
+
+```sql
+CREATE TABLE chat_conversation (
+    id BIGINT NOT NULL,
+    type TINYINT NOT NULL,
+    target_id BIGINT NOT NULL,
+    create_time DATETIME NOT NULL,
+    update_time DATETIME NOT NULL,
+    PRIMARY KEY (id),
+    UNIQUE KEY uk_type_target (type, target_id)
+);
+```
+
+例如：
+
+```text
+type = 1
+一对一
+
+type = 2
+群聊
+```
+
+---
+
+# 十、消息模型
+
+这是整个系统最重要的数据模型之一。
+
+统一定义：
+
+```json
+{
+  "messageId": "01K...",
+  "conversationId": "100001",
+  "senderId": 10001,
+  "messageType": "TEXT",
+  "content": "你好",
+  "clientTime": 1750000000000
+}
+```
+
+消息类型：
+
+```text
+TEXT
+IMAGE
+FILE
+AUDIO
+VIDEO
+SYSTEM
+```
+
+以后继续增加：
+
+```text
+RECALL
+REPLY
+FORWARD
+LOCATION
+CONTACT
+```
+
+---
+
+# 十一、WebSocket 消息协议
+
+一定要在项目早期就把协议定义好。
+
+客户端发送：
+
+```json
+{
+  "type": "MESSAGE_SEND",
+  "requestId": "req-10001",
+  "data": {
+    "conversationId": "10001",
+    "messageType": "TEXT",
+    "content": "你好"
+  }
+}
+```
+
+服务器返回：
+
+```json
+{
+  "type": "MESSAGE_ACK",
+  "requestId": "req-10001",
+  "data": {
+    "messageId": "msg-10001",
+    "status": "SENT"
+  }
+}
+```
+
+然后：
+
+```json
+{
+  "type": "MESSAGE_RECEIVE",
+  "data": {
+    "messageId": "msg-10001",
+    "conversationId": "10001",
+    "senderId": 10001,
+    "messageType": "TEXT",
+    "content": "你好",
+    "serverTime": 1750000000000
+  }
+}
+```
+
+---
+
+# 十二、WebSocket 协议建议统一格式
+
+以后所有 WebSocket 消息都采用：
+
+```json
+{
+  "type": "xxx",
+  "requestId": "xxx",
+  "data": {}
+}
+```
+
+例如：
+
+```text
+MESSAGE_SEND
+MESSAGE_ACK
+MESSAGE_RECEIVE
+
+MESSAGE_READ
+MESSAGE_RECALL
+
+GROUP_JOIN
+GROUP_LEAVE
+
+USER_ONLINE
+USER_OFFLINE
+
+PING
+PONG
+```
+
+以后音视频信令也可以复用这个体系：
+
+```text
+CALL_INVITE
+CALL_ACCEPT
+CALL_REJECT
+CALL_HANGUP
+
+RTC_OFFER
+RTC_ANSWER
+RTC_CANDIDATE
+```
+
+这样架构会非常整齐。
+
+---
+
+# 十三、Go Gateway 的核心结构
+
+建议：
+
+```text
+chat-gateway/
+│
+├── main.go
+│
+├── config/
+│   └── config.go
+│
+├── server/
+│   └── websocket.go
+│
+├── connection/
+│   ├── client.go
+│   ├── manager.go
+│   └── heartbeat.go
+│
+├── handler/
+│   ├── message.go
+│   ├── ping.go
+│   └── auth.go
+│
+├── router/
+│   └── router.go
+│
+├── redis/
+│   └── redis.go
+│
+└── model/
+    └── message.go
+```
+
+---
+
+# 十四、Connection Manager
+
+核心结构：
+
+```go
+type Client struct {
+    UserID         int64
+    DeviceID       string
+    ConnectionID   string
+    Conn           *websocket.Conn
+}
+```
+
+管理器：
+
+```go
+type ConnectionManager struct {
+    clients map[string]*Client
+}
+```
+
+但真正生产环境不要只用：
+
+```go
+map[userId]connection
+```
+
+因为一个用户可能：
+
+```text
+PC
+手机
+Web
+平板
+```
+
+同时在线。
+
+所以应该：
+
+```text
+User
+ ├── Device A
+ ├── Device B
+ └── Device C
+```
+
+---
+
+# 十五、WebSocket 心跳
+
+必须实现：
+
+```text
+客户端
+   │
+   │ PING
+   ▼
+服务器
+   │
+   │ PONG
+   ▼
+客户端
+```
+
+例如：
+
+```text
+30 秒
+```
+
+发送一次心跳。
+
+如果：
+
+```text
+连续 3 次
+没有响应
+```
+
+服务器关闭连接。
+
+否则很容易出现：
+
+> 用户已经断网，但服务器还认为他在线。
+
+---
+
+# 十六、Redis 在线状态
+
+例如：
+
+```text
+user:online:10001
+```
+
+保存：
+
+```json
+{
+  "gatewayId": "gateway-01",
+  "deviceId": "pc-001",
+  "connectionId": "conn-xxx"
+}
+```
+
+但是如果多设备：
+
+```text
+user:connections:10001
+```
+
+可以保存：
+
+```text
+conn-001
+conn-002
+conn-003
+```
+
+---
+
+# 十七、真正的消息发送流程
+
+最终：
+
+```text
+用户 A
+ │
+ │ WebSocket
+ ▼
+Go Gateway
+ │
+ │ 验证 JWT
+ ▼
+Message Router
+ │
+ ├── 消息合法性检查
+ │
+ ├── 权限检查
+ │
+ └── 生成 messageId
+ │
+ ▼
+Message Service
+ │
+ ├── Cassandra
+ │
+ └── RabbitMQ
+ │
+ ▼
+Redis
+ │
+ │ 查询 B 所在 Gateway
+ ▼
+Gateway B
+ │
+ ▼
+WebSocket
+ │
+ ▼
+用户 B
+```
+
+---
+
+# 十八、为什么消息不能只经过 Redis？
+
+例如：
+
+```text
+A → Redis → B
+```
+
+看起来简单。
+
+但是：
+
+```text
+Redis
+```
+
+不应该承担完整的消息持久化职责。
+
+因为你需要：
+
+```text
+消息历史
+消息可靠性
+消息查询
+消息分页
+消息重放
+消息审计
+```
+
+所以：
+
+```text
+Redis
+=
+实时状态
+
+Cassandra
+=
+消息历史
+```
+
+这个职责一定要分开。
+
+---
+
+# 十九、Cassandra 表设计
+
+可以先：
+
+```sql
+CREATE TABLE messages (
+    conversation_id text,
+    message_date date,
+    message_id timeuuid,
+    sender_id bigint,
+    message_type text,
+    content text,
+    create_time timestamp,
+    PRIMARY KEY (
+        (conversation_id, message_date),
+        message_id
+    )
+) WITH CLUSTERING ORDER BY (
+    message_id DESC
+);
+```
+
+为什么加：
+
+```text
+message_date
+```
+
+？
+
+因为一个超大群：
+
+```text
+conversation = 10001
+```
+
+可能产生几十亿条消息。
+
+不能让一个 Partition 无限增长。
+
+所以可以按照：
+
+```text
+conversation
++
+day
+```
+
+分区。
+
+例如：
+
+```text
+群10001
+2026-08-24
+
+群10001
+2026-08-25
+```
+
+---
+
+# 二十、消息分页
+
+查询：
+
+```text
+最新 50 条
+```
+
+↓
+
+```text
+conversationId
++
+date
++
+limit 50
+```
+
+然后客户端：
+
+```text
+向上滚动
+```
+
+继续查询上一页。
+
+不要使用：
+
+```text
+OFFSET 100000
+```
+
+这种关系数据库式分页。
+
+---
+
+# 二十一、RabbitMQ 第一版设计
+
+先不要复杂化。
+
+建立：
+
+```text
+chat.message
+```
+
+Exchange：
+
+```text
+chat.message.exchange
+```
+
+Queue：
+
+```text
+chat.message.persist
+chat.message.notify
+chat.message.audit
+```
+
+例如：
+
+```text
+                 Exchange
+                    │
+          ┌─────────┼─────────┐
+          ▼         ▼         ▼
+       persist    notify     audit
+          │         │         │
+          ▼         ▼         ▼
+      Cassandra   Push      Audit
+```
+
+---
+
+# 二十二、但是实时投递不要依赖 RabbitMQ
+
+最终：
+
+```text
+实时消息
+↓
+Redis + Gateway
+```
+
+而：
+
+```text
+RabbitMQ
+↓
+异步任务
+```
+
+这是一个非常重要的设计原则。
+
+---
+
+# 二十三、前端 Vue3
+
+前端：
+
+```text
+chat-web/
+│
+├── src/
+│   ├── api/
+│   ├── websocket/
+│   ├── stores/
+│   ├── router/
+│   ├── views/
+│   │   ├── login/
+│   │   ├── chat/
+│   │   ├── friends/
+│   │   └── group/
+│   │
+│   ├── components/
+│   │   ├── ChatList.vue
+│   │   ├── ChatMessage.vue
+│   │   ├── ChatInput.vue
+│   │   └── UserAvatar.vue
+│   │
+│   └── App.vue
+```
+
+---
+
+# 二十四、前端 WebSocket 不要直接写在组件里面
+
+不要：
+
+```vue
+<script setup>
+const ws = new WebSocket(...)
+</script>
+```
+
+到处创建。
+
+应该：
+
+```text
+websocket/
+├── client.ts
+├── protocol.ts
+├── reconnect.ts
+└── heartbeat.ts
+```
+
+然后：
+
+```ts
+const ws = useWebSocket()
+```
+
+统一管理。
+
+---
+
+# 二十五、WebSocket 状态机
+
+前端应该有：
+
+```text
+DISCONNECTED
+      ↓
+CONNECTING
+      ↓
+CONNECTED
+      ↓
+DISCONNECTING
+      ↓
+DISCONNECTED
+      ↓
+RECONNECTING
+```
+
+自动重连：
+
+```text
+1 秒
+2 秒
+4 秒
+8 秒
+16 秒
+```
+
+最大：
+
+```text
+30 秒
+```
+
+避免服务器挂掉以后：
+
+```text
+10000 个客户端
+同时疯狂重连
+```
+
+把服务器再次冲垮。
+
+---
+
+# 二十六、第一版页面
+
+先做 5 个页面：
+
+```text
+/login
+
+/register
+
+/chat
+
+/friends
+
+/group
+```
+
+聊天页面：
+
+```text
+┌────────────────────────────────────┐
+│             Chat                    │
+├────────────┬───────────────────────┤
+│ 会话列表    │       聊天窗口        │
+│            │                       │
+│ 张三        │ 张三                  │
+│ 李四        │                       │
+│ 群聊        │ 你好                  │
+│            │                  你好 │
+│            │                       │
+│            ├───────────────────────┤
+│            │ 输入消息...     [发送] │
+└────────────┴───────────────────────┘
+```
+
+---
+
+# 二十七、第一阶段开发 Sprint
+
+我建议按照下面执行。
+
+## Sprint 1
+
+```text
+Day 1
+项目初始化
+Docker
+Git
+README
+
+Day 2
+MySQL
+Redis
+Spring Boot
+
+Day 3
+用户注册
+
+Day 4
+用户登录
+JWT
+
+Day 5
+Vue 登录
+```
+
+---
+
+## Sprint 2
+
+```text
+Day 6
+Go Gateway
+
+Day 7
+WebSocket
+
+Day 8
+JWT WebSocket 鉴权
+
+Day 9
+心跳
+
+Day 10
+断线重连
+```
+
+---
+
+## Sprint 3
+
+```text
+Day 11
+Redis 在线状态
+
+Day 12
+一对一消息
+
+Day 13
+消息 ACK
+
+Day 14
+消息历史
+
+Day 15
+Cassandra
+```
+
+---
+
+## Sprint 4
+
+```text
+Day 16
+好友
+
+Day 17
+群组
+
+Day 18
+群成员
+
+Day 19
+群聊
+
+Day 20
+群权限
+```
+
+---
+
+## Sprint 5
+
+```text
+Day 21
+RabbitMQ
+
+Day 22
+离线消息
+
+Day 23
+未读消息
+
+Day 24
+消息已读
+
+Day 25
+消息撤回
+```
+
+---
+
+## Sprint 6
+
+```text
+Day 26
+图片
+
+Day 27
+文件
+
+Day 28
+消息优化
+
+Day 29
+压力测试
+
+Day 30
+Bug 修复
+```
+
+---
+
+# 二十八、30 天以后
+
+第一版完成以后，再进入：
+
+```text
+V1.1
+```
+
+增加：
+
+```text
+语音消息
+视频消息
+表情
+回复
+转发
+@用户
+消息搜索
+消息引用
+```
+
+然后：
+
+```text
+V2.0
+```
+
+开始：
+
+```text
+WebRTC
+```
+
+---
+
+# 二十九、V2.0 音视频架构
+
+这时候增加：
+
+```text
+                    Chat Server
+                         │
+                         │ WebSocket
+                         ▼
+                     Signaling
+                         │
+                         ▼
+                       LiveKit
+                    ┌────┼────┐
+                    ▼    ▼    ▼
+                    A    B    C
+```
+
+Go 负责：
+
+```text
+创建房间
+生成 Token
+权限控制
+邀请成员
+通话状态
+```
+
+LiveKit 负责：
+
+```text
+音频
+视频
+屏幕共享
+媒体转发
+```
+
+这样非常干净。
+
+---
+
+# 三十、V3.0 远程控制
+
+最后：
+
+```text
+Chat Client
+     │
+     ▼
+Call Service
+     │
+     ▼
+WebRTC
+     │
+     ▼
+Remote Agent
+     │
+     ├── Screen Capture
+     ├── Encoder
+     ├── Mouse
+     └── Keyboard
+```
+
+并且增加：
+
+```text
+CONTROL_REQUEST
+CONTROL_ACCEPT
+CONTROL_REJECT
+CONTROL_STOP
+```
+
+---
+
+# 三十一、整个项目最终演进
+
+你可以把项目理解成：
+
+```text
+V1.0
+文字聊天
+   ↓
+V1.1
+文件/图片/群管理
+   ↓
+V1.2
+消息可靠性/集群
+   ↓
+V2.0
+WebRTC
+   ↓
+V2.1
+多人语音
+   ↓
+V2.2
+多人视频
+   ↓
+V2.3
+屏幕共享
+   ↓
+V3.0
+远程控制
+   ↓
+V3.1
+高可用
+   ↓
+V3.2
+万人在线
+```
+
+---
+
+# 三十二、现在你真正应该做的事情
+
+**不要从 WebSocket 代码开始。**
+
+先完成这 4 件事：
+
+```text
+① 创建 Git 仓库
+
+② 创建目录结构
+
+③ Docker 启动
+   MySQL
+   Redis
+   RabbitMQ
+   Cassandra
+   MinIO
+   Consul
+
+④ Spring Boot 4 + Vue3 + Go Gateway
+   三个项目跑起来
+```
+
+完成后，第一个真正的里程碑就是：
+
+```text
+浏览器
+   │
+   │ 登录
+   ▼
+Spring Boot
+   │
+   │ JWT
+   ▼
+Vue
+   │
+   │ WebSocket
+   ▼
+Go Gateway
+   │
+   ▼
+Redis
+```
+
+**这一条链路跑通后，再开始写消息。**
+
+---
+
+## 我建议下一步直接进入「实战第 1 步」
+
+下一版不要再讲理论了，直接开始搭项目：
+
+```text
+第 1 部分：创建完整项目目录
+第 2 部分：docker-compose.yml
+第 3 部分：MySQL 初始化 SQL
+第 4 部分：Redis 配置
+第 5 部分：RabbitMQ 配置
+第 6 部分：Cassandra 配置
+第 7 部分：Consul 配置
+第 8 部分：Spring Boot 4 chat-user 完整代码
+第 9 部分：Vue3 chat-web 完整代码
+第 10 部分：Go chat-gateway 完整代码
+第 11 部分：JWT 登录
+第 12 部分：WebSocket JWT 鉴权
+第 13 部分：浏览器成功建立 WebSocket
+```
+
+这样你可以**直接复制代码开始跑**，而不是继续停留在架构设计阶段。

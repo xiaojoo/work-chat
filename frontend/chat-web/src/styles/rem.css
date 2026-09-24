@@ -1,0 +1,46 @@
+/* 
+ * Rem 单位转换
+ * 基准：1rem = 16px（浏览器默认）
+ * 转换公式：px / 16 = rem
+ */
+
+:root {
+  /* 间距 */
+  --spacing-xs: 0.25rem;    /* 4px */
+  --spacing-sm: 0.375rem;   /* 6px */
+  --spacing-md: 0.5rem;     /* 8px */
+  --spacing-base: 0.625rem; /* 10px */
+  --spacing-lg: 0.75rem;    /* 12px */
+  --spacing-xl: 1rem;       /* 16px */
+  --spacing-2xl: 1.25rem;   /* 20px */
+  --spacing-3xl: 2.5rem;    /* 40px */
+
+  /* 字体大小 */
+  --font-xs: 0.6875rem;     /* 11px */
+  --font-sm: 0.75rem;       /* 12px */
+  --font-base: 0.8125rem;   /* 13px */
+  --font-md: 0.875rem;      /* 14px */
+  --font-lg: 3rem;          /* 48px */
+
+  /* 圆角 */
+  --radius-sm: 0.25rem;     /* 4px */
+  --radius-md: 0.5rem;      /* 8px */
+  --radius-lg: 0.625rem;    /* 10px */
+  --radius-full: 9999px;    /* 圆形 */
+
+  /* 宽度 */
+  --width-sidebar: 20rem;   /* 320px */
+  --width-dialog-sm: 25rem; /* 400px */
+  --width-dialog-md: 31.25rem; /* 500px */
+  --width-avatar: 2.5rem;   /* 40px */
+  --width-input: 0.625rem;  /* 10px */
+
+  /* 高度 */
+  --height-avatar: 2.5rem;  /* 40px */
+  --height-badge: 1.25rem;  /* 20px */
+
+  /* 边框 */
+  --border-width: 1px;
+  --border-triangle: 0.375rem; /* 6px */
+  --border-triangle-sm: 0.3125rem; /* 5px */
+}

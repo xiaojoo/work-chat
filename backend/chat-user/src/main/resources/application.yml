@@ -1,0 +1,45 @@
+server:
+  port: 8081
+
+spring:
+  security:
+    user:
+      name: admin
+      password: admin
+  application:
+    name: chat-user
+
+  datasource:
+    url: jdbc:postgresql://172.20.70.38:5432/chat
+    username: postgres
+    password: 123456
+    driver-class-name: org.postgresql.Driver
+
+  jpa:
+    open-in-view: false
+    hibernate:
+      ddl-auto: validate
+    show-sql: false
+    properties:
+      hibernate:
+        format_sql: true
+
+  data:
+    redis:
+      host: localhost
+      port: 6379
+      password: redis123456
+
+jwt:
+  secret: ${JWT_SECRET:chat-system-jwt-secret-key-must-be-at-least-256-bits-long-for-hs256}
+  access-token-expiration: 86400000
+  refresh-token-expiration: 604800000
+
+# 服务间短期令牌的密钥，必须与 chat-gateway 的 INTERNAL_JWT_SECRET 一致；
+# 不配置则内部令牌一律校验失败（浏览器 Bearer 仍可用）
+internal:
+  jwt:
+    secret: ${INTERNAL_JWT_SECRET:}
+
+group-service:
+  url: ${GROUP_SERVICE_URL:http://localhost:8084}
