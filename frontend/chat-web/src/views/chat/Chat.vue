@@ -30,6 +30,8 @@
       </div>
     </nav>
 
+    <!-- ②③④ 三栏合起来是一张圆角卡片：靠外层底色透出 5px 右边/下边缝隙，栏与栏之间不再画线 -->
+    <div class="body-row">
     <!-- ② 列表栏 -->
     <aside class="side">
       <header class="side-head">
@@ -43,13 +45,6 @@
         </div>
       </header>
 
-      <div class="side-tabs">
-        <button class="stab" :class="{ on: activeTab === 'chat' }" @click="activeTab = 'chat'">全部</button>
-        <button class="stab" :class="{ on: activeTab === 'friend' }" @click="activeTab = 'friend'">联系人</button>
-        <button class="stab" :class="{ on: activeTab === 'group' }" @click="activeTab = 'group'">群组</button>
-        <span class="stab demo">＋ 文件 · 任务 · AI</span>
-      </div>
-
       <div class="side-search">
         <span class="ss-ico">⌕</span>
         <input v-model="listSearch" :id="listSearchId" name="list-search" class="ss-input" type="text"
@@ -58,54 +53,28 @@
       </div>
 
       <div class="side-body">
-        <!-- 真实会话 -->
+        <!-- 真实会话：项目频道=群，最近联系人=单聊，都来自后端会话列表，不再摆演示数据 -->
         <template v-if="activeTab === 'chat'">
-          <div v-for="conv in filteredConversations" :key="conv.id" class="row"
-               :class="{ active: currentConversation?.id === conv.id }"
-               @click="selectConversation(conv)" @contextmenu.prevent.stop="openConvMenu($event, conv)">
-            <div class="ava" :class="{ group: conv.type === 2 }">
-              <img v-if="conv.avatar" :src="conv.avatar" alt="" />
-              <span v-else>{{ conv.name?.charAt(0)?.toUpperCase() }}</span>
-            </div>
-            <div class="row-main">
-              <div class="row-top">
-                <span class="row-name">{{ conv.name }}</span>
-                <span class="row-time">{{ formatConvTime(conv.lastMessageTime) }}</span>
+          <template v-for="sec in convSections" :key="sec.title">
+            <div v-if="sec.list.length" class="sec"><span>{{ sec.title }}</span></div>
+            <div v-for="conv in sec.list" :key="conv.id" class="row"
+                 :class="{ active: currentConversation?.id === conv.id }"
+                 @click="selectConversation(conv)" @contextmenu.prevent.stop="openConvMenu($event, conv)">
+              <div class="ava" :class="{ group: conv.type === 2 }">
+                <img v-if="conv.avatar" :src="conv.avatar" alt="" />
+                <span v-else>{{ conv.name?.charAt(0)?.toUpperCase() }}</span>
               </div>
-              <div class="row-last">{{ getConvLastMessage(conv) }}</div>
-            </div>
-            <div v-if="conv.unreadCount > 0" class="row-badge">{{ conv.unreadCount > 99 ? '99+' : conv.unreadCount }}</div>
-          </div>
-
-          <div class="sec">
-            <span>项目频道</span><span class="sec-demo">演示</span>
-          </div>
-          <div v-for="ch in mockChannels" :key="ch.id" class="row is-demo">
-            <div class="ava group">{{ ch.name.charAt(0) }}</div>
-            <div class="row-main">
-              <div class="row-top">
-                <span class="row-name">{{ ch.name }}</span>
-                <span class="row-time">{{ ch.time }}</span>
+              <div class="row-main">
+                <div class="row-top">
+                  <span class="row-name">{{ conv.name }}</span>
+                  <span class="row-time">{{ formatConvTime(conv.lastMessageTime) }}</span>
+                </div>
+                <div class="row-last">{{ getConvLastMessage(conv) }}</div>
               </div>
-              <div class="row-last">{{ ch.last }}</div>
+              <div v-if="conv.unreadCount > 0" class="row-badge">{{ conv.unreadCount > 99 ? '99+' : conv.unreadCount }}</div>
             </div>
-            <div v-if="ch.unread" class="row-badge">{{ ch.unread }}</div>
-          </div>
-
-          <div class="sec">
-            <span>最近联系人</span><span class="sec-demo">演示</span>
-          </div>
-          <div v-for="c in mockContacts" :key="c.id" class="row is-demo">
-            <div class="ava">{{ c.name.charAt(0) }}</div>
-            <div class="row-main">
-              <div class="row-top">
-                <span class="row-name">{{ c.name }}</span>
-                <span class="row-time">{{ c.time }}</span>
-              </div>
-              <div class="row-last">{{ c.last }}</div>
-            </div>
-            <div v-if="c.unread" class="row-badge">{{ c.unread }}</div>
-          </div>
+          </template>
+          <div v-if="!filteredConversations.length" class="list-empty">暂无会话</div>
         </template>
 
         <!-- 真实好友：按姓名首字母分组，右侧常驻 A-Z 索引（和群组共用 AlphaList） -->
@@ -153,35 +122,26 @@
     </aside>
 
     <!-- ③ 会话主区 -->
-    <main class="main" :class="{ 'no-drawer': !drawerOpen }">
-      <header class="m-head">
+    <main class="main" :class="{ 'no-drawer': !drawerShown }">
+      <header v-if="currentConversation" class="m-head">
         <div class="mh-title">
-          <span class="mh-hash">#</span>
-          <span class="mh-name">{{ currentConversation?.name || '产品内容' }}</span>
-          <span v-if="!currentConversation" class="tag-demo">演示</span>
+          <span v-if="currentConversation?.type === 2" class="mh-hash">#</span>
+          <span class="mh-name">{{ currentConversation?.name || '' }}</span>
         </div>
-        <div class="mh-sub">
-          {{ currentConversation?.type === 2 && groupMembers.length ? groupMembers.length + ' 位成员' : '24 人 · 3 个项目' }}
-        </div>
-        <div class="mh-stack">
-          <span v-for="m in memberStack" :key="m.id" class="stack-ava" :style="{ background: m.color }">{{ m.name.charAt(0) }}</span>
-          <span class="stack-more">+8</span>
+        <div class="mh-sub">{{ headSub }}</div>
+        <!-- 叠放头像取真实群成员（名字走 loadMemberNames 的缓存）；单聊没成员可摆，整块不出现，
+             原来那三个假头像和写死的 +8 一起删了 -->
+        <div v-if="memberStackReal.length" class="mh-stack">
+          <span v-for="m in memberStackReal" :key="m.userId" class="stack-ava">{{ m.ch }}</span>
+          <span v-if="memberStackMore" class="stack-more">+{{ memberStackMore }}</span>
         </div>
         <div class="mh-acts">
-          <button v-if="currentConversation?.type === 2" class="mh-btn" @click="toggleGroupDetail(currentConversation.targetId)">群设置</button>
           <button v-if="currentConversation?.type === 1" class="mh-btn" @click="toggleFriendDetail">详情</button>
           <button class="mh-btn icon" @click="drawerOpen = !drawerOpen" :title="drawerOpen ? '收起详情' : '内容详情'">☰</button>
         </div>
       </header>
 
-      <div class="m-tabs">
-        <button v-for="t in convTabs" :key="t.key" class="mtab" :class="{ on: convTab === t.key }" @click="convTab = t.key">
-          {{ t.label }}<span v-if="t.count" class="mtab-n">{{ t.count }}</span>
-          <span v-if="!t.real" class="tag-demo">演示</span>
-        </button>
-      </div>
-
-      <div v-if="convTab === 'chat'" class="m-body" ref="messagesRef" @contextmenu.prevent="openBgMenu($event)">
+      <div class="m-body" ref="messagesRef" @contextmenu.prevent="openBgMenu($event)">
         <!-- 有真实消息走真实 -->
         <template v-if="currentConversation && messages.length">
           <template v-for="(msg, index) in messages" :key="msg.messageId">
@@ -219,63 +179,16 @@
           </template>
         </template>
 
-        <!-- 没有真实会话时，用演示线程把版式铺开 -->
-        <div v-else class="demo-thread">
-          <div class="day-split"><span>九月廿二 · 周二</span></div>
-          <div class="msg">
-            <div class="msg-ava" style="background:#2b6be8">张</div>
-            <div class="msg-main">
-              <div class="msg-who">张三 <span class="msg-time">21:08</span></div>
-              <div class="msg-line"><div class="bubble"><span class="b-txt">我已经更新了首页的文案，版本是 V2.4，具体内容见附件。</span></div></div>
-              <div class="file-card">
-                <div class="fc-top">
-                  <span class="fc-ico">MD</span>
-                  <div class="fc-meta">
-                    <div class="fc-name">{{ mockFileMessage.name }}</div>
-                    <div class="fc-sub">{{ mockFileMessage.size }} · {{ mockFileMessage.kind }} · {{ mockFileMessage.updated }}</div>
-                  </div>
-                  <span class="tag-demo">演示</span>
-                </div>
-                <div class="fc-acts">
-                  <button class="fc-btn" @click="drawerOpen = true">查看内容</button>
-                  <button class="fc-btn">创建任务</button>
-                  <button class="fc-btn icon">···</button>
-                </div>
-              </div>
-            </div>
-          </div>
-          <div class="msg">
-            <div class="msg-ava" style="background:#1f9d55">李</div>
-            <div class="msg-main">
-              <div class="msg-who">李四 <span class="msg-time">21:11</span></div>
-              <div class="msg-line"><div class="bubble"><span class="b-txt"><span class="mention">@张三</span> 这个版本的首页文案感觉还可以再优化一下，第二段感觉有点长，需要再压缩一下。</span></div></div>
-            </div>
-          </div>
-          <div class="msg">
-            <div class="msg-ava ai">AI</div>
-            <div class="msg-main">
-              <div class="msg-who">AI 助手 <span class="msg-time">21:12</span></div>
-              <div class="ai-card">
-                <div class="ac-head"><span class="ac-title">内容优化建议</span><span class="tag-demo">演示</span></div>
-                <ol class="ac-list"><li v-for="(s, i) in mockAiMessage.items" :key="i">{{ s }}</li></ol>
-                <div class="ac-acts"><button class="ac-btn primary">优化内容</button><button class="ac-btn">查看分析</button></div>
-              </div>
-            </div>
-          </div>
-          <div class="msg">
-            <div class="msg-ava" style="background:#e08a1e">王</div>
-            <div class="msg-main">
-              <div class="msg-who">王五 <span class="msg-time">21:15</span></div>
-              <div class="msg-line"><div class="bubble"><span class="b-txt">我同意李四的观点，建议我们再加一个数据支撑，这样会更有说服力。</span></div></div>
-            </div>
-          </div>
-          <div class="msg self">
-            <div class="msg-main">
-              <div class="msg-who"><span class="who-name">{{ userStore.username || '我' }}</span><span class="msg-time">21:22</span></div>
-              <div class="msg-line"><div class="bubble"><span class="b-txt"><span class="mention">@AI 助手</span> 帮我生成 3 个不同风格的首页文案版本，保持品牌调性一致。</span></div></div>
-            </div>
-            <div class="msg-ava self">{{ (userStore.username || '我').charAt(0).toUpperCase() }}</div>
-          </div>
+        <!-- 没有可显示的消息：只放一个灰色占位图形，不再铺演示对话 -->
+        <div v-else class="m-empty">
+          <svg viewBox="0 0 84 66" width="84" height="66" aria-hidden="true">
+            <rect x="2" y="6" width="52" height="38" rx="12" />
+            <path d="M16 44v12l13-12z" />
+            <circle class="eye" cx="16" cy="25" r="3.4" /><circle class="eye" cx="26" cy="25" r="3.4" /><circle class="eye" cx="36" cy="25" r="3.4" />
+            <rect x="40" y="24" width="42" height="30" rx="10" />
+            <path d="M68 54v10l-11-10z" />
+            <circle class="eye" cx="53" cy="39" r="3" /><circle class="eye" cx="61" cy="39" r="3" /><circle class="eye" cx="69" cy="39" r="3" />
+          </svg>
         </div>
       </div>
 
@@ -293,15 +206,7 @@
         </div>
       </div>
 
-      <!-- 文件 / 任务 / AI结果：后端没有列表接口，只把版式摆出来 -->
-      <div v-else class="m-panel">
-        <div class="panel-demo">
-          <span class="tag-demo big">演示</span>
-          <p>「{{ convTabs.find(t => t.key === convTab)?.label }}」还没有后端接口，这里只有版式。</p>
-        </div>
-      </div>
-
-      <footer class="m-input" :class="{ rzging: rzOn }" @dragover.prevent="isDragging = true" @dragleave.prevent="isDragging = false" @drop.prevent="handleDrop">
+      <footer v-if="currentConversation" class="m-input" :class="{ rzging: rzOn }" @dragover.prevent="isDragging = true" @dragleave.prevent="isDragging = false" @drop.prevent="handleDrop">
         <div v-if="isDragging" class="drop-mask"><div class="drop-ico">📎</div><div>松开鼠标上传文件</div></div>
         <div class="rz">
           <span class="rz-grip" role="separator" aria-orientation="horizontal" tabindex="0"
@@ -340,7 +245,7 @@
     </main>
 
     <!-- ④ 右侧内容详情抽屉 -->
-    <aside v-if="drawerOpen" class="drawer">
+    <aside v-if="drawerShown" class="drawer">
       <div class="dw-tabs">
         <button class="dwt" :class="{ on: dwTab === 'doc' }" @click="dwTab = 'doc'">内容详情</button>
         <button class="dwt" :class="{ on: dwTab === 'member' }" @click="dwTab = 'member'">成员</button>
@@ -401,78 +306,77 @@
         </div>
       </div>
 
-      <div v-else class="dw-body">
-        <div class="dw-sec">群成员<span class="dw-sec-n">{{ groupMembers.length }} 人</span></div>
-        <div v-if="!groupMembers.length" class="list-empty">选择一个群聊会话后这里会有真实成员</div>
-        <div v-for="m in groupMembers" :key="m.userId" class="mem" @click="showUserInfo(m.userId)">
-          <span class="mem-ava">{{ (m.nickname || m.username || ('U' + m.userId)).charAt(0).toUpperCase() }}</span>
-          <span class="mem-name">{{ m.nickname || m.username || ('用户' + m.userId) }}</span>
-          <span v-if="m.role === 2" class="mem-role">群主</span>
-          <span v-else-if="m.role === 1" class="mem-role">管理员</span>
-        </div>
+      <div v-else class="dw-body gs">
+        <!-- 布局照微信「聊天信息」那一页：搜索 → 成员宫格（末尾添加/移出两块）→ 标签+值+箭头的行 → 居中的文字按钮。
+             只列后端真有的能力：参考图里的 备注 / 我在本群的昵称 / 群二维码 / 进群验证 / 置顶 / 免打扰 /
+             保存到通讯录 / 显示群成员昵称 都没有接口（置顶和免打扰只是内存里的标记，刷新就没了），
+             所以不照抄文案摆一排假开关 -->
+        <template v-if="selectedGroup">
+          <div class="gs-search">
+            <span class="gs-ico">⌕</span>
+            <input v-model="groupMemberSearchText" id="member-search-inline" name="memberSearchInline"
+                   type="text" placeholder="搜索群成员" autocomplete="off" />
+            <span v-if="groupMemberSearchText" class="gs-clear" @click="groupMemberSearchText = ''">✕</span>
+          </div>
+
+          <div class="gs-grid">
+            <div v-for="m in filteredGroupMembers" :key="m.userId" class="gs-cell"
+                 :class="{ picking: removeMode && canRemoveMember(m) }" @click="onMemberCell(m)">
+              <div class="gs-ava">
+                <span class="gs-init">{{ (getMemberNameSync(m.userId) || ('U' + m.userId)).charAt(0).toUpperCase() }}</span>
+                <span v-if="removeMode && canRemoveMember(m)" class="gs-minus"><Minus theme="outline" size="11" /></span>
+                <span v-else-if="!removeMode && m.role === 2" class="gs-tag owner">群主</span>
+                <span v-else-if="!removeMode && m.role === 1" class="gs-tag admin">管理员</span>
+              </div>
+              <div class="gs-name">{{ getMemberNameSync(m.userId) || '用户 ' + m.userId }}</div>
+            </div>
+            <button type="button" class="gs-tile" title="邀请成员" @click="openAddMembers">
+              <span class="gs-box">＋</span><em>添加</em>
+            </button>
+            <button type="button" class="gs-tile" :class="{ on: removeMode }" title="移出成员"
+                    :disabled="!groupMembers.some(m => canRemoveMember(m))" @click="removeMode = !removeMode">
+              <span class="gs-box">－</span><em>移出</em>
+            </button>
+          </div>
+          <div v-if="!filteredGroupMembers.length" class="list-empty">{{ groupMembers.length ? '没有匹配的成员' : '这个群还没有成员' }}</div>
+
+          <!-- 群聊名称 / 群公告：PUT /group/{id} 真的收 name、announcement。
+               做成常驻表单而不是"点行展开"：名称必填带红星，两个框各带字数计数器 -->
+          <div class="gs-form">
+            <div class="gs-field">
+              <div class="gs-lab">群聊名称<span class="gs-req">＊</span></div>
+              <div class="gs-field-box">
+                <input v-model="groupNameDraft" class="gs-in" type="text" maxlength="50" autocomplete="off"
+                       :disabled="!canEditGroupInfo" placeholder="例如：产品策划讨论群" />
+                <span class="gs-count">{{ (groupNameDraft || '').length }}/50</span>
+              </div>
+            </div>
+            <div class="gs-field">
+              <div class="gs-lab">群公告<span class="gs-opt">（选填）</span></div>
+              <div class="gs-field-box ta">
+                <textarea v-model="groupAnnDraft" class="gs-in" rows="3" maxlength="200"
+                          :disabled="!canEditGroupInfo" placeholder="简要描述群聊的用途和规则..."></textarea>
+                <span class="gs-count">{{ (groupAnnDraft || '').length }}/200</span>
+              </div>
+            </div>
+            <!-- 没改动、或者没权限（后端要 role>=1）时置灰不消失 -->
+            <button class="btn btn-primary gs-save" :disabled="!canEditGroupInfo || !groupDirty" @click="saveGroupInfo">保存</button>
+            <div v-if="!canEditGroupInfo" class="gs-note">只有群主和管理员能改群名称和群公告</div>
+          </div>
+
+          <div class="gs-btns">
+            <button v-if="currentConversation && isConversationCleared(currentConversation.id)"
+                    class="btn btn-neutral" @click="restoreGroupHistory">恢复聊天记录</button>
+            <button v-else class="btn btn-neutral" @click="clearGroupHistory">清空聊天记录</button>
+            <button v-if="String(selectedGroup.ownerId) === String(userStore.userId)"
+                    class="btn btn-danger" @click="handleDissolveGroup">解散群聊</button>
+            <button v-else class="btn btn-danger" @click="handleLeaveGroup">退出群聊</button>
+          </div>
+        </template>
+        <div v-else class="list-empty">单聊没有群成员，选一个群聊会话后这里会有成员和群设置</div>
       </div>
     </aside>
 
-
-    <!-- 群设置面板（第三栏） -->
-    <div v-if="showGroupDetail && selectedGroup" class="group-panel">
-      <div class="group-panel-header">
-        <span class="group-panel-title">群设置</span>
-        <button class="btn btn-link btn-sm" @click="showGroupDetail = false">✕</button>
-      </div>
-      <div class="group-panel-body">
-        <div class="group-detail-header">
-          <div class="avatar s40">{{ selectedGroup.name?.charAt(0)?.toUpperCase() }}</div>
-          <div>
-            <h4>{{ selectedGroup.name }}</h4>
-            <p>群成员: {{ selectedGroup.memberCount }}人</p>
-          </div>
-        </div>
-
-        <div class="divider"></div>
-
-        <div class="group-actions">
-          <button class="btn btn-primary btn-sm" @click="openAddMembers">邀请成员</button>
-          <button v-if="String(selectedGroup.ownerId) === String(userStore.userId)" class="btn btn-danger btn-sm" @click="handleDissolveGroup">解散群聊</button>
-          <button v-else class="btn btn-danger btn-sm" @click="handleLeaveGroup">退出群</button>
-        </div>
-
-        <div class="divider"></div>
-
-        <div class="group-member-header">
-          <h4>群成员</h4>
-          <div class="input-wrap group-member-search">
-            <span class="input-ico">⌕</span>
-            <input
-              v-model="groupMemberSearchText"
-              id="member-search-inline"
-              name="memberSearchInline"
-              class="input"
-              type="text"
-              placeholder="搜索成员..."
-              autocomplete="off"
-            />
-            <span v-if="groupMemberSearchText" class="input-clear" @click="groupMemberSearchText = ''">✕</span>
-          </div>
-        </div>
-        <div class="group-member-list">
-          <div v-for="member in filteredGroupMembers" :key="member.userId" class="group-member-item">
-            <div class="avatar s32 member-avatar-btn" @click="showMemberInfo(member)">{{ getMemberNameSync(member.userId)?.charAt(0)?.toUpperCase() || '?' }}</div>
-            <span class="member-name">{{ getMemberNameSync(member.userId) || '用户 ' + member.userId }}</span>
-            <span v-if="member.role === 2" class="tag tag-warning">群主</span>
-            <span v-else-if="member.role === 1" class="tag tag-success">管理员</span>
-            <div
-              v-if="canRemoveMember(member)"
-              class="member-remove-wrap"
-              @click="handleRemoveMember(member)"
-            >
-              <Minus theme="outline" size="14" class="member-remove-icon" />
-              <span class="nb-tooltip">移出群聊</span>
-            </div>
-          </div>
-        </div>
-      </div>
-    </div>
 
     <!-- 消息操作菜单 -->
     <div
@@ -595,6 +499,7 @@
           </div>
         </div>
       </div>
+    </div>
     </div>
 
     <!-- 添加好友：复用「添加用户」的组织树选择器（旧的关键词搜索弹窗已删） -->
@@ -804,7 +709,7 @@ import { useTokenValidation } from '../../composables/useTokenValidation'
 import { notifyDesktop } from '../../config'
 import { getConversationList, createConversation, clearUnread, deleteConversation } from '../../api/conversation'
 import { getFriendList, addFriend, removeFriend, checkFriend } from '../../api/friend'
-import { createGroup, getMyGroups, getGroup, getGroupMembers, inviteMembers, removeMember, leaveGroup, dissolveGroup } from '../../api/group'
+import { createGroup, getMyGroups, getGroup, getGroupMembers, inviteMembers, removeMember, leaveGroup, dissolveGroup, updateGroup } from '../../api/group'
 import { getUserProfile, searchUser, searchUsersByKeyword, updateProfile, getMe, getOrg, getOnline } from '../../api/user'
 import { uploadFile, fileObjectUrl, parseFileRef, previewOf } from '../../api/file'
 import CreateGroupModal from '../../components/CreateGroupModal.vue'
@@ -813,10 +718,7 @@ import SettingsModal from '../../components/SettingsModal.vue'
 import AlphaList from '../../components/AlphaList.vue'
 import { toast, confirmBox } from '../../utils/ui'
 import { Minus, PictureOne, FolderUpload, MessageEmoji, Scissors, Mail, MicrophoneOne, People, History, Down, Pin, MessageUnread, Mute, Windows, PreviewClose, Delete, Copy, Clipboard } from '@icon-park/vue-next'
-import {
-  mockChannels, mockContacts, mockFileMessage, mockAiMessage,
-  convTabs, memberStack, docDetail, docPreview, docTasks, docScores, docRelated
-} from '../../mock/workbench'
+import { docDetail, docPreview, docTasks, docScores, docRelated } from '../../mock/workbench'
 
 const router = useRouter()
 
@@ -942,9 +844,24 @@ const headSub = computed(() => {
   return '私聊'
 })
 
-// 会话页签与右侧抽屉：文件/任务/AI结果 三块还没有接口，只用于铺开版式
-const convTab = ref('chat')
+/* 会话列表两段：项目频道=群会话，最近联系人=单聊，都来自后端 /conversation/list，
+   顺序沿用后端返回（按最后一条时间），搜索框过滤后哪段空了就不出现哪段 */
+const convSections = computed(() => [
+  { title: '项目频道', list: filteredConversations.value.filter(c => c.type === 2) },
+  { title: '最近联系人', list: filteredConversations.value.filter(c => c.type !== 2) },
+])
+/* 头部叠放头像：取真实群成员前 3 个，超过 3 个才出现 +N（原来那三个假头像和写死的 +8 已删） */
+const memberStackReal = computed(() => {
+  if (currentConversation.value?.type !== 2) return []
+  return groupMembers.value.slice(0, 3).map(m => ({
+    userId: m.userId, ch: (getMemberNameSync(m.userId) || '?').charAt(0).toUpperCase()
+  }))
+})
+const memberStackMore = computed(() => Math.max(0, groupMembers.value.length - memberStackReal.value.length))
 const drawerOpen = ref(true)
+/* 没选中会话时：标题栏、输入框、右侧抽屉一起不出现，主区只剩那枚占位图形。
+   抽屉跟着关还有个原因——☰ 在标题栏里，标题栏没了就只剩抽屉自己那个 ✕ 能关它，开不了也回不来 */
+const drawerShown = computed(() => drawerOpen.value && !!currentConversation.value)
 const dwTab = ref('doc')
 
 // 添加好友（用 AddMembersModal 的组织树选择器）
@@ -953,8 +870,7 @@ const showAddFriend = ref(false)
 // 创建群
 const showCreateGroup = ref(false)
 
-// 群详情
-const showGroupDetail = ref(false)
+// 群详情（抽屉的「成员」页签用）
 const selectedGroup = ref(null)
 const groupMembers = ref([])
 const groupMemberSearchText = ref('')
@@ -1171,7 +1087,7 @@ function jumpToTick(m) {
 }
 const queueMeasure = () => { if (msgRaf) return; msgRaf = requestAnimationFrame(() => { msgRaf = 0; measureMsgs() }) }
 
-watch([messages, currentConversation, convTab], () => nextTick(measureMsgs))
+watch([messages, currentConversation], () => nextTick(measureMsgs))
 
 onMounted(() => {
   nextTick(measureMsgs)
@@ -1375,32 +1291,33 @@ async function loadGroups() {
 async function selectConversation(conv) {
   currentConversation.value = conv
   messages.value = []
+  // 抽屉「成员」页签的两个临时态不该跟着换会话留下来：正在勾选移出、正在改群名
+  removeMode.value = false
+  groupMemberSearchText.value = ''
   localStorage.setItem('chat_currentConversation', String(conv.id))
   // 清除未读数
   conv.unreadCount = 0
   clearUnread(String(conv.id))
   send('LOAD_MESSAGES', { conversationId: String(conv.id), limit: 50 })
 
-  // 三栏布局：切换会话时同步群设置栏（默认关闭，用户手动打开）
+  // 抽屉「成员」页签现在承担群设置，所以切会话时要把群信息和成员名单一起同步过来
   if (conv.type === 2) {
     showFriendDetail.value = false
     const group = groups.value.find(g => String(g.id) === String(conv.targetId))
+    selectedGroup.value = group || null
     if (group) {
-      selectedGroup.value = group
-      showGroupDetail.value = false
       // 静默加载成员数据，以便点击头像时有信息
       try { groupMembers.value = await getGroupMembers(group.id) } catch (e) { /* ignore */ }
-    }
+    } else groupMembers.value = []
   } else {
-    showGroupDetail.value = false
+    // 单聊必须把 selectedGroup 和成员一起清掉：不清的话这个页签还挂着上一个群的设置和名单
+    selectedGroup.value = null
+    groupMembers.value = []
     showFriendDetail.value = false
   }
 }
 
 async function startChatWithFriend(friend) {
-  // 切换到好友会话，收起群设置栏
-  showGroupDetail.value = false
-
   try {
     // 先检查是否已有与该好友的一对一会话
     const existing = conversations.value.find(c =>
@@ -1470,9 +1387,8 @@ async function startChatWithGroup(group) {
   localStorage.setItem('chat_activeTab', 'chat')
   send('LOAD_MESSAGES', { conversationId: convId, limit: 50 })
 
-  // 群设置栏默认关闭，用户手动打开
+  // 群会话要把群信息和成员名单准备好，抽屉的「成员」页签直接用
   selectedGroup.value = group
-  showGroupDetail.value = false
   // 静默加载成员数据
   try { groupMembers.value = await getGroupMembers(group.id) } catch (e) { /* ignore */ }
 }
@@ -1915,7 +1831,11 @@ async function chatFromGroupCard() {
 async function settingsFromGroupCard() {
   const g = groupCard.value
   groupCard.value = null
-  if (g) await openGroupDetail(g)
+  if (!g) return
+  // 「群设置」那一栏已经删掉，这些功能现在在抽屉的「成员」页签里：先切进这个群，再把页签指过去
+  await startChatWithGroup(g)
+  dwTab.value = 'member'
+  drawerOpen.value = true
 }
 
 async function handleRemoveFriend(friend) {
@@ -2024,44 +1944,8 @@ async function onAddMembersSubmit({ ids, sendWelcome, welcome }) {
   }
 }
 
-// 群设置面板：打开并加载成员（三栏布局第三栏）
-async function showGroupPanel(group) {
-  selectedGroup.value = group
-  showGroupDetail.value = true
-  try {
-    groupMembers.value = await getGroupMembers(group.id)
-    // 预加载成员名称
-    const memberIds = groupMembers.value.map(m => m.userId)
-    await loadMemberNames(memberIds)
-  } catch (e) {
-    groupMembers.value = []
-  }
-}
-
-async function openGroupDetail(group) {
-  await showGroupPanel(group)
-}
-
-async function openGroupDetailById(groupId) {
-  const group = groups.value.find(g => g.id === groupId)
-  if (group) {
-    await openGroupDetail(group)
-  }
-}
-
-// 群设置按钮：同一群再次点击收起，否则打开
-async function toggleGroupDetail(groupId) {
-  if (showGroupDetail.value && selectedGroup.value && String(selectedGroup.value.id) === String(groupId)) {
-    showGroupDetail.value = false
-    return
-  }
-  showFriendDetail.value = false
-  await openGroupDetailById(groupId)
-}
-
 // 单聊详情面板：切换显示
 function toggleFriendDetail() {
-  showGroupDetail.value = false
   if (showFriendDetail.value) {
     showFriendDetail.value = false
     return
@@ -2074,6 +1958,72 @@ function toggleFriendDetail() {
     showFriendDetail.value = true
   }
 }
+
+/* ---- 抽屉「成员」页签：移出模式 + 群名/群公告表单 ---- */
+const removeMode = ref(false)
+const groupNameDraft = ref('')
+const groupAnnDraft = ref('')
+// 后端 PUT /group/{id} 要求操作人 role>=1，普通成员点了只会吃一句"没有权限修改群信息"
+// → 框做成只读，值照样看得境
+const canEditGroupInfo = computed(() => groupMembers.value.some(m =>
+  String(m.userId) === String(userStore.userId) && Number(m.role) >= 1))
+
+// 草稿和真实群信息对齐：换群、换会话、保存成功之后都要调
+function syncGroupDrafts() {
+  groupNameDraft.value = selectedGroup.value?.name || ''
+  groupAnnDraft.value = selectedGroup.value?.announcement || ''
+}
+// 换群走的是 selectedGroup 整个换对象，用 watch 兜住所有赋值点（保存后的原地改不走这里）
+watch(selectedGroup, syncGroupDrafts)
+const groupDirty = computed(() => {
+  const g = selectedGroup.value
+  if (!g) return false
+  return groupNameDraft.value.trim() !== (g.name || '') || groupAnnDraft.value.trim() !== (g.announcement || '')
+})
+
+// 移出模式下点格子就是移出这个人；否则还是看这个人是谁
+function onMemberCell(m) {
+  if (removeMode.value && canRemoveMember(m)) { handleRemoveMember(m); return }
+  showMemberInfo(m)
+}
+
+async function saveGroupInfo() {
+  const g = selectedGroup.value
+  if (!g || !canEditGroupInfo.value) return
+  const name = groupNameDraft.value.trim()
+  if (!name) { toast('群名称不能为空', 'error'); return }
+  // 只把改过的字段放进 payload：后端按 null 跳过，没改的群公告就不该被写成空串
+  const body = {}
+  if (name !== (g.name || '')) body.name = name
+  const ann = groupAnnDraft.value.trim()
+  if (ann !== (g.announcement || '')) body.announcement = ann
+  if (!Object.keys(body).length) return
+  try {
+    await updateGroup(g.id, body)
+    // selectedGroup 就是 groups 里那个对象，改它列表和页签会一起跟上；会话名要另外同步
+    Object.assign(g, body)
+    if (body.name) {
+      const conv = conversations.value.find(c => c.type === 2 && String(c.targetId) === String(g.id))
+      if (conv) conv.name = body.name
+      if (currentConversation.value && String(currentConversation.value.targetId) === String(g.id)) {
+        currentConversation.value.name = body.name
+      }
+    }
+    syncGroupDrafts()
+    toast('已保存', 'success')
+  } catch (e) { toast(e.response?.data?.error || '保存失败', 'error') }
+}
+
+// 清屏只是本机隐藏历史，措辞照真实行为写，不写成别人也看不到
+async function clearGroupHistory() {
+  const ok = await confirmBox({
+    title: '清空聊天记录',
+    message: '只清你这台机器上的显示，其他成员不受影响；清完可以再点一次恢复。',
+    confirmText: '清空', cancelText: '取消', type: 'warning'
+  })
+  if (ok) clearScreen()
+}
+function restoreGroupHistory() { restoreScreen() }
 
 // 单聊转群聊：打开邀请框，确认后创建群
 function convertToGroup() {
@@ -2276,7 +2226,6 @@ async function handleLeaveGroup() {
   try {
     await leaveGroup(selectedGroup.value.id)
     toast('已退出', 'success')
-    showGroupDetail.value = false
     await loadGroups()
     if (currentConversation.value && currentConversation.value.targetId === selectedGroup.value.id) {
       currentConversation.value = null
@@ -2315,7 +2264,6 @@ async function handleDissolveGroup() {
   try {
     await dissolveGroup(selectedGroup.value.id)
     toast('群聊已解散', 'success')
-    showGroupDetail.value = false
     await loadGroups()
     // 移除对应会话
     const convId = `g${selectedGroup.value.id}`
@@ -2556,6 +2504,14 @@ async function resolveSenderName(id) {
   }
 }
 
+/* 群成员里不是好友的那一位，名字只能靠 getUserProfile 补：原来只有消息渲染那条路径会去取，
+   没在群里发过言的成员在头部叠放头像上就长期是个 "?" */
+watch(groupMembers, ms => {
+  ms.forEach(m => {
+    if (!memberNames.value[m.userId] && String(m.userId) !== String(userStore.userId)) resolveSenderName(m.userId)
+  })
+})
+
 function msgSenderName(msg) {
   if (String(msg.senderId) === String(userStore.userId)) {
     return myName.value || userStore.username || '我'
@@ -2573,7 +2529,11 @@ async function loadMemberNames(memberIds) {
     const friend = friends.value.find(f => String(f.friendId) === String(id) || String(f.id) === String(id))
     if (friend) {
       memberNames.value[id] = friend.nickname || friend.username
+      return
     }
+    // 不在好友列表里的成员，走和消息发送者同一条异步取名路径；
+    // 原来这里只查好友、查不到就不管，头像位长期是 "?"
+    resolveSenderName(id)
   })
 }
 
@@ -3532,76 +3492,6 @@ function previewImage(url) {
   flex-shrink: 0;
 }
 
-.group-member-search {
-  flex: 1;
-  min-width: 0;
-}
-
-.group-member-search .input {
-  padding-left: 34px;
-  padding-right: 30px;
-}
-
-.member-remove-icon {
-  flex-shrink: 0;
-  opacity: 0.5;
-  transition: opacity 0.15s;
-  color: #2b6be8;
-}
-
-.group-member-item:hover .member-remove-icon {
-  opacity: 1;
-}
-
-.member-remove-wrap {
-  position: relative;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  cursor: pointer;
-  padding: 2px;
-}
-
-.nb-tooltip {
-  position: absolute;
-  top: 50%;
-  right: calc(100% + 8px);
-  transform: translateY(-50%);
-  padding: 4px 10px;
-  background: rgba(255, 255, 255, 0.95);
-  border: 1px solid rgba(43, 107, 232, 0.3);
-  border-radius: 6px;
-  color: var(--nb-text);
-  font-size: 12px;
-  white-space: nowrap;
-  pointer-events: none;
-  opacity: 0;
-  transition: opacity 0.15s;
-  z-index: 60;
-  font-family: 'Rajdhani', 'Microsoft YaHei', sans-serif;
-  letter-spacing: 0.5px;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4);
-}
-
-.nb-tooltip::after {
-  content: "";
-  position: absolute;
-  left: 100%;
-  top: 50%;
-  transform: translateY(-50%);
-  border: 5px solid transparent;
-  border-left-color: rgba(43, 107, 232, 0.3);
-}
-
-.member-remove-wrap:hover .nb-tooltip {
-  opacity: 1;
-}
-
-.group-member-list {
-  max-height: 300px;
-  overflow-y: auto;
-}
-
 .group-member-item {
   display: flex;
   align-items: center;
@@ -3614,20 +3504,16 @@ function previewImage(url) {
   background: rgba(43, 107, 232, 0.04);
 }
 
+/* 群成员名单已经改成抽屉里的头像宫格，这里只剩「好友信息」那两行；min-width:0 留着，
+   长名字在 320px 的栏里也会把行撑出去 */
 .member-name {
   flex: 1;
+  min-width: 0;
   color: var(--nb-text);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
-
-.member-avatar-btn {
-  cursor: pointer;
-  transition: box-shadow 0.2s;
-}
-
-.member-avatar-btn:hover {
-  box-shadow: 0 0 12px rgba(43, 107, 232, 0.5);
-}
-
 /* ---- 成员信息弹框 ---- */
 .member-info-modal {
   max-width: 340px;
@@ -3688,7 +3574,6 @@ function previewImage(url) {
 /* ---- 群设置面板（第三栏） ---- */
 .group-panel {
   width: 320px;
-  border-left: 1px solid rgba(43, 107, 232, 0.16);
   background: rgba(255, 255, 255, 0.88);
   display: flex;
   flex-direction: column;
@@ -4072,7 +3957,17 @@ function previewImage(url) {
    栏宽走 --rail-w / --list-w / --drawer-w；
    三栏 chrome 贴视口边、上下无缝、radius 0，只有内容元素带小圆角。
    ============================================================ */
-.app4 { display: flex; height: calc(100vh - var(--winbar-h)); flex: 1 1 auto; min-height: 0; background: var(--nb-bg-0); font-size: 14px; }
+/* 外层用 --nb-bg-shell：比卡片内最深的底色（列表 --nb-bg-3）再压一档，缝隙才读得出是一条线；
+   会话区本身就是 --nb-bg-0，同色会让右边的缝隐形，所以这里不用 --nb-bg-0 铺底 */
+/* 会话区标题栏和抽屉页签条共用同一个行高：两条 border-bottom 落在同一个 y，
+   横过卡片才是一条直线（原来差 1px，接缝处看得见一个台阶） */
+.app4 { display: flex; height: calc(100vh - var(--winbar-h)); flex: 1 1 auto; min-height: 0;
+  --head-h: 50px;
+  background: var(--nb-bg-shell); font-size: 14px; }
+/* 列表 / 会话 / 抽屉 / 侧面板合成一张卡片：栏与栏之间不画线，靠底色分层；
+   轮廓由外层透出右边和下边各 5px 缝隙 + 8px 圆角显示；左栏仍贴视口边、不带圆角 */
+.body-row { flex: 1 1 auto; min-width: 0; display: flex; overflow: hidden;
+  border-radius: 8px; margin: 0 5px 5px 0; background: #fff; }
 
 .tag-demo {
   display: inline-block; margin-left: 6px; padding: 0 5px; border-radius: 3px;
@@ -4082,9 +3977,9 @@ function previewImage(url) {
 .tag-demo.big { font-size: 11px; line-height: 20px; }
 
 /* ---- ① 图标栏 ---- */
+/* 和标题栏、卡片外的缝隙同色：整条左栏就是"最底那一层"露出来的部分，不画边、不另起一块白 */
 .rail {
-  width: var(--rail-w); flex: 0 0 var(--rail-w); background: #fff;
-  border-right: 1px solid var(--nb-line);
+  width: var(--rail-w); flex: 0 0 var(--rail-w); background: var(--nb-bg-shell);
   display: flex; flex-direction: column; align-items: center; padding: 12px 0 10px;
 }
 .rail-logo {
@@ -4112,9 +4007,12 @@ function previewImage(url) {
 .rail-conn.online { background: var(--ok); }
 
 /* ---- ② 列表栏 ---- */
+/* 卡片内部不画分隔线：列表比会话区深一档，靠这一步色差分出轮廓。
+   --row-hover 在列表底之上再压一档，不然 hover 和底色同为 --nb-bg-3 就看不见了 */
 .side {
-  width: var(--list-w); flex: 0 0 var(--list-w); background: #fff;
-  border-right: 1px solid var(--nb-line); display: flex; flex-direction: column;
+  width: var(--list-w); flex: 0 0 var(--list-w); background: var(--nb-bg-3);
+  --row-hover: color-mix(in srgb, var(--nb-dim-2) 16%, var(--nb-bg-3));
+  display: flex; flex-direction: column;
 }
 .side-head { display: flex; align-items: flex-start; padding: 14px 14px 10px; }
 .side-title { flex: 1; min-width: 0; }
@@ -4126,19 +4024,11 @@ function previewImage(url) {
   background: #fff; color: var(--brand); font-size: 15px; line-height: 1; cursor: pointer;
 }
 .side-act:hover { background: var(--brand-soft); }
-.side-tabs { display: flex; gap: 4px; padding: 0 12px 10px; flex-wrap: nowrap; overflow: hidden; }
-.stab {
-  border: 0; background: transparent; color: var(--nb-dim); font-size: 12px;
-  padding: 3px 9px; border-radius: 20px; cursor: pointer; white-space: nowrap; flex: 0 0 auto;
-}
-.stab:hover { background: var(--nb-bg-3); }
-.stab.on { background: var(--brand); color: #fff; }
-.stab.demo { cursor: default; color: var(--nb-dim-2); font-size: 11px; background: transparent; padding-left: 4px; }
 .side-search {
-  display: flex; align-items: center; gap: 6px; height: 32px; margin: 0 12px 8px; padding: 0 10px;
-  background: var(--nb-bg-3); border: 1px solid transparent; border-radius: 7px;
+  display: flex; align-items: center; gap: 6px; height: 32px; margin: 0 12px; padding: 0 10px;
+  background: var(--nb-bg-1); border: 1px solid transparent; border-radius: 7px;
 }
-.side-search:focus-within { background: #fff; border-color: var(--brand-line); }
+.side-search:focus-within { border-color: var(--brand-line); }
 .ss-ico { color: var(--nb-dim); font-size: 14px; }
 .ss-input { flex: 1; min-width: 0; border: 0; outline: none; background: transparent; color: var(--nb-text); font: inherit; font-size: 13px; }
 .ss-clear { color: var(--nb-dim); cursor: pointer; font-size: 12px; }
@@ -4147,14 +4037,14 @@ function previewImage(url) {
   display: flex; align-items: center; gap: 6px; padding: 12px 8px 6px;
   font-size: 11px; color: var(--nb-dim-2); letter-spacing: .4px;
 }
-.sec-demo { margin-left: auto; color: rgba(224, 138, 30, .9); font-size: 10px; }
 .row {
   position: relative; display: flex; align-items: center; gap: 10px;
-  padding: 8px; border-radius: 8px; cursor: pointer;
+  padding: 8px; margin-bottom: 4px; border-radius: 8px; cursor: pointer;
 }
-.row:hover { background: var(--nb-bg-3); }
-.row.active { background: var(--brand-soft); }
-.row.is-demo { opacity: .92; }
+.row:hover { background: var(--row-hover); }
+/* 选中原来直接吃 --brand-soft（品牌色约 10% 落白），在列表灰底上几乎看不出来。
+   这里按 20% 重混：比 hover 那档深一档，也不会和 --row-hover 撞色 */
+.row.active { background: color-mix(in srgb, var(--brand) 20%, var(--nb-bg-1)); }
 .ava {
   width: 38px; height: 38px; flex: 0 0 38px; border-radius: 9px; background: var(--brand);
   color: #fff; display: grid; place-items: center; font-size: 14px; overflow: hidden;
@@ -4189,14 +4079,14 @@ function previewImage(url) {
 
 /* ---- ③ 会话主区 ---- */
 .main { position: relative; flex: 1; min-width: 0; display: flex; flex-direction: column; background: #fff; }
-.m-head { display: flex; align-items: center; gap: 12px; padding: 12px 18px 10px; border-bottom: 1px solid var(--nb-line); }
+.m-head { display: flex; align-items: center; gap: 12px; padding: 12px 18px 10px; min-height: var(--head-h); border-bottom: 1px solid var(--nb-line-soft); }
 .mh-title { display: flex; align-items: center; gap: 4px; min-width: 0; }
 .mh-hash { color: var(--nb-dim-2); font-size: 17px; }
 .mh-name { font-size: 17px; font-weight: 600; color: var(--nb-text); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .mh-sub { font-size: 12px; color: var(--nb-dim); flex: 1; min-width: 0; }
 .mh-stack { display: flex; align-items: center; }
 .stack-ava {
-  width: 24px; height: 24px; border-radius: 50%; color: #fff; display: grid; place-items: center;
+  width: 24px; height: 24px; border-radius: 50%; background: var(--brand); color: #fff; display: grid; place-items: center;
   font-size: 11px; border: 2px solid #fff; margin-left: -7px;
 }
 .stack-ava:first-child { margin-left: 0; }
@@ -4208,18 +4098,13 @@ function previewImage(url) {
 .mh-btn { border: 1px solid var(--nb-line); background: #fff; color: var(--nb-dim); border-radius: 6px; font-size: 12px; padding: 4px 10px; cursor: pointer; }
 .mh-btn:hover { color: var(--brand); border-color: var(--brand-line); }
 .mh-btn.icon { padding: 4px 8px; }
-.m-tabs { display: flex; gap: 18px; padding: 0 18px; border-bottom: 1px solid var(--nb-line); }
-.mtab {
-  position: relative; border: 0; background: transparent; padding: 9px 0; cursor: pointer;
-  font-size: 13px; color: var(--nb-dim);
-}
-.mtab.on { color: var(--brand); font-weight: 500; }
-.mtab.on::after {
-  content: ""; position: absolute; left: 0; right: 0; bottom: -1px; height: 2px;
-  background: var(--brand); border-radius: 2px;
-}
-.mtab-n { margin-left: 4px; color: var(--nb-dim-2); font-size: 11px; }
-.m-body { flex: 1; overflow-y: auto; padding: 16px 18px 40px; background: var(--nb-bg-0); }
+.m-body { flex: 1; overflow-y: auto; padding: 16px 18px 40px; background: var(--nb-bg-1); }
+/* 没有可显示的消息时的占位：只有一枚浅灰图形，不铺演示对话，也不写文案。
+   底色跟着 .m-body 走同一个令牌，气泡上的眼睛才镂得空 */
+.m-empty { height: 100%; display: grid; place-items: center; }
+.m-empty svg { fill: color-mix(in srgb, var(--nb-dim-2) 26%, var(--nb-bg-1)); }
+/* 气泡上的眼睛要"镂空"：presentation attribute 不认 var()，只能写在 style 里让它进 CSS 级联 */
+.m-empty svg .eye { fill: var(--nb-bg-1); }
 /* 抽屉收起时消息列直接顶到窗口右缘，滚动条会和系统的拉伸热区叠在一处。
    透明右边框把滚动条让进来：桌面壳上 Windows 自己会画 1px 窗框、正好盖住页面最右一列，
    所以留 2px 才看得见 1px 缝。边框画在滚动条外侧，底色由 background-clip 补上，看不出接缝 */
@@ -4251,9 +4136,11 @@ function previewImage(url) {
 .tip-t { flex: 0 0 auto; color: var(--nb-dim); font-variant-numeric: tabular-nums; }
 .tip-x { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
 .day-split { text-align: center; margin: 6px 0 16px; }
+/* 日期块和气泡同一种处理（白底上填一块灰）；字跟着从 --nb-dim-2 提到 --nb-dim，
+   不然灰块上的 11px 小字对比只剩 2.66，比原来白块上还低 */
 .day-split span {
-  display: inline-block; padding: 2px 10px; border-radius: 10px; background: #fff;
-  border: 1px solid var(--nb-line); color: var(--nb-dim-2); font-size: 11px;
+  display: inline-block; padding: 2px 10px; border-radius: 10px; background: var(--nb-bg-3);
+  color: var(--nb-dim); font-size: 11px;
 }
 .msg { display: flex; align-items: flex-start; gap: 10px; margin-bottom: 16px; }
 /* 自己的消息：DOM 里已经是「气泡在前、头像在后」，所以只靠右对齐，
@@ -4263,7 +4150,6 @@ function previewImage(url) {
   width: 34px; height: 34px; flex: 0 0 34px; border-radius: 50%; background: var(--brand); color: #fff;
   display: grid; place-items: center; font-size: 13px; overflow: hidden; cursor: pointer;
 }
-.msg-ava.ai { background: linear-gradient(135deg, #4f86f5, #7c5cf0); cursor: default; }
 .msg-ava.self { background: var(--brand-strong); cursor: default; }
 .msg-ava img { width: 100%; height: 100%; object-fit: cover; }
 .msg-main { min-width: 0; max-width: 70%; }
@@ -4274,17 +4160,18 @@ function previewImage(url) {
 .msg-line { display: flex; align-items: flex-start; gap: 6px; }
 .msg.self .msg-line { flex-direction: row-reverse; }
 .bubble {
-  padding: 10px 13px; border-radius: 10px; background: #fff; border: 1px solid var(--nb-line);
+  padding: 10px 13px; border-radius: 10px; background: var(--nb-bg-3);
   color: var(--nb-text); line-height: 1.65; word-break: break-word; white-space: pre-wrap;
   box-shadow: var(--shadow-1);
 }
-.msg.self .bubble { background: var(--brand); border-color: var(--brand); color: #fff; }
+.msg.self .bubble { background: var(--brand); color: #fff; }
 .mention { color: var(--brand); font-weight: 500; }
 .msg.self .mention { color: #dbe7ff; }
 .b-del { color: var(--nb-dim-2); font-style: italic; }
 .b-img { display: block; max-width: 280px; border-radius: 8px; cursor: zoom-in; }
 .b-wait { display: inline-block; min-width: 96px; font-size: 12px; color: var(--nb-dim); }
-.b-file { display: inline-flex; align-items: center; gap: 8px; max-width: 240px; padding: 6px 10px; border: 1px solid var(--nb-line); border-radius: 8px; background: var(--nb-bg-3); color: inherit; text-decoration: none; cursor: pointer; }
+/* 气泡已经是灰底了，里面这颗文件片得反过来用白底才分得开（原来是灰片在白气泡上） */
+.b-file { display: inline-flex; align-items: center; gap: 8px; max-width: 240px; padding: 6px 10px; border: 1px solid var(--nb-line); border-radius: 8px; background: var(--nb-bg-1); color: inherit; text-decoration: none; cursor: pointer; }
 .b-file:hover { border-color: var(--brand); }
 .b-file-nm { overflow: hidden; white-space: nowrap; text-overflow: ellipsis; font-size: 13px; }
 .b-file-sz { flex: none; font-size: 11px; color: var(--nb-dim); }
@@ -4292,38 +4179,8 @@ function previewImage(url) {
   width: 16px; height: 16px; flex: 0 0 16px; margin-top: 6px; border-radius: 50%;
   background: var(--danger); color: #fff; font-size: 11px; line-height: 16px; text-align: center; cursor: help;
 }
-.file-card {
-  margin-top: 8px; width: 320px; max-width: 100%; background: #fff;
-  border: 1px solid var(--nb-line); border-radius: 10px; overflow: hidden; box-shadow: var(--shadow-1);
-}
-.fc-top { display: flex; align-items: center; gap: 10px; padding: 11px 12px 9px; }
-.fc-ico {
-  width: 34px; height: 34px; flex: 0 0 34px; border-radius: 8px; background: var(--brand-soft);
-  color: var(--brand); display: grid; place-items: center; font-size: 10px; font-weight: 600;
-}
-.fc-meta { flex: 1; min-width: 0; }
-.fc-name { font-size: 13px; color: var(--nb-text); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.fc-sub { font-size: 11px; color: var(--nb-dim); margin-top: 2px; }
-.fc-acts { display: flex; gap: 8px; padding: 0 12px 11px; }
-.fc-btn { border: 1px solid var(--nb-line); background: #fff; color: var(--nb-dim); border-radius: 6px; font-size: 12px; padding: 4px 12px; cursor: pointer; }
-.fc-btn:hover { color: var(--brand); border-color: var(--brand-line); }
-.fc-btn.icon { padding: 4px 9px; }
-.ai-card {
-  margin-top: 2px; width: 380px; max-width: 100%; padding: 12px 14px;
-  background: linear-gradient(180deg, #f4f8ff, #fff); border: 1px solid var(--brand-line);
-  border-radius: 10px; box-shadow: var(--shadow-1);
-}
-.ac-head { display: flex; align-items: center; }
-.ac-title { font-size: 13px; font-weight: 600; color: var(--brand-strong); }
-.ac-list { margin: 8px 0 10px; padding-left: 18px; color: var(--nb-text); font-size: 13px; line-height: 1.9; }
-.ac-acts { display: flex; gap: 8px; }
-.ac-btn { border: 1px solid var(--nb-line); background: #fff; color: var(--nb-dim); border-radius: 6px; font-size: 12px; padding: 4px 12px; cursor: pointer; }
-.ac-btn.primary { background: var(--brand); border-color: var(--brand); color: #fff; }
-.ac-btn.primary:hover { background: var(--brand-strong); }
 /* 消息列不设 max-width、也不居中：左右间隙就是 .m-body 的 18px padding，恒定不变，
-   窗口多宽就铺多宽。别再给 .demo-thread 加回 900px 上限——那会在宽屏右边留一大片死白。 */
-.m-panel { flex: 1; display: grid; place-content: center; justify-items: center; background: var(--nb-bg-0); color: var(--nb-dim); }
-.panel-demo { text-align: center; font-size: 13px; }
+   窗口多宽就铺多宽。别再给消息列加回 900px 上限——那会在宽屏右边留一大片死白。 */
 
 /* ---- 输入区 ---- */
 .m-input { position: relative; border-top: 1px solid var(--nb-line); background: #fff; padding: 10px 16px 12px; }
@@ -4379,9 +4236,13 @@ function previewImage(url) {
 /* ---- ④ 右侧抽屉 ---- */
 .drawer {
   width: var(--drawer-w); flex: 0 0 var(--drawer-w); background: #fff;
-  border-left: 1px solid var(--nb-line); display: flex; flex-direction: column;
+  /* 会话区和抽屉都是白底，这条竖线是两者唯一的分界；和上面那条横线同一个淡度 */
+  border-left: 1px solid var(--nb-line-soft);
+  display: flex; flex-direction: column;
 }
-.dw-tabs { display: flex; align-items: center; gap: 18px; padding: 12px 16px 7px; border-bottom: 1px solid var(--nb-line); }
+/* 页签条的下沿和会话区标题栏的下沿是"同一条线"的两段：颜色、行高都必须同源
+   （--nb-line-soft + --head-h），差 1px 或差一档色，接缝处就看得见台阶 */
+.dw-tabs { display: flex; align-items: center; gap: 18px; padding: 12px 16px 7px; min-height: var(--head-h); border-bottom: 1px solid var(--nb-line-soft); }
 .dwt { position: relative; border: 0; background: transparent; padding: 0 0 10px; font-size: 13px; color: var(--nb-dim); cursor: pointer; }
 .dwt.on { color: var(--nb-text); font-weight: 500; }
 .dwt.on::after { content: ""; position: absolute; left: 0; right: 0; bottom: -1px; height: 2px; background: var(--brand); }
@@ -4390,6 +4251,92 @@ function previewImage(url) {
    原来那 6px（页签加高后变 13px）的溢出会撑出一条几乎满高的 thumb，看着像根不能动的僵尸条。
    窗口再矮就真的装不下了，那时出滚动条是对的。 */
 .dw-body { flex: 1; overflow-y: auto; padding: 12px 16px 8px; }
+
+/* ---- 抽屉「成员」页签：照微信「聊天信息」那一页的版式 ---- */
+/* .dw-body 左右各 16px，分隔线要通到抽屉边缘就用 -16px 把容器顶出去，行内再用 16px 收回来了 */
+.gs-search {
+  display: flex; align-items: center; gap: 6px; height: 32px; padding: 0 10px;
+  background: var(--nb-bg-3); border: 1px solid transparent; border-radius: 7px;
+}
+.gs-search:focus-within { border-color: var(--brand-line); }
+.gs-ico { color: var(--nb-dim); font-size: 14px; }
+.gs-search input { flex: 1; min-width: 0; border: 0; outline: none; background: transparent;
+  color: var(--nb-text); font: inherit; font-size: 13px; }
+.gs-clear { color: var(--nb-dim); cursor: pointer; font-size: 12px; }
+
+/* 一行四个：236px 内容宽 - 3×8 间隙 = 53px 一格，头像 44px */
+.gs-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px 8px; margin-top: 14px; }
+.gs-cell { display: flex; flex-direction: column; align-items: center; gap: 4px; cursor: pointer; }
+.gs-ava { position: relative; width: 44px; height: 44px; }
+.gs-init {
+  width: 44px; height: 44px; border-radius: 8px; background: var(--brand); color: #fff;
+  display: grid; place-items: center; font-size: 15px;
+}
+.gs-name { max-width: 100%; font-size: 11px; color: var(--nb-dim); text-align: center;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.gs-tag {
+  position: absolute; right: -3px; bottom: -3px; padding: 0 3px; border-radius: 3px;
+  color: #fff; font-size: 9px; line-height: 13px;
+}
+.gs-tag.owner { background: var(--warn); }
+.gs-tag.admin { background: var(--brand); }
+/* 移出模式：只有真的能被移走的那个人显示红减号；命中区=看得见的凸块本身 */
+.gs-minus {
+  position: absolute; right: -4px; bottom: -4px; width: 16px; height: 16px; border-radius: 50%;
+  background: var(--danger); color: #fff; display: grid; place-items: center; line-height: 0;
+}
+.gs-cell.picking .gs-init { outline: 2px solid var(--danger); outline-offset: 1px; }
+.gs-tile { display: flex; flex-direction: column; align-items: center; gap: 4px;
+  border: 0; background: none; padding: 0; cursor: pointer; }
+.gs-box { width: 44px; height: 44px; border-radius: 8px; border: 1px dashed var(--nb-dim-2);
+  color: var(--nb-dim-2); display: grid; place-items: center; font-size: 17px; line-height: 1; }
+.gs-tile em { font-style: normal; font-size: 11px; color: var(--nb-dim-2); }
+.gs-tile:hover:not(:disabled) .gs-box { border-color: var(--brand); color: var(--brand); }
+.gs-tile.on .gs-box { border-style: solid; border-color: var(--danger); color: var(--danger); }
+.gs-tile.on em { color: var(--danger); }
+/* 后端没有"能移出任何人"的权限时置灰不消失 */
+.gs-tile:disabled { opacity: .45; cursor: default; }
+
+/* 群名/群公告：常驻表单，不是一行行的可点条目。名称必填带红星，两个框各带字数计数器 */
+.gs-form { margin-top: 18px; }
+.gs-field + .gs-field { margin-top: 14px; }
+.gs-lab { font-size: 13px; color: var(--nb-text); margin-bottom: 6px; }
+.gs-req { color: var(--danger); margin-left: 2px; }
+.gs-opt { color: var(--nb-dim-2); font-size: 12px; font-weight: 400; }
+.gs-field-box { position: relative; display: flex; align-items: center; min-height: 34px;
+  border: 1px solid var(--nb-line); border-radius: 7px; background: var(--nb-bg-1); }
+.gs-field-box.ta { align-items: flex-start; }
+.gs-field-box:focus-within { border-color: var(--brand-line); }
+.gs-in { flex: 1; min-width: 0; width: 100%; border: 0; outline: none; background: transparent;
+  color: var(--nb-text); font: inherit; font-size: 13px; line-height: 1.6; padding: 7px 54px 7px 10px;
+  resize: none; }
+.gs-count { position: absolute; right: 10px; top: 50%; transform: translateY(-50%);
+  font-size: 11px; color: var(--nb-dim-2); pointer-events: none; }
+.gs-field-box.ta .gs-count { top: auto; bottom: 7px; transform: none; }
+/* 禁用态要自己给底色：input 的底色在 .gs-field-box 上，浏览器置灰只会灰掉输入区 */
+.gs-in:disabled { background: transparent; color: var(--nb-dim); cursor: default; }
+.gs-field-box:has(.gs-in:disabled) { background: var(--nb-bg-3); }
+.gs-save { width: 100%; margin-top: 14px; }
+/* 三个按钮锁 38px 高，并额外压 1px 上内边距。
+   flex 居中的是"行盒"，行盒居中不等于"字的墨迹"居中：标签是纯中文，行高度量却来自拉丁字体
+   Rajdhani，逐像素量下来墨迹离上边比离下边少 1.5px（三个按钮 -1.50 / -1.25 / -1.75）。
+   DPR=1 下基线只会吸附到整像素，所以可达的位置只有两档：padTop 0 → 差 -1.5，padTop 1 → 差 +0.5；
+   取 1px 这一档（残留 0.25~0.75px = 一个像素行）。改成中文字体优先也是同一档，不额外换字体。
+   getBoundingClientRect / Range 量出来永远是 10/10（那是行盒），量不到这个偏差 */
+.gs-save, .gs-btns .btn { height: 38px; line-height: 38px; padding: 2px 18px 0; }
+/* 中性动作用自己这套描边按钮，不用 .btn-ghost：那个类在这套浅色主题下是坏的
+   （底色只有 10% 粉、hover 把字改成白色），白抽屉上点一下字就看不见了 */
+.btn-neutral { border: 1px solid var(--nb-line); background: var(--nb-bg-1); color: var(--nb-text); }
+.btn-neutral:hover:not(:disabled) { background: var(--nb-bg-3); border-color: var(--brand-line); color: var(--nb-text); }
+.gs-note { margin-top: 8px; font-size: 11px; color: var(--nb-dim-2); }
+
+/* 底部两个动作：一行等分。一格 (235-8)/2 = 113.5px，最长的「清空聊天记录」实测文字 90px，
+   左右各留 10px 放得下（沿用 .btn 的 18px 会挤掉 6.5px）。
+   这里不用 flex:1 1 0 去分：描边那颗会多出自身边框那 2px（实测 114.5 / 112.5），
+   直接按 (100% - 间隙)/2 定宽才真的等宽 */
+.gs-btns { display: flex; gap: 8px; margin: 18px -16px 0;
+  padding: 14px 16px 0; border-top: 1px solid var(--nb-line-soft); }
+.gs-btns .btn { flex: 0 0 calc((100% - 8px) / 2); min-width: 0; padding: 2px 10px 0; }
 .doc-card { display: flex; align-items: center; gap: 10px; }
 .dc-ico { width: 38px; height: 44px; flex: 0 0 38px; border-radius: 6px; background: var(--brand); color: #fff; display: grid; place-items: center; font-size: 11px; font-weight: 600; }
 .dc-main { flex: 1; min-width: 0; }
@@ -4441,8 +4388,4 @@ function previewImage(url) {
 .rel-name { font-size: 12px; color: var(--nb-text); }
 .rel-size { font-size: 11px; color: var(--nb-dim-2); }
 .rel-caret { margin-left: auto; color: var(--nb-dim-2); }
-.mem { display: flex; align-items: center; gap: 8px; padding: 6px 0; font-size: 13px; cursor: pointer; }
-.mem-ava { width: 26px; height: 26px; border-radius: 50%; background: var(--brand-soft); color: var(--brand); display: grid; place-items: center; font-size: 11px; }
-.mem-name { flex: 1; min-width: 0; color: var(--nb-text); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.mem-role { font-size: 11px; color: var(--nb-dim); border: 1px solid var(--nb-line); border-radius: 4px; padding: 0 5px; }
 </style>

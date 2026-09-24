@@ -42,8 +42,7 @@ onUnmounted(() => {
 <style>
 .winbar {
   flex: 0 0 36px; height: 36px; display: flex; align-items: stretch;
-  justify-content: space-between; background: #fff;
-  border-bottom: 1px solid var(--nb-line);
+  justify-content: space-between; background: var(--nb-bg-shell);
   -webkit-app-region: drag; user-select: none;
 }
 .wb-title {

@@ -11,50 +11,10 @@ export const workspace = {
   meta: '24 人 · 3 个项目'
 }
 
-// 会话分组（后端只有扁平会话列表，没有分组/置顶/归档）
-export const mockChannels = [
-  { id: 'c-pd', name: '产品内容', kind: 'group', members: 24, last: '李四：@张三 这个版本的首页文案…', time: '21:08', unread: 12, top: true },
-  { id: 'c-design', name: '设计评审', kind: 'group', members: 9, last: '王五：Banner 图已上传，大家看下…', time: '19:36', unread: 3 },
-  { id: 'c-dev', name: '开发协作', kind: 'group', members: 12, last: '陈六：API 已经对接完成', time: '17:24', unread: 0 },
-  { id: 'c-mkt', name: '市场活动', kind: 'group', members: 7, last: '李七：Q4 活动方案已初稿', time: '16:12', unread: 5 },
-  { id: 'c-ops', name: '内容运营', kind: 'group', members: 15, last: '赵八：本周内容数据已更新', time: '14:50', unread: 0 }
-]
-
-export const mockContacts = [
-  { id: 'u-wang', name: '王五', role: '视觉设计', last: '好的，明天我来确认一下', time: '20:32', unread: 0 },
-  { id: 'u-li', name: '李七', role: '市场', last: '文件已发送，请查收', time: '18:45', unread: 5 },
-  { id: 'u-chen', name: '陈六', role: '后端', last: '辛苦了！', time: '16:20', unread: 0 }
-]
-
 export const mockGroups = [
   { id: 'g-design', name: '产品设计组', members: 11, last: '张三：新的设计稿已更新', time: '15:10' },
   { id: 'g-ops', name: '运营小组', members: 8, last: '李四：活动物料已准备完成', time: '14:02' }
 ]
-
-// 会话页签（后端只有"消息"，文件/任务/AI结果 都没有列表接口）
-export const convTabs = [
-  { key: 'chat', label: '聊天', real: true },
-  { key: 'file', label: '文件', real: false, count: 6 },
-  { key: 'task', label: '任务', real: false, count: 3 },
-  { key: 'ai', label: 'AI 结果', real: false, count: 2 }
-]
-
-// 一条带稿件卡片的消息 + 一条 AI 助手消息（无接口）
-export const mockFileMessage = {
-  name: 'homepage-copy-v2.md',
-  size: '24 KB',
-  kind: 'Markdown',
-  updated: '2 分钟前'
-}
-
-export const mockAiMessage = {
-  title: '内容优化建议',
-  items: [
-    '信息密度较高，建议分段展示',
-    'CTA 不够明确，建议增加行动引导',
-    '与产品定位有 1 处表述重复'
-  ]
-}
 
 // 右侧内容详情抽屉（无接口：文档元信息、预览、关联任务、评分、相关文件）
 export const docDetail = {
@@ -91,12 +51,6 @@ export const docScores = [
 export const docRelated = [
   { name: '产品官网-首页设计稿.psd', size: '3.4 MB', type: 'psd' },
   { name: '品牌规范文档.pdf', size: '1.2 MB', type: 'pdf' }
-]
-
-export const memberStack = [
-  { id: 'm1', name: '张三', color: '#2b6be8' },
-  { id: 'm2', name: '李四', color: '#1f9d55' },
-  { id: 'm3', name: '王五', color: '#e08a1e' }
 ]
 
 // —— 以下为设计稿里"后端还没有对应接口"的界面数据（静态壳）——

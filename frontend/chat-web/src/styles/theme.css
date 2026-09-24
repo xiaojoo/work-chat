@@ -30,9 +30,15 @@
   --nb-bg-1: #ffffff;
   --nb-bg-2: #ffffff;
   --nb-bg-3: #f0f3f8;
+  /* 窗口最底那一层：标题栏、图标栏、卡片右/下缝隙共用它，
+     三者同色才读成一个面，不靠 1px 线分边 */
+  --nb-bg-shell: color-mix(in srgb, var(--nb-dim-2) 18%, var(--nb-bg-0));
   --nb-panel: #ffffff;
   --nb-panel-solid: #ffffff;
   --nb-line: #e2e7f0;
+  /* 卡片内部那两条分隔线（标题栏/页签条下沿、抽屉左沿）比 --nb-line 淡一半：
+     对白底每通道 29→14，1px 细线还看得见，但不再抢内容 */
+  --nb-line-soft: color-mix(in srgb, var(--nb-line) 50%, #fff);
   --nb-text: #1b2434;
   --nb-dim: #69788f;
   --nb-dim-2: #8a97ab;
