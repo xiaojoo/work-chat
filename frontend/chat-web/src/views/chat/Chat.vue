@@ -143,7 +143,7 @@
     </aside>
 
     <!-- ③ 会话主区 -->
-    <main class="main">
+    <main class="main" :class="{ 'no-drawer': !drawerOpen }">
       <header class="m-head">
         <div class="mh-title">
           <span class="mh-hash">#</span>
@@ -266,6 +266,20 @@
             </div>
             <div class="msg-ava self">{{ (userStore.username || '我').charAt(0).toUpperCase() }}</div>
           </div>
+        </div>
+      </div>
+
+      <!-- 消息定位尺：只标我发出去的消息，一条一刻度；尺子横排在消息区底部居中、不随内容滚动，
+           点一下把消息区滚到那条。消息少到不溢出时刻度置灰但保留，不让它凭空消失 -->
+      <div v-if="msgMarks.length" class="ovr" role="group" aria-label="我发出的消息位置导航"
+           :style="{ top: railTop + 'px', width: railW + 'px', '--tw': TICK_W + 'px' }">
+        <button v-for="(m, i) in msgMarks" :key="i" type="button" class="ovr-t"
+                :style="{ left: i * tickStep + TICK_W / 2 + 'px' }" :disabled="!msgCanScroll"
+                :aria-label="'跳到 ' + m.time + ' 发的' + m.kind"
+                @mouseenter="hoverIdx = i" @mouseleave="hoverIdx = -1"
+                @focus="hoverIdx = i" @blur="hoverIdx = -1" @click="jumpToTick(m)"></button>
+        <div v-show="hoverIdx >= 0" class="ovr-tip" :class="{ on: hoverIdx >= 0 }">
+          <span class="tip-t">{{ msgMarks[hoverIdx]?.time }}</span><span class="tip-x">{{ msgMarks[hoverIdx]?.text }}</span>
         </div>
       </div>
 
@@ -698,7 +712,7 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted, onUnmounted, nextTick } from 'vue'
+import { ref, computed, onMounted, onUnmounted, nextTick, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { useUserStore } from '../../stores/user'
 import { useWebSocket } from '../../websocket/client'
@@ -1019,6 +1033,76 @@ const filteredGroups = computed(() => {
   if (!groupSearchText.value) return groups.value
   const keyword = groupSearchText.value.toLowerCase()
   return groups.value.filter(g => (g.name || '').toLowerCase().includes(keyword))
+})
+
+// —— 消息定位尺：刻度位置一律从真实渲染量出来（rect + scrollTop），不自己按气泡高度算，
+//    这样日分隔、图片加载完撑高、文件卡片换行都不用跟着改 ---
+const msgMarks = ref([])
+const msgCanScroll = ref(false)
+const railBox = ref({ w: 0 })
+const railTop = ref(0)
+// 尺子离底缘的距离：刻度底边 = RAIL_LIFT - 4，取 20 就是底边留 16px，跟 .msg 的 16px 下边距同一个节奏
+const RAIL_LIFT = 20
+// 横排：刻度宽只在 TICK_W 一处定义（CSS 读 --tw，下面的 railW 和每条的 left 都按它算，
+//    三处不同步会把整排挤偏）；hover 只换色不涨尺寸，所以每格 20px 时条与条之间空 12px
+const TICK_W = 8
+const tickStep = computed(() => {
+  const n = msgMarks.value.length
+  if (n < 2) return 0
+  return Math.min(20, Math.max(TICK_W + 4, Math.round((railBox.value.w - 40) / (n - 1))))
+})
+const railW = computed(() => tickStep.value * (msgMarks.value.length - 1) + TICK_W)
+let msgRO = null, msgMO = null, msgRaf = 0
+
+const kindOf = el => el.querySelector('.b-img') ? '图片'
+  : el.querySelector('.b-file') ? '文件'
+  : el.querySelector('.msg-fail') ? '发送失败' : '消息'
+const textOf = el => (el.querySelector('.b-txt')?.textContent
+  || el.querySelector('.b-file-nm')?.textContent
+  || el.querySelector('.b-del')?.textContent
+  || (el.querySelector('.b-img') ? '[图片]' : '') || '').trim()
+const hoverIdx = ref(-1)
+
+function measureMsgs() {
+  const el = messagesRef.value
+  if (!el) { msgMarks.value = []; return }
+  const base = el.getBoundingClientRect().top - el.scrollTop
+  const box = el.getBoundingClientRect()
+  railBox.value = { w: Math.round(box.width) }
+  railTop.value = Math.round(el.offsetTop + box.height - RAIL_LIFT)
+  // 只标我发出去的消息：一条一刻度，尺子横排在消息区底部居中、不随内容滚动
+  msgMarks.value = [...el.querySelectorAll('.msg.self')].map(m => {
+    const b = m.getBoundingClientRect()
+    return { top: Math.round(b.top - base), h: Math.round(b.height), kind: kindOf(m),
+             text: textOf(m), time: (m.querySelector('.msg-time')?.textContent || '').trim() }
+  })
+  msgCanScroll.value = el.scrollHeight - el.clientHeight > 1
+}
+function jumpToTick(m) {
+  const el = messagesRef.value
+  if (!el || !msgCanScroll.value) return
+  const max = el.scrollHeight - el.clientHeight
+  el.scrollTo({ top: Math.max(0, Math.min(m.top - (el.clientHeight - m.h) / 2, max)), behavior: 'smooth' })
+}
+const queueMeasure = () => { if (msgRaf) return; msgRaf = requestAnimationFrame(() => { msgRaf = 0; measureMsgs() }) }
+
+watch([messages, currentConversation, convTab], () => nextTick(measureMsgs))
+
+onMounted(() => {
+  nextTick(measureMsgs)
+  const el = messagesRef.value
+  if (!el) return
+  msgRO = new ResizeObserver(queueMeasure)
+  msgRO.observe(el)
+  // 图片是加载完才撑高的，既不动 computed 也不改属性，只能再听 load
+  el.addEventListener('load', queueMeasure, true)
+  msgMO = new MutationObserver(queueMeasure)
+  msgMO.observe(el, { childList: true, subtree: true, attributes: true, attributeFilter: ['class'] })
+})
+onUnmounted(() => {
+  msgRO?.disconnect(); msgMO?.disconnect()
+  messagesRef.value?.removeEventListener('load', queueMeasure, true)
+  if (msgRaf) cancelAnimationFrame(msgRaf)
 })
 
 onMounted(async () => {
@@ -3932,7 +4016,7 @@ function previewImage(url) {
 .list-empty { padding: 22px 8px; text-align: center; color: var(--nb-dim-2); font-size: 13px; }
 
 /* ---- ③ 会话主区 ---- */
-.main { flex: 1; min-width: 0; display: flex; flex-direction: column; background: #fff; }
+.main { position: relative; flex: 1; min-width: 0; display: flex; flex-direction: column; background: #fff; }
 .m-head { display: flex; align-items: center; gap: 12px; padding: 12px 18px 10px; border-bottom: 1px solid var(--nb-line); }
 .mh-title { display: flex; align-items: center; gap: 4px; min-width: 0; }
 .mh-hash { color: var(--nb-dim-2); font-size: 17px; }
@@ -3963,7 +4047,37 @@ function previewImage(url) {
   background: var(--brand); border-radius: 2px;
 }
 .mtab-n { margin-left: 4px; color: var(--nb-dim-2); font-size: 11px; }
-.m-body { flex: 1; overflow-y: auto; padding: 16px 18px; background: var(--nb-bg-0); }
+.m-body { flex: 1; overflow-y: auto; padding: 16px 18px 40px; background: var(--nb-bg-0); }
+/* 抽屉收起时消息列直接顶到窗口右缘，滚动条会和系统的拉伸热区叠在一处。
+   透明右边框把滚动条让进来：桌面壳上 Windows 自己会画 1px 窗框、正好盖住页面最右一列，
+   所以留 2px 才看得见 1px 缝。边框画在滚动条外侧，底色由 background-clip 补上，看不出接缝 */
+.main.no-drawer .m-body { border-right: 2px solid transparent; }
+/* 横排定位尺：贴在消息区底部、整条水平居中（left 50% + translateX(-50%)），
+   尺子绝对定位在 .main 上，所以内容滚动时它不动 */
+.ovr { position: absolute; left: 50%; height: 8px; transform: translateX(-50%); pointer-events: none; }
+/* 全局是 border-box，这里反过来用 content-box：可见条只有 height 那 3px，四周 2px padding 是
+   透明的命中边（底色同样 clip 到 content-box，所以那圈不画出来），和输入框那颗凸块一个做法。
+   top: -1px 让 3px 那条的底边正好压在改前那一行上，刻度离消息区底缘的 16px 不会因为变厚而挪走 */
+.ovr-t { position: absolute; top: -1px; width: var(--tw); height: 3px; padding: 2px; border: 0;
+  box-sizing: content-box; border-radius: 1px; background: color-mix(in srgb, var(--brand) 20%, #fff) content-box;
+  pointer-events: auto; cursor: pointer;
+  transform: translateX(-50%);
+  transition: background-color .16s ease; }
+/* hover / 聚焦：只换底色，不长宽、不变厚、不加光圈 —— 和输入框那颗凸块同一条规矩。
+   上色只能写 background-color：写简写 background 会把上面那条 content-box 裁切重置回 border-box，
+   透明命中边会跟着一起涂蓝（量到过：画满 8×3 那一格，而不是只换色） */
+.ovr-t:hover:not(:disabled), .ovr-t:focus-visible { background-color: var(--brand); }
+.ovr-t:disabled { cursor: default; }
+/* 自绘气泡：原生 title 要等约 1s、样式不可控、还会被无边框窗口裁掉。
+   单行、超出用省略号；锚在整排刻度正上方，所以不需要左右夹取 */
+.ovr-tip { position: absolute; left: 50%; bottom: 13px; max-width: 320px; display: flex; align-items: baseline;
+  gap: 6px; padding: 5px 10px; border: 1px solid var(--nb-line); border-radius: 6px; background: #fff;
+  box-shadow: 0 4px 14px rgba(24, 44, 84, .12); color: var(--nb-text); font-size: 12px; line-height: 1.4;
+  white-space: nowrap; opacity: 0; transform: translate(-50%, 4px); pointer-events: none;
+  transition: opacity .14s ease, transform .18s cubic-bezier(.34, 1.42, .64, 1); }
+.ovr-tip.on { opacity: 1; transform: translate(-50%, 0); }
+.tip-t { flex: 0 0 auto; color: var(--nb-dim); font-variant-numeric: tabular-nums; }
+.tip-x { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
 .day-split { text-align: center; margin: 6px 0 16px; }
 .day-split span {
   display: inline-block; padding: 2px 10px; border-radius: 10px; background: #fff;
@@ -4050,13 +4164,16 @@ function previewImage(url) {
   font: inherit; color: var(--nb-text); background: transparent;
 }
 /* 只有那颗凸块能拖：整条关掉 pointer 事件，凸块自己开回来。
-   内边距撑出 11px 的按压高度，底色用 content-box 只画中间 4px，所以看得见的是凸块、点得着的也是凸块 */
+   内边距撑出 11px 的按压高度，底色用 content-box 只画中间 6px（端头圆角上限=厚度一半，4px 厚时半径只有 2px，看着偏方），所以看得见的是凸块、点得着的也是凸块 */
 .rz { display: flex; justify-content: center; height: 11px; margin: -6px -16px 3px; pointer-events: none; }
-.rz-grip { display: block; width: 46px; height: 11px; padding: 3.5px 0; box-sizing: border-box;
+.rz-grip { display: block; width: 46px; height: 11px; padding: 2.5px 0; box-sizing: border-box;
   border-radius: 999px; background: var(--nb-line) content-box; outline: none;
   cursor: row-resize; touch-action: none; pointer-events: auto;
-  transition: background .14s, width .14s; }
-.rz-grip:hover, .rz-grip:focus-visible, .m-input.rzging .rz-grip { background: var(--brand) content-box; width: 62px; }
+  transition: background .14s; }
+/* 只换色、不跟着变宽度：凸块从 62px 缩回 46px 时让出来的那 8px 端头，在桌面壳那侧的合成器里
+   不保证会被重画（真机量到残留 10 个像素、最深处 rgb(78,132,235)，要靠改窗口尺寸才冲掉），
+   所以悬停反馈只留给颜色这一档 */
+.rz-grip:hover, .rz-grip:focus-visible, .m-input.rzging .rz-grip { background: var(--brand) content-box; }
 .m-input.rzging { cursor: row-resize; }
 .bar { display: flex; align-items: center; justify-content: space-between; border-top: 1px solid var(--nb-line); padding-top: 8px; }
 .bar-tools { display: flex; align-items: center; gap: 2px; }
