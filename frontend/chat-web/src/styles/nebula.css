@@ -95,23 +95,52 @@ body::after {
 }
 
 /* ===== 全局滚动条：只这一处，所有容器共用，不按容器开例外 =====
-   thumb 和轨道都混成不透明实色：半透明会把容器底色透出来，同一条规则压在消息区的
+   thumb 混成不透明实色：半透明会把容器底色透出来，同一条规则压在消息区的
    灰底 (#f4f6fa) 和内容区的白底上就会一深一浅。混成实色后两处是同一组 RGB，
-   而且都跟着 --brand 走，外观页签换色时滚动条一起换。 */
+   而且都跟着 --brand 走，外观页签换色时滚动条一起换。轨道不画底色，只留 thumb。 */
 *::-webkit-scrollbar {
-  width: 8px;
-  height: 8px;
+  width: 6px;
+  height: 6px;
 }
 *::-webkit-scrollbar-thumb {
-  background: color-mix(in srgb, var(--brand) 42%, #fff);
-  border-radius: 4px;
+  background: color-mix(in srgb, var(--brand) 30%, #fff);
+  border-radius: 3px;
 }
 *::-webkit-scrollbar-thumb:hover {
-  background: color-mix(in srgb, var(--brand) 62%, #fff);
+  background: color-mix(in srgb, var(--brand) 46%, #fff);
 }
 *::-webkit-scrollbar-track {
-  background: color-mix(in srgb, var(--brand) 8%, #fff);
-  border-radius: 4px;
+  background: transparent;
+}
+
+/* ===== 全局自绘气泡（接管原生 title，见 utils/uaTip.js）=====
+   全站只有这一个弹层，样式和消息定位尺的气泡保持一致：白底、6px 圆角、软阴影、
+   超出 320px 收成省略号，出现时从下方 4px 抬起并带一点回弹 */
+.ua-tip {
+  position: fixed;
+  z-index: 9999;
+  left: 0;
+  top: 0;
+  max-width: 320px;
+  padding: 5px 10px;
+  border: 1px solid var(--nb-line);
+  border-radius: 6px;
+  background: #fff;
+  box-shadow: 0 4px 14px rgba(24, 44, 84, .12);
+  color: var(--nb-text);
+  font-size: 12px;
+  line-height: 1.4;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  pointer-events: none;
+  opacity: 0;
+  transform: translateY(4px);
+  transition: opacity .14s ease, transform .18s cubic-bezier(.34, 1.42, .64, 1);
+}
+.ua-tip.on {
+  opacity: 1;
+  transform: translateY(0);
 }
 
 /* ============================================================
