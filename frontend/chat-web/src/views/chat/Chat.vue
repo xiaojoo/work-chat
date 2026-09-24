@@ -108,36 +108,46 @@
           </div>
         </template>
 
-        <!-- 真实好友 -->
+        <!-- 真实好友：按姓名首字母分组，右侧常驻 A-Z 索引（和群组共用 AlphaList） -->
         <template v-else-if="activeTab === 'friend'">
-          <div v-for="friend in filteredFriends" :key="friend.friendId" class="row" @click="startChatWithFriend(friend)">
-            <div class="ava">
-              <img v-if="friend.avatar" :src="friend.avatar" alt="" />
-              <span v-else>{{ friend.nickname?.charAt(0)?.toUpperCase() }}</span>
-            </div>
-            <div class="row-main">
-              <div class="row-top"><span class="row-name">{{ friend.nickname || friend.username }}</span></div>
-              <div class="row-last">@{{ friend.username }}</div>
-            </div>
-            <button class="row-act danger" @click.stop="handleRemoveFriend(friend)">删除</button>
-          </div>
-          <div v-if="filteredFriends.length === 0" class="list-empty">暂无好友</div>
+          <AlphaList v-if="filteredFriends.length" :items="filteredFriends" :name-of="friendName" :key-of="f => f.friendId">
+            <template #default="{ item: friend }">
+              <div class="row" @click="startChatWithFriend(friend)">
+                <div class="ava">
+                  <img v-if="friend.avatar" :src="friend.avatar" alt="" />
+                  <span v-else>{{ friendName(friend).charAt(0).toUpperCase() }}</span>
+                </div>
+                <div class="row-main">
+                  <div class="row-top"><span class="row-name">{{ friendName(friend) }}</span></div>
+                  <div class="row-last">@{{ friend.username }}</div>
+                </div>
+                <button class="row-more" type="button" aria-label="查看好友信息" title="好友信息"
+                        @click.stop="openFriendCard(friend)">⋯</button>
+              </div>
+            </template>
+          </AlphaList>
+          <div v-else class="list-empty">暂无好友</div>
         </template>
 
-        <!-- 真实群组 -->
+        <!-- 真实群组：和联系人同一套 AlphaList（按群名首字母分组 + 右侧索引），行右侧同样换成 ⋯ -->
         <template v-else>
-          <div v-for="group in filteredGroups" :key="group.id" class="row" @click="startChatWithGroup(group)">
-            <div class="ava group">
-              <img v-if="group.avatar" :src="group.avatar" alt="" />
-              <span v-else>{{ group.name?.charAt(0)?.toUpperCase() }}</span>
-            </div>
-            <div class="row-main">
-              <div class="row-top"><span class="row-name">{{ group.name }}</span></div>
-              <div class="row-last">{{ group.memberCount }} 人</div>
-            </div>
-            <button class="row-act" @click.stop="openGroupDetail(group)">详情</button>
-          </div>
-          <div v-if="filteredGroups.length === 0" class="list-empty">暂无群组</div>
+          <AlphaList v-if="filteredGroups.length" :items="filteredGroups" :name-of="g => g.name" :key-of="g => g.id">
+            <template #default="{ item: group }">
+              <div class="row" @click="startChatWithGroup(group)">
+                <div class="ava group">
+                  <img v-if="group.avatar" :src="group.avatar" alt="" />
+                  <span v-else>{{ group.name?.charAt(0)?.toUpperCase() }}</span>
+                </div>
+                <div class="row-main">
+                  <div class="row-top"><span class="row-name">{{ group.name }}</span></div>
+                  <div class="row-last">{{ group.memberCount }} 人</div>
+                </div>
+                <button class="row-more" type="button" aria-label="查看群组信息" title="群组信息"
+                        @click.stop="openGroupCard(group)">⋯</button>
+              </div>
+            </template>
+          </AlphaList>
+          <div v-else class="list-empty">暂无群组</div>
         </template>
       </div>
     </aside>
@@ -708,6 +718,80 @@
         </div>
       </div>
     </div>
+
+    <!-- 好友信息：从联系人行上的 ⋯ 进来。只列接口真给且非空的字段，不编兜底数据 -->
+    <div v-if="friendCard" class="modal-overlay" @click.self="friendCard = null">
+      <div class="modal member-info-modal">
+        <div class="modal-head">
+          <div>
+            <div class="modal-title">好友信息</div>
+            <div class="modal-kicker">CONTACT INFO</div>
+          </div>
+          <button class="btn btn-link btn-sm" aria-label="关闭" @click="friendCard = null">✕</button>
+        </div>
+        <div class="modal-body">
+          <div class="member-info-card">
+            <div class="avatar s72">
+              <img v-if="friendCard.avatar" :src="friendCard.avatar" alt="" />
+              <span v-else>{{ friendName(friendCard).charAt(0).toUpperCase() || '?' }}</span>
+            </div>
+            <div class="member-info-detail">
+              <div class="member-info-name">{{ friendName(friendCard) }}</div>
+              <div class="member-info-meta">@{{ friendCard.username }} · ID {{ friendCard.friendId }}</div>
+            </div>
+          </div>
+          <div class="member-info-fields">
+            <div v-for="r in friendCardRows" :key="r.k" class="member-info-row">
+              <span class="member-info-label">{{ r.label }}</span>
+              <span class="member-info-value">{{ r.v }}</span>
+            </div>
+            <div v-if="!friendCardRows.length" class="member-info-row">
+              <span class="member-info-label">资料</span>
+              <span class="member-info-value">对方资料都还没填</span>
+            </div>
+          </div>
+        </div>
+        <div class="modal-foot">
+          <button class="btn btn-ghost btn-del" @click="removeFriendFromCard">删除好友</button>
+          <button class="btn btn-primary" @click="chatFromCard">发消息</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- 群组信息：从群组行上的 ⋯ 进来，同样只列接口真给的字段 -->
+    <div v-if="groupCard" class="modal-overlay" @click.self="groupCard = null">
+      <div class="modal member-info-modal">
+        <div class="modal-head">
+          <div>
+            <div class="modal-title">群组信息</div>
+            <div class="modal-kicker">GROUP INFO</div>
+          </div>
+          <button class="btn btn-link btn-sm" aria-label="关闭" @click="groupCard = null">✕</button>
+        </div>
+        <div class="modal-body">
+          <div class="member-info-card">
+            <div class="avatar s72 group-ava">
+              <img v-if="groupCard.avatar" :src="groupCard.avatar" alt="" />
+              <span v-else>{{ (groupCard.name || '?').charAt(0).toUpperCase() }}</span>
+            </div>
+            <div class="member-info-detail">
+              <div class="member-info-name">{{ groupCard.name }}</div>
+              <div class="member-info-meta">ID {{ groupCard.id }}</div>
+            </div>
+          </div>
+          <div class="member-info-fields">
+            <div v-for="r in groupCardRows" :key="r.k" class="member-info-row">
+              <span class="member-info-label">{{ r.label }}</span>
+              <span class="member-info-value">{{ r.v }}</span>
+            </div>
+          </div>
+        </div>
+        <div class="modal-foot">
+          <button class="btn btn-ghost" @click="settingsFromGroupCard">群设置</button>
+          <button class="btn btn-primary" @click="chatFromGroupCard">进入群聊</button>
+        </div>
+      </div>
+    </div>
   </div>
 </template>
 
@@ -720,12 +804,13 @@ import { useTokenValidation } from '../../composables/useTokenValidation'
 import { notifyDesktop } from '../../config'
 import { getConversationList, createConversation, clearUnread, deleteConversation } from '../../api/conversation'
 import { getFriendList, addFriend, removeFriend, checkFriend } from '../../api/friend'
-import { createGroup, getMyGroups, getGroupMembers, inviteMembers, removeMember, leaveGroup, dissolveGroup } from '../../api/group'
+import { createGroup, getMyGroups, getGroup, getGroupMembers, inviteMembers, removeMember, leaveGroup, dissolveGroup } from '../../api/group'
 import { getUserProfile, searchUser, searchUsersByKeyword, updateProfile, getMe, getOrg, getOnline } from '../../api/user'
 import { uploadFile, fileObjectUrl, parseFileRef, previewOf } from '../../api/file'
 import CreateGroupModal from '../../components/CreateGroupModal.vue'
 import AddMembersModal from '../../components/AddMembersModal.vue'
 import SettingsModal from '../../components/SettingsModal.vue'
+import AlphaList from '../../components/AlphaList.vue'
 import { toast, confirmBox } from '../../utils/ui'
 import { Minus, PictureOne, FolderUpload, MessageEmoji, Scissors, Mail, MicrophoneOne, People, History, Down, Pin, MessageUnread, Mute, Windows, PreviewClose, Delete, Copy, Clipboard } from '@icon-park/vue-next'
 import {
@@ -1756,6 +1841,81 @@ async function onAddFriendsSubmit({ ids }) {
   if (failed.length) toast(`已添加 ${ok} 人，${failed.length} 人失败（${failed[0]}）`, 'warning')
   else toast(`已添加 ${ok} 人为好友`, 'success')
   if (ok) showAddFriend.value = false
+}
+
+const friendName = f => f.nickname || f.username || ''
+
+// 好友信息弹框：字段一律取 GET /api/user/{id} 的真实返回，空字段整行不显示，
+// 也不显示 remark / location —— 那两个后端是死字段，谁都是空串
+const friendCard = ref(null)
+const friendProfile = ref({})
+const CARD_FIELDS = [['department', '部门'], ['position', '职务'], ['email', '邮箱'], ['phone', '电话'], ['bio', '个性签名']]
+const friendCardRows = computed(() => CARD_FIELDS
+  .map(([k, label]) => ({ k, label, v: String(friendProfile.value[k] || '').trim() }))
+  .filter(r => r.v))
+
+async function openFriendCard(friend) {
+  friendCard.value = friend
+  friendProfile.value = {}
+  try {
+    const p = await getUserProfile(friend.friendId)
+    if (p && !p.error) friendProfile.value = p
+  } catch (e) { /* 拉不到就只展示列表里已有的昵称和账号 */ }
+}
+
+async function chatFromCard() {
+  const f = friendCard.value
+  friendCard.value = null
+  if (f) await startChatWithFriend(f)
+}
+
+async function removeFriendFromCard() {
+  const f = friendCard.value
+  friendCard.value = null
+  if (f) await handleRemoveFriend(f)
+}
+
+/* 群组信息弹框：字段一律取 GET /group/{id} 的真实返回（GroupDTO 只有
+   id / name / avatar / ownerId / announcement / memberCount / groupType），
+   没有创建时间、没有群人数上限，就不列这两行；群主名字再拿 /api/user/{ownerId} 补 */
+const GROUP_TYPES = { 1: '普通群', 2: '项目群', 3: '部门群' }
+const groupCard = ref(null)
+const groupDetail = ref({})
+const groupOwner = ref('')
+const groupCardRows = computed(() => {
+  const g = { ...groupCard.value, ...groupDetail.value }
+  const out = [{ k: 'n', label: '成员', v: `${g.memberCount ?? 0} 人` }]
+  const t = GROUP_TYPES[g.groupType]
+  if (t) out.push({ k: 't', label: '类型', v: t })
+  out.push({ k: 'o', label: '群主', v: groupOwner.value || `ID ${g.ownerId ?? '—'}` })
+  const a = String(g.announcement || '').trim()
+  if (a) out.push({ k: 'a', label: '公告', v: a })
+  return out
+})
+async function openGroupCard(group) {
+  groupCard.value = group
+  groupDetail.value = {}
+  groupOwner.value = ''
+  try {
+    const d = await getGroup(group.id)
+    if (d && !d.error) groupDetail.value = d
+  } catch (e) { /* 拉不到就退回列表行上已有的字段 */ }
+  const oid = groupDetail.value.ownerId ?? group.ownerId
+  if (!oid) return
+  try {
+    const p = await getUserProfile(oid)
+    if (p && !p.error) groupOwner.value = `${p.nickname || p.username}（@${p.username}）`
+  } catch (e) { /* 取不到群主就显示 ID */ }
+}
+async function chatFromGroupCard() {
+  const g = groupCard.value
+  groupCard.value = null
+  if (g) await startChatWithGroup(g)
+}
+async function settingsFromGroupCard() {
+  const g = groupCard.value
+  groupCard.value = null
+  if (g) await openGroupDetail(g)
 }
 
 async function handleRemoveFriend(friend) {
@@ -4013,6 +4173,18 @@ function previewImage(url) {
 .row-act { border: 1px solid var(--nb-line); background: #fff; color: var(--nb-dim); border-radius: 5px; font-size: 12px; padding: 2px 7px; cursor: pointer; }
 .row-act:hover { color: var(--brand); border-color: var(--brand-line); }
 .row-act.danger:hover { color: var(--danger); border-color: rgba(217, 72, 96, .4); }
+/* 行上的 ⋯ 常驻可见（只在 hover 才出现的话，看不见的那会儿也就点不着了）；
+   反馈只换颜色和底色，不动尺寸 */
+.row-more {
+  width: 24px; height: 24px; flex: 0 0 24px; padding: 0; border: 1px solid transparent;
+  background: none; border-radius: 6px; color: var(--nb-dim); font-size: 15px; line-height: 1; cursor: pointer;
+  transition: color .12s ease, background-color .12s ease, border-color .12s ease;
+}
+.row-more:hover, .row-more:focus-visible { color: var(--brand); background: var(--brand-soft); border-color: var(--brand-line); }
+.btn-del { border-color: rgba(217, 72, 96, .4); color: var(--danger); }
+.btn-del:hover:not(:disabled) { background: rgba(217, 72, 96, .1); color: var(--danger); box-shadow: none; }
+/* 群头像跟列表里那颗一样是圆角方块，不是圆 */
+.avatar.group-ava { border-radius: 18px; background: #4f86f5; }
 .list-empty { padding: 22px 8px; text-align: center; color: var(--nb-dim-2); font-size: 13px; }
 
 /* ---- ③ 会话主区 ---- */
