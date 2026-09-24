@@ -277,9 +277,13 @@
         </div>
       </div>
 
-      <footer class="m-input" @dragover.prevent="isDragging = true" @dragleave.prevent="isDragging = false" @drop.prevent="handleDrop">
+      <footer class="m-input" :class="{ rzging: rzOn }" @dragover.prevent="isDragging = true" @dragleave.prevent="isDragging = false" @drop.prevent="handleDrop">
         <div v-if="isDragging" class="drop-mask"><div class="drop-ico">📎</div><div>松开鼠标上传文件</div></div>
-        <textarea id="chat-message-input" v-model="inputMessage" name="message" class="area"
+        <div class="rz">
+          <span class="rz-grip" role="separator" aria-orientation="horizontal" tabindex="0"
+                title="拖动调整输入框高度，双击复原" @pointerdown="rzStart" @keydown="rzKey" @dblclick="rzSet(AREA_MIN)"></span>
+        </div>
+        <textarea id="chat-message-input" v-model="inputMessage" name="message" class="area" :style="{ height: areaH + 'px' }"
                   placeholder="输入消息，或使用 / 触发 AI 功能…"
                   @keydown.enter.exact.prevent="sendMessage" @contextmenu.prevent.stop="openInputMenu($event)"
                   @paste="handlePaste" :disabled="!connected || !currentConversation"></textarea>
@@ -730,6 +734,34 @@ const { isTokenValid, validateToken, redirectToLogin } = useTokenValidation()
 
 const messagesRef = ref(null)
 const inputMessage = ref('')
+const AREA_MIN = 56, AREA_MAX = 320, AREA_KEY = 'chat-input-h'
+const rzOn = ref(false)
+const clampArea = h => Math.round(Math.min(AREA_MAX, Math.max(AREA_MIN, h)))
+const areaH = ref(clampArea(Number(localStorage.getItem(AREA_KEY)) || AREA_MIN))
+let rzY0 = 0, rzH0 = 0
+function rzSet(h) {
+  areaH.value = clampArea(h)
+  localStorage.setItem(AREA_KEY, String(areaH.value))
+}
+function rzMove(e) { if (rzOn.value) rzSet(rzH0 + (rzY0 - e.clientY)) }
+function rzEnd() {
+  rzOn.value = false
+  document.body.style.userSelect = ''
+  window.removeEventListener('pointermove', rzMove)
+  window.removeEventListener('pointerup', rzEnd)
+}
+function rzStart(e) {
+  rzY0 = e.clientY; rzH0 = areaH.value; rzOn.value = true
+  document.body.style.userSelect = 'none'
+  window.addEventListener('pointermove', rzMove)
+  window.addEventListener('pointerup', rzEnd)
+  e.preventDefault()
+}
+function rzKey(e) {
+  if (e.key === 'ArrowUp') { e.preventDefault(); rzSet(areaH.value + 24) }
+  else if (e.key === 'ArrowDown') { e.preventDefault(); rzSet(areaH.value - 24) }
+  else if (e.key === 'Home') { e.preventDefault(); rzSet(AREA_MIN) }
+}
 const showEmojiPicker = ref(false)
 const hoveredEmoji = ref(null)
 const isDragging = ref(false)
@@ -1121,6 +1153,7 @@ onMounted(async () => {
 
 onUnmounted(() => {
   disconnect()
+  rzEnd()   // 拖到一半被卸载的话，window 上的 pointermove 会一直留着
 })
 
 async function loadConversations() {
@@ -4013,9 +4046,18 @@ function previewImage(url) {
   background: rgba(43, 107, 232, .08); border: 1px dashed var(--brand-line); color: var(--brand);
 }
 .area {
-  width: 100%; min-height: 56px; max-height: 160px; border: 0; outline: none; resize: none;
+  width: 100%; min-height: 56px; max-height: 320px; border: 0; outline: none; resize: none;
   font: inherit; color: var(--nb-text); background: transparent;
 }
+/* 只有那颗凸块能拖：整条关掉 pointer 事件，凸块自己开回来。
+   内边距撑出 11px 的按压高度，底色用 content-box 只画中间 4px，所以看得见的是凸块、点得着的也是凸块 */
+.rz { display: flex; justify-content: center; height: 11px; margin: -6px -16px 3px; pointer-events: none; }
+.rz-grip { display: block; width: 46px; height: 11px; padding: 3.5px 0; box-sizing: border-box;
+  border-radius: 999px; background: var(--nb-line) content-box; outline: none;
+  cursor: row-resize; touch-action: none; pointer-events: auto;
+  transition: background .14s, width .14s; }
+.rz-grip:hover, .rz-grip:focus-visible, .m-input.rzging .rz-grip { background: var(--brand) content-box; width: 62px; }
+.m-input.rzging { cursor: row-resize; }
 .bar { display: flex; align-items: center; justify-content: space-between; border-top: 1px solid var(--nb-line); padding-top: 8px; }
 .bar-tools { display: flex; align-items: center; gap: 2px; }
 .tool-wrap { position: relative; display: flex; }
