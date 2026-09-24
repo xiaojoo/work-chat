@@ -28,7 +28,7 @@
         <div class="fld">
           <label class="lb" for="cg-desc">群聊简介 <span class="opt">（选填）</span></label>
           <div class="ipt-wrap">
-            <textarea id="cg-desc" v-model="announcement" class="ipt ta" maxlength="200" rows="3"
+            <textarea id="cg-desc" v-model="announcement" class="ipt ta" maxlength="200" rows="2"
                       placeholder="简要描述群聊的用途和规则…" />
             <span class="cnt ta-cnt">{{ announcement.length }}/200</span>
           </div>
@@ -168,8 +168,10 @@ function submit() {
 .hd-tx p { margin: 0; font-size: 12.5px; color: var(--nb-dim); }
 .x { border: 0; background: none; color: var(--nb-dim); font-size: 14px; cursor: pointer; padding: 4px 6px; border-radius: 8px; }
 .x:hover { background: var(--nb-bg-3); color: var(--nb-text); }
-.bd { flex: 1; overflow-y: auto; padding: 16px 18px 4px; display: flex; flex-direction: column; gap: 15px; }
+.bd { flex: 1; overflow-y: auto; padding: 12px 18px; display: flex; flex-direction: column; gap: 11px; min-height: 0; }
 .fld { display: flex; flex-direction: column; gap: 7px; }
+/* 成员那一栏吃掉剩余高度：整块在 640 里刚好装平时 .bd 就没得滚，只剩列表内部一条 */
+.bd > .fld:last-child { flex: 1; min-height: 0; }
 .lb { font-size: 12.5px; font-weight: 600; color: var(--nb-text); }
 .req { color: var(--danger, #d92d20); font-style: normal; }
 .opt { font-weight: 400; color: var(--nb-dim); }
@@ -177,14 +179,16 @@ function submit() {
 .ipt { width: 100%; box-sizing: border-box; padding: 8px 56px 8px 11px; font: inherit; font-size: 13px; color: var(--nb-text); background: var(--nb-bg-2); border: 1px solid var(--nb-line); border-radius: 10px; outline: none; }
 .ipt:focus { border-color: var(--brand); box-shadow: 0 0 0 3px var(--brand-line); }
 .ipt::placeholder { color: var(--nb-dim-2, var(--nb-dim)); }
-.ta { resize: vertical; min-height: 62px; padding-right: 11px; line-height: 1.5; }
+.ta { resize: vertical; min-height: 46px; padding-right: 11px; line-height: 1.5; }
 .cnt { position: absolute; right: 10px; bottom: 8px; font-size: 11.5px; color: var(--nb-dim); pointer-events: none; }
 .ta-cnt { top: 8px; bottom: auto; }
 .types { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }
-.type { position: relative; display: flex; flex-direction: column; gap: 7px; padding: 11px 11px 12px; text-align: left; cursor: pointer; background: var(--nb-bg-2); border: 1px solid var(--nb-line); border-radius: 10px; color: var(--nb-text); transition: border-color .14s, background .14s; }
+/* 图标和标题同一行（原来竖排一张卡 90px，三张就把整块顶出滚动条了） */
+.type { position: relative; display: flex; align-items: flex-start; gap: 8px; padding: 10px 11px; text-align: left; cursor: pointer; background: var(--nb-bg-2); border: 1px solid var(--nb-line); border-radius: 10px; color: var(--nb-text); transition: border-color .14s, background .14s; }
 .type:hover { border-color: var(--brand-line); }
 .type.on { border-color: var(--brand); background: var(--brand-soft); }
-.t-ic { color: var(--brand); }
+.t-ic { flex: 0 0 auto; padding-top: 1px; color: var(--brand); }
+.t-body { min-width: 0; }
 .t-body b { display: block; font-size: 13px; font-weight: 600; }
 .t-body small { display: block; margin-top: 2px; font-size: 11.5px; line-height: 1.4; color: var(--nb-dim); }
 .t-check { position: absolute; top: 9px; right: 9px; display: grid; place-items: center; width: 17px; height: 17px; font-size: 11px; color: #fff; background: var(--brand); border-radius: 50%; }
@@ -193,7 +197,7 @@ function submit() {
 .chip.more { color: var(--nb-text); background: var(--nb-bg-3); border-color: var(--nb-line); cursor: pointer; }
 .chip-x { border: 0; background: none; padding: 0; font-size: 11px; color: inherit; cursor: pointer; opacity: .7; }
 .chip-x:hover { opacity: 1; }
-.list { max-height: 190px; overflow-y: auto; border: 1px solid var(--nb-line); border-radius: 12px; background: var(--nb-bg-2); }
+.list { flex: 1; min-height: 60px; overflow-y: auto; border: 1px solid var(--nb-line); border-radius: 12px; background: var(--nb-bg-2); }
 .row { display: grid; grid-template-columns: 18px 28px 1fr auto; gap: 9px; align-items: center; width: 100%; padding: 8px 11px; text-align: left; cursor: pointer; background: none; border: 0; border-bottom: 1px solid var(--nb-line); color: var(--nb-text); }
 .row:last-child { border-bottom: 0; }
 .row:hover { background: var(--nb-bg-3); }
