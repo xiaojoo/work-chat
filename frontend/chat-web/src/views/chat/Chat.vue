@@ -3646,15 +3646,6 @@ function previewImage(url) {
   border: 1px solid rgba(43, 107, 232, 0.14);
   border-radius: 8px;
   background: rgba(255, 255, 255, 0.55);
-  scrollbar-width: thin;
-  scrollbar-color: rgba(43, 107, 232, 0.35) transparent;
-}
-.invite-results::-webkit-scrollbar {
-  width: 6px;
-}
-.invite-results::-webkit-scrollbar-thumb {
-  background: rgba(43, 107, 232, 0.3);
-  border-radius: 3px;
 }
 .invite-item {
   display: flex;
@@ -4042,10 +4033,6 @@ function previewImage(url) {
 /* 轨道原来缩在弹框里 8px（.emoji-pop 的 padding），右边露出一条缝、看着像滚动条跑偏。
    把格子的盒子往外推 8px 让轨道贴住边框，再用 padding 把格子本身留回 8px 不贴条 */
 .emoji-grid { display: grid; grid-template-columns: repeat(8, 1fr); gap: 2px; margin-right: -8px; padding-right: 8px; }
-/* 全局那条 42% 的深色 thumb 是为了让消息区的条在灰底上看得见；表情弹框是白底，
-   满高的深色 thumb 会糊成一块板，这里按他要求回到原来的半透明蓝 */
-.emoji-grid::-webkit-scrollbar-thumb { background: rgba(43, 107, 232, .22); }
-.emoji-grid::-webkit-scrollbar-thumb:hover { background: rgba(43, 107, 232, .45); }
 .emoji-cell { padding: 3px; font-size: 18px; text-align: center; cursor: pointer; border-radius: 4px; }
 .emoji-cell:hover { background: var(--brand-soft); }
 .emoji-hint { margin-top: 4px; padding-top: 6px; border-top: 1px solid var(--nb-line); font-size: 11px; color: var(--nb-dim); }

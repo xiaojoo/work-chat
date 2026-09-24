@@ -94,16 +94,15 @@ body::after {
   z-index: 1;
 }
 
-/* ===== 全局滚动条 ===== */
+/* ===== 全局滚动条：只这一处，所有容器共用，不按容器开例外 =====
+   thumb 和轨道都混成不透明实色：半透明会把容器底色透出来，同一条规则压在消息区的
+   灰底 (#f4f6fa) 和内容区的白底上就会一深一浅。混成实色后两处是同一组 RGB，
+   而且都跟着 --brand 走，外观页签换色时滚动条一起换。 */
 *::-webkit-scrollbar {
   width: 8px;
   height: 8px;
 }
 *::-webkit-scrollbar-thumb {
-  /* 半透明 thumb 会把容器底色透出来：消息区是 #f4f6fa、右栏是 #fff，同一条 rgba(43,107,232,.22)
-     实测渲染成 rgb(199,215,246) 和 rgb(208,222,250)。先混成不透明色，两处 RGB 才真的一致。
-     但一致还不够：22% 的蓝压在灰底上只剩 Δ(36,24,4) 对比，压在白底上有 Δ(47,33,5)，
-     看着就是"一根糊在灰布里、一根清清楚楚"。提到 42% 后两种底色上对比都 >Δ78。 */
   background: color-mix(in srgb, var(--brand) 42%, #fff);
   border-radius: 4px;
 }
@@ -111,7 +110,8 @@ body::after {
   background: color-mix(in srgb, var(--brand) 62%, #fff);
 }
 *::-webkit-scrollbar-track {
-  background: transparent;
+  background: color-mix(in srgb, var(--brand) 8%, #fff);
+  border-radius: 4px;
 }
 
 /* ============================================================

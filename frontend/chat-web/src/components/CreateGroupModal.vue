@@ -60,27 +60,12 @@
           </div>
         </div>
 
-        <div class="fld">
+        <div class="fld mem">
           <label class="lb" for="cg-search">选择成员</label>
-          <div class="ipt-wrap">
-            <input id="cg-search" v-model="q" class="ipt" type="text" placeholder="搜索成员姓名、部门或邮箱" autocomplete="off" />
-          </div>
-          <div v-if="picked.length" class="chips">
-            <span v-for="p in picked" :key="p.id" class="chip">
-              {{ p.nickname || p.username }}
-              <button class="chip-x" type="button" :aria-label="'移除 ' + (p.nickname || p.username)" @click="toggle(p)">✕</button>
-            </span>
-            <button v-if="picked.length > 3" class="chip more" type="button" @click="q = ''">+{{ picked.length - 3 }}</button>
-          </div>
-          <div class="list" role="listbox">
-            <button v-for="m in filtered" :key="m.id" type="button" class="row" role="option"
-                    :aria-selected="isPicked(m)" @click="toggle(m)">
-              <span class="cb" :class="{ on: isPicked(m) }" aria-hidden="true">{{ isPicked(m) ? '✓' : '' }}</span>
-              <span class="av">{{ initial(m) }}</span>
-              <span class="nm">{{ m.nickname || m.username }}</span>
-              <span class="dp">{{ m.department || '未分配' }}</span>
-            </button>
-            <p v-if="!filtered.length" class="empty">没有匹配的成员</p>
+          <div class="transfer">
+            <MemberTree :members="candidates" :picked="picked" @toggle="toggle" @toggle-many="toggleMany" />
+
+<PickPanel :picked="picked" @remove="toggle" @clear="picked = []" />
           </div>
         </div>
       </div>
@@ -104,6 +89,8 @@
 
 <script setup>
 import { computed, ref, watch } from 'vue'
+import MemberTree from './MemberTree.vue'
+import PickPanel from './PickPanel.vue'
 
 const props = defineProps({
   open: { type: Boolean, default: false },
@@ -121,31 +108,25 @@ const PIN_NOTE = '置顶要往 chat_user_conversation 加 pinned 列与排序，
 const name = ref('')
 const announcement = ref('')
 const groupType = ref(1)
-const q = ref('')
 const picked = ref([])
 
 watch(() => props.open, (v) => {
-  if (v) { name.value = ''; announcement.value = ''; groupType.value = 1; q.value = ''; picked.value = [] }
+  if (v) { name.value = ''; announcement.value = ''; groupType.value = 1; picked.value = [] }
 })
 
 const initial = (m) => String(m.nickname || m.username || '?').charAt(0).toUpperCase()
 const isPicked = (m) => picked.value.some(p => String(p.id) === String(m.id))
 
-const filtered = computed(() => {
-  const kw = q.value.trim().toLowerCase()
-  const list = props.candidates.filter(m => !kw
-    || String(m.nickname || '').toLowerCase().includes(kw)
-    || String(m.username || '').toLowerCase().includes(kw)
-    || String(m.department || '').toLowerCase().includes(kw)
-    || String(m.email || '').toLowerCase().includes(kw))
-  // 已选的排到最前，方便确认勾上了没有
-  return [...list.filter(isPicked), ...list.filter(m => !isPicked(m))]
-})
-
 const canSubmit = computed(() => !!name.value.trim() && picked.value.length > 0)
 
 function toggle(m) {
   picked.value = isPicked(m) ? picked.value.filter(p => String(p.id) !== String(m.id)) : [...picked.value, m]
+}
+
+function toggleMany(members, on) {
+  if (on) { picked.value = [...picked.value, ...members.filter(m => !isPicked(m))]; return }
+  const ids = new Set(members.map(m => String(m.id)))
+  picked.value = picked.value.filter(p => !ids.has(String(p.id)))
 }
 
 function submit() {
@@ -192,21 +173,9 @@ function submit() {
 .t-body b { display: block; font-size: 13px; font-weight: 600; }
 .t-body small { display: block; margin-top: 2px; font-size: 11.5px; line-height: 1.4; color: var(--nb-dim); }
 .t-check { position: absolute; top: 9px; right: 9px; display: grid; place-items: center; width: 17px; height: 17px; font-size: 11px; color: #fff; background: var(--brand); border-radius: 50%; }
-.chips { display: flex; flex-wrap: wrap; gap: 6px; }
-.chip { display: inline-flex; align-items: center; gap: 5px; padding: 3px 7px 3px 9px; font-size: 12.5px; color: var(--brand-strong); background: var(--brand-soft); border: 1px solid var(--brand-line); border-radius: 999px; }
-.chip.more { color: var(--nb-text); background: var(--nb-bg-3); border-color: var(--nb-line); cursor: pointer; }
-.chip-x { border: 0; background: none; padding: 0; font-size: 11px; color: inherit; cursor: pointer; opacity: .7; }
-.chip-x:hover { opacity: 1; }
-.list { flex: 1; min-height: 60px; overflow-y: auto; border: 1px solid var(--nb-line); border-radius: 12px; background: var(--nb-bg-2); }
-.row { display: grid; grid-template-columns: 18px 28px 1fr auto; gap: 9px; align-items: center; width: 100%; padding: 8px 11px; text-align: left; cursor: pointer; background: none; border: 0; border-bottom: 1px solid var(--nb-line); color: var(--nb-text); }
-.row:last-child { border-bottom: 0; }
-.row:hover { background: var(--nb-bg-3); }
-.cb { display: grid; place-items: center; width: 16px; height: 16px; font-size: 11px; color: #fff; border: 1.5px solid var(--nb-line); border-radius: 5px; background: var(--nb-bg-1); }
-.cb.on { background: var(--brand); border-color: var(--brand); }
-.av { display: grid; place-items: center; width: 28px; height: 28px; font-size: 12px; font-weight: 600; color: var(--brand-strong); background: var(--brand-soft); border-radius: 50%; }
-.nm { font-size: 13.5px; }
-.dp { font-size: 12px; color: var(--nb-dim); }
-.empty { margin: 0; padding: 14px; font-size: 12.5px; color: var(--nb-dim); text-align: center; }
+/* 双栏穿梭：左=部门树（搜索框在树上方），右=已选。两块各自内部滚，弹框主体不滚 */
+.transfer { flex: 1; min-height: 0; display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 10px; }
+/* 左右两栏分别搬去 MemberTree.vue 和 PickPanel.vue，这里只剩两栏的栅格 */
 .ft { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 13px 18px; border-top: 1px solid var(--nb-line); background: var(--nb-bg-2); }
 .pin { display: inline-flex; align-items: center; gap: 7px; font-size: 12.5px; color: var(--nb-dim); cursor: not-allowed; }
 .pin input { accent-color: var(--brand); }
