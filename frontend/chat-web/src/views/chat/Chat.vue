@@ -24,9 +24,11 @@
         </button>
       </div>
       <div class="rail-foot">
-        <span class="rail-conn" :class="{ online: connected }" :title="connected ? '已连接' : '已断开'"></span>
-        <button class="rail-btn" title="设置资料" @click="showProfile = true">⚙</button>
-        <button class="rail-btn quit" title="退出登录" @click="handleLogout">退出</button>
+        <span class="rail-conn" :class="shownPresence" :title="presenceName"></span>
+        <!-- 故意不给 title：uaTip 是全局接管 title 的，挂了它悬停就会飘气泡。
+             ☰ 的含义已经由弹层自己的「在线状态」表头说明，再飘一次是重复 -->
+        <button class="rail-btn" :class="{ open: railMenuOpen }" aria-label="在线状态 / 退出登录"
+                aria-haspopup="menu" :aria-expanded="railMenuOpen" @click.stop="toggleRailMenu">☰</button>
       </div>
     </nav>
 
@@ -40,7 +42,7 @@
           <span class="side-meta">{{ listSub }}</span>
         </div>
         <div class="side-acts">
-          <button v-if="activeTab === 'friend'" class="side-act" title="添加好友" @click="showAddFriend = true">＋</button>
+          <button v-if="activeTab === 'friend'" class="side-act" title="添加好友" @click="openFriendPicker">＋</button>
           <button v-else-if="activeTab === 'group'" class="side-act" title="创建群" @click="showCreateGroup = true">＋</button>
         </div>
       </header>
@@ -462,6 +464,23 @@
       </div>
     </div>
 
+    <!-- 图标栏 ☰ 菜单：状态三档 + 退出。用 bottom 定位所以向上长，不用先量菜单高度；
+         点别处由挂在 document 上的那个 click 监听（closeAllMenus）收掉 -->
+    <div v-if="railMenuOpen" class="rail-menu" role="menu"
+         :style="{ left: railMenuX + 'px', bottom: railMenuBottom + 'px' }">
+      <div class="rail-menu-hd">在线状态</div>
+      <button v-for="s in PRESENCE" :key="s.key" type="button" role="menuitemradio"
+              class="rail-menu-item" :class="{ on: presence === s.key }" :aria-checked="presence === s.key"
+              @click="setPresence(s.key)">
+        <i class="pm-dot" :class="s.key" /><span>{{ s.name }}</span>
+        <span v-if="presence === s.key" class="pm-tick">✓</span>
+      </button>
+      <div class="rail-menu-sep"></div>
+      <button type="button" role="menuitem" class="rail-menu-item quit" @click="pickLogout">
+        <span>退出登录</span>
+      </button>
+    </div>
+
     <!-- 单聊详情面板 -->
     <div v-if="showFriendDetail && selectedFriend" class="group-panel">
       <div class="group-panel-header">
@@ -503,14 +522,14 @@
     </div>
 
     <!-- 添加好友：复用「添加用户」的组织树选择器（旧的关键词搜索弹窗已删） -->
-    <AddMembersModal :open="showAddFriend" mode="friend" :org="orgData" :groups="groups" :online="onlineIds"
+    <AddMembersModal :open="showAddFriend" mode="friend" :org="orgData" :groups="groups" :online="onlineUsers"
                      :exclude-ids="friendExcludeIds" :group-members-cache="groupMemberCache"
                      @close="showAddFriend = false" @add="onAddFriendsSubmit" @expand-group="onExpandGroup" />
 
         <CreateGroupModal :open="showCreateGroup" :candidates="orgCandidates"
                         @close="showCreateGroup = false" @submit="onCreateGroupSubmit" />
 
-    <AddMembersModal :open="showAddMembers" :org="orgData" :groups="groups" :online="onlineIds"
+    <AddMembersModal :open="showAddMembers" :org="orgData" :groups="groups" :online="onlineUsers"
                      :exclude-ids="groupMemberIds" :group-members-cache="groupMemberCache"
                      @close="showAddMembers = false" @add="onAddMembersSubmit" @expand-group="onExpandGroup" />
 
@@ -967,6 +986,58 @@ const inputHasSelection = ref(false)
 const msgMenuVisible = ref(false)
 const msgMenuX = ref(0)
 const msgMenuY = ref(0)
+
+// ---- 图标栏 ☰ 菜单：在线状态 + 退出 ----
+// 网关只认 ONLINE / BUSY 两种状态（写进 Redis 的 user:online:{id}）。"离线"不发 OFFLINE，
+// 而是断开 WebSocket —— 网关在最后一台设备断开时把整个键删掉，别人读 /user/online 就查不到你。
+// 若真发 OFFLINE，会出现"标着离线但连接还在、消息照收"的假状态，所以宁可断连来表达。
+// 也因此 OFFLINE 不写进 localStorage：下次开应用本来就重连了，留着它等于界面在说谎。
+const PRESENCE = [
+  { key: 'ONLINE', name: '在线' },
+  { key: 'BUSY', name: '忙碌' },
+  { key: 'OFFLINE', name: '离线' }
+]
+const presence = ref(localStorage.getItem('chat_presence') || 'ONLINE')
+// 外面那个点画的是"别人看到的我"：连接一断，网关就把 Redis 键删了、在线表里已经没有你，
+// 这时无论上一次选的是什么都得画离线，否则点会一直绿着说谎
+const shownPresence = computed(() => (connected.value ? presence.value : 'OFFLINE'))
+const presenceName = computed(() => ({ ONLINE: '在线', BUSY: '忙碌', OFFLINE: '离线' })[shownPresence.value])
+const railMenuOpen = ref(false)
+const railMenuX = ref(0)
+const railMenuBottom = ref(0)
+
+function toggleRailMenu(e) {
+  railMenuOpen.value = !railMenuOpen.value
+  if (!railMenuOpen.value) return
+  const r = e.currentTarget.getBoundingClientRect()
+  railMenuX.value = Math.round(r.right + 6)
+  railMenuBottom.value = Math.round(window.innerHeight - r.bottom)
+}
+
+function setPresence(key) {
+  railMenuOpen.value = false
+  presence.value = key
+  if (key === 'OFFLINE') {
+    localStorage.removeItem('chat_presence')
+    disconnect()
+    return
+  }
+  localStorage.setItem('chat_presence', key)
+  if (!connected.value) connect(userStore.accessToken)
+  sendWhenConnected('PRESENCE_SET', { status: key }, 8000)
+    .catch(() => toast('状态没发出去：连接未就绪', 'error'))
+}
+
+function pickLogout() {
+  railMenuOpen.value = false
+  handleLogout()
+}
+
+// 忙碌要能扛过重连：网关每次连接都按 ONLINE 写，掉线自动重连后要把状态补回去，
+// 否则别人看到的你是在线，界面里你自己选的却是忙碌。
+watch(connected, (up) => {
+  if (up && presence.value === 'BUSY') send('PRESENCE_SET', { status: 'BUSY' })
+})
 const selectedMsg = ref(null)
 
 // 背景右键菜单（清屏）
@@ -1623,6 +1694,7 @@ function closeAllMenus() {
   bgMenuVisible.value = false
   convMenuVisible.value = false
   inputMenuVisible.value = false
+  railMenuOpen.value = false
 }
 
 function openMsgMenu(event, msg) {
@@ -1855,7 +1927,7 @@ async function handleRemoveFriend(friend) {
 
 // —— 组织架构 / 在线状态：创建群聊与添加用户两个弹窗的数据源 ——
 const orgData = ref([])
-const onlineIds = ref([])
+const onlineUsers = ref([])   // [{ userId, status: 'ONLINE'|'BUSY' }]，不在里面就是离线
 const showAddMembers = ref(false)
 
 const orgCandidates = computed(() => orgData.value
@@ -1873,10 +1945,10 @@ async function loadOrg() {
 
 async function refreshOnline() {
   try {
-    onlineIds.value = await getOnline()
+    onlineUsers.value = await getOnline()
   } catch (e) {
     // Redis 不可用时接口返回空集合，界面按全部离线画，不画假绿点
-    onlineIds.value = []
+    onlineUsers.value = []
   }
 }
 
@@ -1897,6 +1969,13 @@ async function onCreateGroupSubmit(form) {
 function openAddMembers() {
   refreshOnline()
   showAddMembers.value = true
+}
+
+// 添加好友吃的是同一份在线表。原来这里只置 visible，面板画的是进页面那次拉到的旧状态——
+// 刚在 ☰ 里把自己换成忙碌，点开面板那行点还是绿的。和 openAddMembers 一样先刷再开。
+function openFriendPicker() {
+  refreshOnline()
+  showAddFriend.value = true
 }
 
 // 「从群聊添加」页签点开某个群时才去拉成员；成员 DTO 只有 userId，名字靠组织架构补
@@ -3992,8 +4071,7 @@ function previewImage(url) {
   background: transparent; color: var(--nb-dim); display: grid; place-items: center;
   cursor: pointer; font-size: 17px; line-height: 1;
 }
-.rail-btn:hover { background: var(--nb-bg-3); color: var(--nb-text); }
-.rail-btn.quit { font-size: 11px; }
+.rail-btn:hover, .rail-btn.open { background: var(--nb-bg-3); color: var(--nb-text); }
 .rail-group.wb-group { margin-top: 6px; padding-top: 8px; border-top: 1px solid var(--nb-line); }
 .rail-btn.wb-btn { font-size: 11.5px; font-weight: 600; }
 .rail-btn.active { background: var(--brand-soft); color: var(--brand); }
@@ -4004,7 +4082,30 @@ function previewImage(url) {
 }
 .rail-foot { display: flex; flex-direction: column; align-items: center; gap: 8px; }
 .rail-conn { width: 8px; height: 8px; border-radius: 50%; background: var(--nb-dim-2); }
-.rail-conn.online { background: var(--ok); }
+.rail-conn.ONLINE { background: var(--ok); }
+.rail-conn.BUSY { background: var(--warn); }
+
+/* ---- 图标栏 ☰ 菜单：向上弹（bottom 定位），反馈只换底色不动尺寸 ---- */
+.rail-menu {
+  position: fixed; z-index: 9999; min-width: 172px; padding: 5px;
+  background: var(--nb-bg-1); border: 1px solid var(--nb-line); border-radius: 12px;
+  box-shadow: var(--shadow-2); animation: convMenuIn .14s ease-out;
+}
+.rail-menu-hd { padding: 6px 10px 7px; font-size: 11.5px; color: var(--nb-dim); }
+.rail-menu-item {
+  display: flex; align-items: center; gap: 9px; width: 100%; padding: 8px 10px;
+  font: inherit; font-size: 13px; text-align: left; color: var(--nb-text);
+  background: none; border: 0; border-radius: 8px; cursor: pointer;
+  transition: background-color .12s ease, color .12s ease;
+}
+.rail-menu-item:hover { background: var(--nb-bg-3); }
+.rail-menu-item.on { color: var(--brand); }
+.rail-menu-item.quit:hover { color: var(--danger); }
+.pm-tick { margin-left: auto; font-size: 12px; color: var(--brand); }
+.pm-dot { flex: 0 0 8px; width: 8px; height: 8px; border-radius: 50%; background: var(--nb-dim-2); }
+.pm-dot.ONLINE { background: var(--ok); }
+.pm-dot.BUSY { background: var(--warn); }
+.rail-menu-sep { height: 1px; margin: 5px 8px; background: var(--nb-line); }
 
 /* ---- ② 列表栏 ---- */
 /* 卡片内部不画分隔线：列表比会话区深一档，靠这一步色差分出轮廓。

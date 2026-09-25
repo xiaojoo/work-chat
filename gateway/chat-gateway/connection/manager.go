@@ -40,7 +40,7 @@ func (m *Manager) Add(client *Client) {
 	}
 	m.clients[client.UserID][client.DeviceID] = client
 
-	redis.SetUserOnline(client.UserID, client.DeviceID, client.ConnectionID)
+	redis.SetUserOnline(client.UserID, client.DeviceID, client.ConnectionID, "ONLINE")
 	log.Printf("User %d connected: device=%s", client.UserID, client.DeviceID)
 }
 
@@ -87,6 +87,8 @@ func (m *Manager) HandleMessage(client *Client, msg *Message) {
 		m.handleSyncConversations(client, msg)
 	case "LOAD_MESSAGES":
 		m.handleLoadMessages(client, msg)
+	case "PRESENCE_SET":
+		m.handlePresenceSet(client, msg)
 	default:
 		log.Printf("Unknown message type: %s", msg.Type)
 	}
@@ -360,6 +362,30 @@ func (m *Manager) handleSyncConversations(client *Client, msg *Message) {
 		Data:      convList,
 	})
 	client.enqueue(resp)
+}
+
+// handlePresenceSet 改的是"我"在这台设备上的状态，只重写自己那条哈希字段。
+// 忙碌不挡投递：忙碌是给别人看的标签，不是免打扰。离线由前端断连来表达——
+// 连接一没了 manager.Remove 就把整个键删掉，别人读 /user/online 就查不到这个人，
+// 所以这里不收 "OFFLINE"，否则会出现"标着离线但还收得到消息"的假状态。
+func (m *Manager) handlePresenceSet(client *Client, msg *Message) {
+	var data struct {
+		Status string `json:"status"`
+	}
+	if err := json.Unmarshal(msg.Data, &data); err != nil {
+		return
+	}
+	if data.Status != "ONLINE" && data.Status != "BUSY" {
+		log.Printf("Presence rejected: user=%d status=%q", client.UserID, data.Status)
+		client.enqueue(ackFrame(msg.RequestId, "PRESENCE_ACK", map[string]interface{}{
+			"status": "FAILED",
+			"error":  "BAD_STATUS",
+		}))
+		return
+	}
+
+	redis.SetUserOnline(client.UserID, client.DeviceID, client.ConnectionID, data.Status)
+	client.enqueue(ackFrame(msg.RequestId, "PRESENCE_ACK", map[string]interface{}{"status": data.Status}))
 }
 
 func (m *Manager) handleLoadMessages(client *Client, msg *Message) {

@@ -24,7 +24,7 @@
           <li v-for="m in d.members" :key="m.id">
             <button type="button" class="row" role="checkbox" :aria-checked="has(m)" @click="$emit('toggle', m)">
               <span class="cb" :class="{ on: has(m) }" aria-hidden="true">{{ has(m) ? '✓' : '' }}</span>
-              <span class="av">{{ initial(m) }}<i v-if="isOnline(m)" class="dot" title="在线" /></span>
+              <span class="av">{{ initial(m) }}<i v-if="presenceOf(m)" class="dot" :class="presenceOf(m)" :title="presenceOf(m) === 'BUSY' ? '忙碌' : '在线'" /></span>
               <span class="nm">{{ m.nickname || m.username }}</span>
               <span class="rl">{{ subOf(m) }}</span>
             </button>
@@ -44,7 +44,7 @@ import { computed, ref, watch } from 'vue'
 const props = defineProps({
   members: { type: Array, default: () => [] },   // 已经由调用方筛过的候选人（排除自己/已在群里等）
   picked: { type: Array, default: () => [] },
-  online: { type: Array, default: () => [] },     // 传了才画在线点
+  online: { type: Array, default: () => [] },     // [{userId,status}]，传了才画状态点
   placeholder: { type: String, default: '搜索姓名、部门或邮箱' },
   emptyText: { type: String, default: '没有匹配的成员' }
 })
@@ -58,7 +58,7 @@ const initial = (m) => String(m.nickname || m.username || '?').charAt(0).toUpper
 const deptOf = (m) => m.department || '未分配'
 const subOf = (m) => m.position || m.department || '未填写职位'
 const has = (m) => props.picked.some(p => String(p.id) === String(m.id))
-const isOnline = (m) => props.online.some(id => String(id) === String(m.id))
+const presenceOf = (m) => props.online.find(u => String(u.userId) === String(m.id))?.status || ''
 const isOpen = d => openDepts.value[d] === true
 const fold = d => { openDepts.value[d] = !isOpen(d) }
 
@@ -105,7 +105,8 @@ watch(q, v => { if (v.trim()) for (const d of tree.value) openDepts.value[d.name
    漏掉 true 的话，全选时那个白色 ✓ 会画在白底上，看着就像没勾 */
 .cb.on, .cb[aria-checked='true'], .cb[aria-checked='mixed'] { background: var(--brand); border-color: var(--brand); }
 .av { position: relative; display: grid; place-items: center; width: 24px; height: 24px; font-size: 11.5px; font-weight: 600; color: var(--brand-strong); background: var(--brand-soft); border-radius: 50%; }
-.dot { position: absolute; right: -1px; bottom: -1px; width: 7px; height: 7px; border-radius: 50%; background: #1f9d55; border: 1.5px solid var(--nb-bg-1); }
+.dot { position: absolute; right: -1px; bottom: -1px; width: 7px; height: 7px; border-radius: 50%; background: var(--ok); border: 1.5px solid var(--nb-bg-1); }
+.dot.BUSY { background: var(--warn); }
 .nm { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 13px; }
 .rl { max-width: 76px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 11.5px; color: var(--nb-dim); }
 .empty { margin: 0; padding: 14px; font-size: 12.5px; color: var(--nb-dim); text-align: center; }

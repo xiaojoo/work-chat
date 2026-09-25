@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"log"
 	"time"
 
 	"github.com/redis/go-redis/v9"
@@ -20,15 +21,19 @@ func Init(addr, password string) {
 	})
 }
 
-func SetUserOnline(userID int64, deviceID, connectionID string) {
+func SetUserOnline(userID int64, deviceID, connectionID, status string) {
 	key := fmt.Sprintf("user:online:%d", userID)
 	data := map[string]interface{}{
 		"deviceId":     deviceID,
 		"connectionId": connectionID,
 		"lastActive":   time.Now().Unix(),
+		"status":       status,
 	}
 	bytes, _ := json.Marshal(data)
-	rdb.HSet(ctx, key, deviceID, string(bytes))
+	// 原来这里不检查错误：地址配错时 HSet 一直失败，在线点永远不亮，日志里却一个字都没有
+	if err := rdb.HSet(ctx, key, deviceID, string(bytes)).Err(); err != nil {
+		log.Printf("presence write failed: user=%d device=%s status=%s err=%v", userID, deviceID, status, err)
+	}
 	rdb.Expire(ctx, key, 24*time.Hour)
 }
 

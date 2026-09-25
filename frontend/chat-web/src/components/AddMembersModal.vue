@@ -51,7 +51,7 @@
             <div class="list">
               <button v-for="m in candidates" :key="m.id" type="button" class="mrow" :aria-pressed="has(m)" @click="toggle(m)">
                 <span class="cb" :class="{ on: has(m) }" aria-hidden="true">{{ has(m) ? '✓' : '' }}</span>
-                <span class="av">{{ initial(m) }}<i v-if="isOnline(m)" class="dot" title="在线" /></span>
+                <span class="av">{{ initial(m) }}<i v-if="presenceOf(m)" class="dot" :class="presenceOf(m)" :title="presenceOf(m) === 'BUSY' ? '忙碌' : '在线'" /></span>
                 <span class="mcol">
                   <b>{{ m.nickname || m.username }}</b>
                   <small>{{ m.position || m.department || '未填写职位' }}</small>
@@ -104,7 +104,7 @@ const props = defineProps({
   open: { type: Boolean, default: false },
   org: { type: Array, default: () => [] },      // [{department,count,members:[]}]
   groups: { type: Array, default: () => [] },   // 我的群
-  online: { type: Array, default: () => [] },   // 在线用户 id
+  online: { type: Array, default: () => [] },   // [{userId,status}]
   excludeIds: { type: Array, default: () => [] },
   groupMembersCache: { type: Object, default: () => ({}) },  // groupId -> 成员数组，由父组件按需拉
   mode: { type: String, default: 'group' }   // group=拉进群 / friend=加为好友
@@ -135,7 +135,7 @@ watch(() => props.open, (v) => {
 const kw = computed(() => q.value.trim().toLowerCase())
 const excluded = computed(() => new Set(props.excludeIds.map(String)))
 const initial = (m) => String(m.nickname || m.username || '?').charAt(0).toUpperCase()
-const isOnline = (m) => props.online.some(id => String(id) === String(m.id))
+const presenceOf = (m) => props.online.find(u => String(u.userId) === String(m.id))?.status || ''
 const has = (m) => picked.value.some(p => String(p.id) === String(m.id))
 const usable = (m) => !excluded.value.has(String(m.id)) && !String(m.id).startsWith('local-')
 const kwHit = (m) => !kw.value || [m.nickname, m.username, m.position, m.department, m.email]
@@ -240,7 +240,8 @@ function submit() {
 .cb { display: grid; place-items: center; width: 16px; height: 16px; font-size: 11px; color: #fff; border: 1.5px solid var(--nb-line); border-radius: 5px; background: var(--nb-bg-1); }
 .cb.on { background: var(--brand); border-color: var(--brand); }
 .av { position: relative; display: grid; place-items: center; width: 28px; height: 28px; font-size: 12px; font-weight: 600; color: var(--brand-strong); background: var(--brand-soft); border-radius: 50%; }
-.dot { position: absolute; right: -1px; bottom: -1px; width: 8px; height: 8px; background: #22c55e; border: 1.5px solid var(--nb-bg-2); border-radius: 50%; }
+.dot { position: absolute; right: -1px; bottom: -1px; width: 8px; height: 8px; background: var(--ok); border: 1.5px solid var(--nb-bg-2); border-radius: 50%; }
+.dot.BUSY { background: var(--warn); }
 .mcol { min-width: 0; }
 .mcol b { display: block; font-size: 13px; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .mcol small { display: block; font-size: 11.5px; color: var(--nb-dim); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }

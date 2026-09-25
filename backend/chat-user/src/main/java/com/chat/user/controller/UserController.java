@@ -22,6 +22,9 @@ public class UserController {
     private final PasswordEncoder passwordEncoder;
     private final org.springframework.data.redis.core.StringRedisTemplate redisTemplate;
 
+    private static final tools.jackson.databind.ObjectMapper JSON =
+            new tools.jackson.databind.ObjectMapper();
+
     public UserController(UserRepository userRepository,
                           PasswordEncoder passwordEncoder,
                           org.springframework.data.redis.core.StringRedisTemplate redisTemplate) {
@@ -176,30 +179,49 @@ public class UserController {
     }
 
     /**
-     * 在线用户 id 集合：网关把连接写进 Redis 的 user:online:{id}，这里只读出来。
-     * 没有这个接口，稿子里的成员在线点就只能画假的。
+     * 在线用户及其状态：网关把连接写进 Redis 的 user:online:{id}（哈希，一台设备一条，
+     * 值里带 status），这里按人聚合出来。没有这个接口，稿子里的成员在线点就只能画假的。
+     * 多设备取"更能干活"的那个：有一台在线就算在线，全在忙碌才算忙碌。
+     * 不在这份列表里就是离线 —— 网关在最后一台设备断开时把整个键删了，
+     * 所以状态值只有 ONLINE / BUSY 两种，不需要也没法有 OFFLINE。
      */
     @GetMapping("/online")
-    public ResponseEntity<java.util.Set<Long>> onlineUserIds() {
-        java.util.Set<Long> ids = new java.util.HashSet<>();
+    public ResponseEntity<List<Map<String, Object>>> onlineUsers() {
+        List<Map<String, Object>> found = new java.util.ArrayList<>();
         try {
             for (String key : redisTemplate.keys("user:online:*")) {
                 String idPart = key.substring("user:online:".length());
+                long userId;
                 try {
                     // 哈希键就是完整的 user:online:{id}，别把削掉前缀的 id 当键查
-                    if (!redisTemplate.<String, String>opsForHash().entries(key).isEmpty()) {
-                        ids.add(Long.valueOf(idPart));
-                    }
+                    userId = Long.parseLong(idPart);
                 } catch (NumberFormatException ignored) {
-                    // 不是 userId 形态的键，跳过
+                    continue;   // 不是 userId 形态的键，跳过
                 }
+                String best = null;
+                for (Object raw : redisTemplate.<String, String>opsForHash().entries(key).values()) {
+                    String status = statusOf(String.valueOf(raw));
+                    if ("ONLINE".equals(status)) best = "ONLINE";
+                    else if ("BUSY".equals(status) && best == null) best = "BUSY";
+                }
+                if (best != null) found.add(Map.of("userId", userId, "status", best));
             }
         } catch (Exception e) {
-            // Redis 不可用时返回空集合：界面按"全部离线"显示，好过画假绿点
+            // Redis 不可用时返回空列表：界面按"全部离线"显示，好过画假绿点
             System.err.println("读取在线状态失败（按全部离线处理）: " + e);
-            return ResponseEntity.ok(ids);
+            found = List.of();
         }
-        return ResponseEntity.ok(ids);
+        return ResponseEntity.ok(found);
+    }
+
+    /** 设备记录是网关写的 JSON；读不出 status 的旧记录按在线处理，不猜成忙碌 */
+    private static String statusOf(String deviceJson) {
+        try {
+            String status = JSON.readTree(deviceJson).path("status").asText("");
+            return status.isBlank() ? "ONLINE" : status;
+        } catch (Exception e) {
+            return "ONLINE";
+        }
     }
 
     /**
