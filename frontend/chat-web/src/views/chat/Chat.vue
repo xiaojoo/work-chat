@@ -92,8 +92,6 @@
                   <div class="row-top"><span class="row-name">{{ friendName(friend) }}</span></div>
                   <div class="row-last">@{{ friend.username }}</div>
                 </div>
-                <button class="row-more" type="button" aria-label="查看好友信息" title="好友信息"
-                        @click.stop="openFriendCard(friend)">⋯</button>
               </div>
             </template>
           </AlphaList>
@@ -138,8 +136,8 @@
           <span v-if="memberStackMore" class="stack-more">+{{ memberStackMore }}</span>
         </div>
         <div class="mh-acts">
-          <button v-if="currentConversation?.type === 1" class="mh-btn" @click="toggleFriendDetail">详情</button>
-          <button class="mh-btn icon" @click="drawerOpen = !drawerOpen" :title="drawerOpen ? '收起详情' : '内容详情'">☰</button>
+          <button class="mh-btn icon" @click="drawerOpen = !drawerOpen"
+                  :title="drawerOpen ? '收起详情' : currentConversation?.type === 2 ? '内容详情' : '会话详情'">☰</button>
         </div>
       </header>
 
@@ -159,7 +157,7 @@
                   <span class="msg-time">{{ formatConvTime(msg.timestamp || msg.createTime) }}</span>
                 </div>
                 <div class="msg-line">
-                  <div class="bubble" @contextmenu.prevent.stop="openMsgMenu($event, msg)">
+                  <div v-if="bodyText(msg)" class="bubble" @contextmenu.prevent.stop="openMsgMenu($event, msg)">
                     <span v-if="msg.messageType === 'DELETED'" class="b-del">{{ msg.content }}</span>
                     <template v-else-if="msg.messageType === 'IMAGE'">
                       <img v-if="mediaSrc(msg)" :src="mediaSrc(msg)" class="b-img" @click="previewImage(mediaSrc(msg))" />
@@ -169,10 +167,12 @@
                       <span class="b-file-nm">{{ (fileRefOf(msg) || {}).name || '文件' }}</span>
                       <span class="b-file-sz">{{ sizeLabel((fileRefOf(msg) || {}).size) }}</span>
                     </a>
-                    <span v-else class="b-txt">{{ msg.content }}</span>
+                    <span v-else class="b-txt">{{ bodyText(msg) }}</span>
                   </div>
                   <span v-if="msg.status === 'FAILED'" class="msg-fail" title="发送失败：这条没有存进服务器">!</span>
                 </div>
+                <!-- 引用是气泡下面那一行灰字＋左竖线（照参考图），不再把 "> 谁：" 混在气泡正文里 -->
+                <div v-if="quoteOf(msg)" class="msg-quote" @contextmenu.prevent.stop="openMsgMenu($event, msg)">{{ quoteOf(msg).name }}: {{ quoteOf(msg).text }}</div>
               </div>
               <div v-if="String(msg.senderId) === String(userStore.userId)" class="msg-ava self">
                 {{ userStore.username?.charAt(0)?.toUpperCase() }}
@@ -254,7 +254,8 @@
     <!-- ④ 右侧内容详情抽屉 -->
     <aside v-if="drawerShown" class="drawer">
       <div class="dw-tabs">
-        <button class="dwt" :class="{ on: dwTab === 'doc' }" @click="dwTab = 'doc'">内容详情</button>
+        <button v-if="currentConversation?.type === 2" class="dwt" :class="{ on: dwTab === 'doc' }"
+                @click="dwTab = 'doc'">内容详情</button>
         <button class="dwt" :class="{ on: dwTab === 'member' }" @click="dwTab = 'member'">成员</button>
         <button class="dw-close" @click="drawerOpen = false" title="收起">✕</button>
       </div>
@@ -310,11 +311,11 @@
              只列后端真有的能力：参考图里的 备注 / 我在本群的昵称 / 群二维码 / 进群验证 / 置顶 / 免打扰 /
              保存到通讯录 / 显示群成员昵称 都没有接口（置顶和免打扰只是内存里的标记，刷新就没了），
              所以不照抄文案摆一排假开关 -->
-        <template v-if="selectedGroup">
+        <template v-if="currentConversation">
           <div class="gs-search">
             <span class="gs-ico">⌕</span>
             <input v-model="groupMemberSearchText" id="member-search-inline" name="memberSearchInline"
-                   type="text" placeholder="搜索群成员" autocomplete="off" />
+                   type="text" :placeholder="selectedGroup ? '搜索群成员' : '搜索成员'" autocomplete="off" />
             <span v-if="groupMemberSearchText" class="gs-clear" @click="groupMemberSearchText = ''">✕</span>
           </div>
 
@@ -322,57 +323,62 @@
             <div v-for="m in filteredGroupMembers" :key="m.userId" class="gs-cell"
                  :class="{ picking: removeMode && canRemoveMember(m) }" @click="onMemberCell(m)">
               <div class="gs-ava">
-                <span class="gs-init">{{ (getMemberNameSync(m.userId) || ('U' + m.userId)).charAt(0).toUpperCase() }}</span>
+                <span class="gs-init">{{ memberName(m).charAt(0).toUpperCase() }}</span>
                 <span v-if="removeMode && canRemoveMember(m)" class="gs-minus"><Minus theme="outline" size="11" /></span>
                 <span v-else-if="!removeMode && m.role === 2" class="gs-tag owner">群主</span>
                 <span v-else-if="!removeMode && m.role === 1" class="gs-tag admin">管理员</span>
               </div>
-              <div class="gs-name">{{ getMemberNameSync(m.userId) || '用户 ' + m.userId }}</div>
+              <div class="gs-name">{{ memberName(m) }}</div>
             </div>
-            <button type="button" class="gs-tile" title="邀请成员" @click="openAddMembers">
+            <button type="button" class="gs-tile" :title="selectedGroup ? '邀请成员' : '添加成员建群（连我满 3 人转群聊）'"
+                    @click="onAddMemberTile">
               <span class="gs-box">＋</span><em>添加</em>
             </button>
-            <button type="button" class="gs-tile" :class="{ on: removeMode }" title="移出成员"
+            <button v-if="selectedGroup" type="button" class="gs-tile" :class="{ on: removeMode }" title="移出成员"
                     :disabled="!groupMembers.some(m => canRemoveMember(m))" @click="removeMode = !removeMode">
               <span class="gs-box">－</span><em>移出</em>
             </button>
           </div>
-          <div v-if="!filteredGroupMembers.length" class="list-empty">{{ groupMembers.length ? '没有匹配的成员' : '这个群还没有成员' }}</div>
-
-          <!-- 群聊名称 / 群公告：PUT /group/{id} 真的收 name、announcement。
-               做成常驻表单而不是"点行展开"：名称必填带红星，两个框各带字数计数器 -->
-          <div class="gs-form">
-            <div class="gs-field">
-              <div class="gs-lab">群聊名称<span class="gs-req">＊</span></div>
-              <div class="gs-field-box">
-                <input v-model="groupNameDraft" class="gs-in" type="text" maxlength="50" autocomplete="off"
-                       :disabled="!canEditGroupInfo" placeholder="例如：产品策划讨论群" />
-                <span class="gs-count">{{ (groupNameDraft || '').length }}/50</span>
-              </div>
-            </div>
-            <div class="gs-field">
-              <div class="gs-lab">群公告<span class="gs-opt">（选填）</span></div>
-              <div class="gs-field-box ta">
-                <textarea v-model="groupAnnDraft" class="gs-in" rows="3" maxlength="200"
-                          :disabled="!canEditGroupInfo" placeholder="简要描述群聊的用途和规则..."></textarea>
-                <span class="gs-count">{{ (groupAnnDraft || '').length }}/200</span>
-              </div>
-            </div>
-            <!-- 没改动、或者没权限（后端要 role>=1）时置灰不消失 -->
-            <button class="btn btn-primary gs-save" :disabled="!canEditGroupInfo || !groupDirty" @click="saveGroupInfo">保存</button>
-            <div v-if="!canEditGroupInfo" class="gs-note">只有群主和管理员能改群名称和群公告</div>
+          <div v-if="!filteredGroupMembers.length" class="list-empty">
+            {{ drawerMembers.length ? '没有匹配的成员' : (selectedGroup ? '这个群还没有成员' : '这个会话没有成员') }}
           </div>
 
-          <div class="gs-btns">
-            <button v-if="currentConversation && isConversationCleared(currentConversation.id)"
-                    class="btn btn-neutral" @click="restoreGroupHistory">恢复聊天记录</button>
-            <button v-else class="btn btn-neutral" @click="clearGroupHistory">清空聊天记录</button>
-            <button v-if="String(selectedGroup.ownerId) === String(userStore.userId)"
-                    class="btn btn-danger" @click="handleDissolveGroup">解散群聊</button>
-            <button v-else class="btn btn-danger" @click="handleLeaveGroup">退出群聊</button>
-          </div>
+          <template v-if="selectedGroup">
+            <!-- 群聊名称 / 群公告：PUT /group/{id} 真的收 name、announcement。
+                 做成常驻表单而不是"点行展开"：名称必填带红星，两个框各带字数计数器 -->
+            <div class="gs-form">
+              <div class="gs-field">
+                <div class="gs-lab">群聊名称<span class="gs-req">＊</span></div>
+                <div class="gs-field-box">
+                  <input v-model="groupNameDraft" class="gs-in" type="text" maxlength="50" autocomplete="off"
+                         :disabled="!canEditGroupInfo" placeholder="例如：产品策划讨论群" />
+                  <span class="gs-count">{{ (groupNameDraft || '').length }}/50</span>
+                </div>
+              </div>
+              <div class="gs-field">
+                <div class="gs-lab">群公告<span class="gs-opt">（选填）</span></div>
+                <div class="gs-field-box ta">
+                  <textarea v-model="groupAnnDraft" class="gs-in" rows="3" maxlength="200"
+                            :disabled="!canEditGroupInfo" placeholder="简要描述群聊的用途和规则..."></textarea>
+                  <span class="gs-count">{{ (groupAnnDraft || '').length }}/200</span>
+                </div>
+              </div>
+              <!-- 没改动、或者没权限（后端要 role>=1）时置灰不消失 -->
+              <button class="btn btn-primary gs-save" :disabled="!canEditGroupInfo || !groupDirty" @click="saveGroupInfo">保存</button>
+              <div v-if="!canEditGroupInfo" class="gs-note">只有群主和管理员能改群名称和群公告</div>
+            </div>
+
+            <div class="gs-btns">
+              <button v-if="isConversationCleared(currentConversation.id)"
+                      class="btn btn-neutral" @click="restoreGroupHistory">恢复聊天记录</button>
+              <button v-else class="btn btn-neutral" @click="clearGroupHistory">清空聊天记录</button>
+              <button v-if="String(selectedGroup.ownerId) === String(userStore.userId)"
+                      class="btn btn-danger" @click="handleDissolveGroup">解散群聊</button>
+              <button v-else class="btn btn-danger" @click="handleLeaveGroup">退出群聊</button>
+            </div>
+          </template>
         </template>
-        <div v-else class="list-empty">单聊没有群成员，选一个群聊会话后这里会有成员和群设置</div>
+        <div v-else class="list-empty">还没有选中会话</div>
       </div>
     </aside>
 
@@ -479,44 +485,6 @@
       </div>
     </div>
 
-    <!-- 单聊详情面板 -->
-    <div v-if="showFriendDetail && selectedFriend" class="group-panel">
-      <div class="group-panel-header">
-        <span class="group-panel-title">好友信息</span>
-        <button class="btn btn-link btn-sm" @click="showFriendDetail = false">✕</button>
-      </div>
-      <div class="group-panel-body">
-        <div class="group-detail-header">
-          <div class="avatar s60">{{ selectedFriend.name?.charAt(0)?.toUpperCase() }}</div>
-          <div>
-            <h4>{{ selectedFriend.name }}</h4>
-            <p style="color: var(--nb-dim); font-size: 13px;">单聊</p>
-          </div>
-        </div>
-
-        <div class="divider"></div>
-
-        <div class="group-actions">
-          <button class="btn btn-primary btn-sm" @click="convertToGroup">邀请成员建群</button>
-        </div>
-
-        <div class="divider"></div>
-
-        <div class="group-member-header">
-          <h4>成员</h4>
-        </div>
-        <div class="group-member-list">
-          <div class="group-member-item">
-            <div class="avatar s32">{{ userStore.username?.charAt(0)?.toUpperCase() }}</div>
-            <span class="member-name">{{ userStore.username }}（我）</span>
-          </div>
-          <div class="group-member-item">
-            <div class="avatar s32">{{ selectedFriend.name?.charAt(0)?.toUpperCase() }}</div>
-            <span class="member-name">{{ selectedFriend.name }}</span>
-          </div>
-        </div>
-      </div>
-    </div>
     </div>
 
     <!-- 添加好友：复用「添加用户」的组织树选择器（旧的关键词搜索弹窗已删） -->
@@ -577,7 +545,7 @@
             </div>
             <div v-else-if="inviteSearched" class="invite-empty">
               <span class="invite-empty-ico">✕</span>
-              // NO SIGNAL · 未找到匹配用户
+              NO SIGNAL · 未找到匹配用户
             </div>
             <div v-else class="invite-hint">
               输入用户ID / 昵称 / 用户名开始扫描
@@ -587,8 +555,10 @@
 
         <div class="modal-foot">
           <div class="invite-footer">
-            <button class="invite-ghost" @click="showInviteMember = false">取消</button>
-            <button class="invite-primary" @click="handleInviteMember">全部邀请</button>
+            <button class="invite-ghost" @click="closeInviteModal">取消</button>
+            <button class="invite-primary" @click="handleInviteMember">
+              {{ isConvertToGroup ? '建群' : '全部邀请' }}
+            </button>
           </div>
         </div>
       </div>
@@ -603,7 +573,7 @@
         <div class="modal-head">
           <div>
             <div class="modal-title">成员信息</div>
-            <div class="modal-kicker">MEMBER INFO · 群成员详情</div>
+            <div class="modal-kicker">MEMBER INFO · 会话成员详情</div>
           </div>
           <button class="btn btn-link btn-sm" @click="selectedMember = null">✕</button>
         </div>
@@ -619,17 +589,13 @@
             </div>
           </div>
           <div class="member-info-fields">
-            <div class="member-info-row">
-              <span class="member-info-label">所在地</span>
-              <span class="member-info-value">{{ memberProfile.location || '—' }}</span>
+            <div v-for="r in memberInfoRows" :key="r.k" class="member-info-row">
+              <span class="member-info-label">{{ r.label }}</span>
+              <span class="member-info-value">{{ r.v }}</span>
             </div>
-            <div class="member-info-row">
-              <span class="member-info-label">备注</span>
-              <span class="member-info-value">{{ memberProfile.remark || '—' }}</span>
-            </div>
-            <div class="member-info-row">
-              <span class="member-info-label">电话</span>
-              <span class="member-info-value">{{ memberProfile.phone || '—' }}</span>
+            <div v-if="!memberInfoRows.length" class="member-info-row">
+              <span class="member-info-label">资料</span>
+              <span class="member-info-value">对方资料都还没填</span>
             </div>
           </div>
         </div>
@@ -637,45 +603,6 @@
           <button class="btn btn-ghost" @click="handleShareMember">分享</button>
           <button class="btn btn-ghost" @click="handleCallMember">音视频通话</button>
           <button class="btn btn-primary" @click="handleSendMessage(selectedMember)">发消息</button>
-        </div>
-      </div>
-    </div>
-
-    <!-- 好友信息：从联系人行上的 ⋯ 进来。只列接口真给且非空的字段，不编兜底数据 -->
-    <div v-if="friendCard" class="modal-overlay" @click.self="friendCard = null">
-      <div class="modal member-info-modal">
-        <div class="modal-head">
-          <div>
-            <div class="modal-title">好友信息</div>
-            <div class="modal-kicker">CONTACT INFO</div>
-          </div>
-          <button class="btn btn-link btn-sm" aria-label="关闭" @click="friendCard = null">✕</button>
-        </div>
-        <div class="modal-body">
-          <div class="member-info-card">
-            <div class="avatar s72">
-              <img v-if="friendCard.avatar" :src="friendCard.avatar" alt="" />
-              <span v-else>{{ friendName(friendCard).charAt(0).toUpperCase() || '?' }}</span>
-            </div>
-            <div class="member-info-detail">
-              <div class="member-info-name">{{ friendName(friendCard) }}</div>
-              <div class="member-info-meta">@{{ friendCard.username }} · ID {{ friendCard.friendId }}</div>
-            </div>
-          </div>
-          <div class="member-info-fields">
-            <div v-for="r in friendCardRows" :key="r.k" class="member-info-row">
-              <span class="member-info-label">{{ r.label }}</span>
-              <span class="member-info-value">{{ r.v }}</span>
-            </div>
-            <div v-if="!friendCardRows.length" class="member-info-row">
-              <span class="member-info-label">资料</span>
-              <span class="member-info-value">对方资料都还没填</span>
-            </div>
-          </div>
-        </div>
-        <div class="modal-foot">
-          <button class="btn btn-ghost btn-del" @click="removeFriendFromCard">删除好友</button>
-          <button class="btn btn-primary" @click="chatFromCard">发消息</button>
         </div>
       </div>
     </div>
@@ -725,7 +652,7 @@ import { useWebSocket } from '../../websocket/client'
 import { useTokenValidation } from '../../composables/useTokenValidation'
 import { notifyDesktop } from '../../config'
 import { getConversationList, createConversation, clearUnread, deleteConversation } from '../../api/conversation'
-import { getFriendList, addFriend, removeFriend, checkFriend } from '../../api/friend'
+import { getFriendList, addFriend, checkFriend } from '../../api/friend'
 import { createGroup, getMyGroups, getGroup, getGroupMembers, inviteMembers, removeMember, leaveGroup, dissolveGroup, updateGroup } from '../../api/group'
 import { getUserProfile, searchUser, searchUsersByKeyword, updateProfile, getMe, getOrg, getOnline } from '../../api/user'
 import { uploadFile, fileObjectUrl, parseFileRef, previewOf } from '../../api/file'
@@ -869,11 +796,14 @@ const memberStackReal = computed(() => {
   }))
 })
 const memberStackMore = computed(() => Math.max(0, groupMembers.value.length - memberStackReal.value.length))
-const drawerOpen = ref(true)
+const drawerOpen = ref(false) // 默认折叠：进来先看消息，要看成员/详情再点标题栏那颗 ☰
 /* 没选中会话时：标题栏、输入框、右侧抽屉一起不出现，主区只剩那枚占位图形。
    抽屉跟着关还有个原因——☰ 在标题栏里，标题栏没了就只剩抽屉自己那个 ✕ 能关它，开不了也回不来 */
 const drawerShown = computed(() => drawerOpen.value && !!currentConversation.value)
 const dwTab = ref('doc')
+// 「内容详情」只给群聊（那是项目文档那一套），所以选中单聊时页签必须落到「成员」，
+// 否则抽屉开出来是一页没有页签的空壳
+watch(currentConversation, c => { if (c && c.type !== 2) dwTab.value = 'member' }, { immediate: true })
 
 // 添加好友（用 AddMembersModal 的组织树选择器）
 const showAddFriend = ref(false)
@@ -885,11 +815,28 @@ const showCreateGroup = ref(false)
 const selectedGroup = ref(null)
 const groupMembers = ref([])
 const groupMemberSearchText = ref('')
+// 单聊没有群成员表，但这个页签要照群一样摆：会话双方就是这两个人。
+// 「添加」格子在单聊下走建群流程，所以 selectedFriend 直接从当前会话推出来
+const selectedFriend = computed(() => {
+  const c = currentConversation.value
+  return c && c.type === 1 && c.targetId ? { id: c.targetId, name: c.name } : null
+})
+const privateMembers = computed(() => {
+  const f = selectedFriend.value
+  if (!f) return []
+  return [
+    { userId: userStore.userId, name: userStore.username, role: 0 },
+    { userId: f.id, name: f.name, role: 0 }
+  ]
+})
+const drawerMembers = computed(() => (selectedGroup.value ? groupMembers.value : privateMembers.value))
+// 群成员的名字走 memberNames 缓存；单聊那两格已经带名字
+const memberName = m => m.name || getMemberNameSync(m.userId) || '用户 ' + m.userId
 const filteredGroupMembers = computed(() => {
   const q = groupMemberSearchText.value.trim().toLowerCase()
-  if (!q) return groupMembers.value
-  return groupMembers.value.filter(m => {
-    const name = (getMemberNameSync(m.userId) || '').toLowerCase()
+  if (!q) return drawerMembers.value
+  return drawerMembers.value.filter(m => {
+    const name = memberName(m).toLowerCase()
     return name.includes(q) || String(m.userId).includes(q)
   })
 })
@@ -904,10 +851,6 @@ let inviteSearchTimer = null
 
 // 设置弹窗
 const showProfile = ref(false)
-
-// 单聊详情面板
-const showFriendDetail = ref(false)
-const selectedFriend = ref(null)
 
 // 成员信息弹框
 const selectedMember = ref(null)
@@ -925,11 +868,14 @@ async function showMemberInfo(member) {
   } catch (e) {
     // ignore
   }
-  // Mock：后端字段暂无数据时填充占位
-  if (!memberProfile.value.location) memberProfile.value.location = '北京市海淀区'
-  if (!memberProfile.value.phone) memberProfile.value.phone = '138****8888'
-  if (!memberProfile.value.remark) memberProfile.value.remark = '这个人很懒，什么都没写'
 }
+
+// 成员信息弹框：只列 GET /api/user/{id} 真给且非空的字段。
+// 原来这三行在后端返回空串时会填假值（海淀 / 138****8888 / 这个人很懒），那是编出来的，删了
+const MEMBER_FIELDS = [['department', '部门'], ['position', '职务'], ['email', '邮箱'], ['phone', '电话'], ['bio', '个性签名']]
+const memberInfoRows = computed(() => MEMBER_FIELDS
+  .map(([k, label]) => ({ k, label, v: String(memberProfile.value[k] || '').trim() }))
+  .filter(r => r.v))
 
 // 从消息头像点击：根据 senderId 查找群成员信息，非群聊则创建最小对象
 function showUserInfo(senderId) {
@@ -1370,7 +1316,6 @@ async function selectConversation(conv) {
 
   // 抽屉「成员」页签现在承担群设置，所以切会话时要把群信息和成员名单一起同步过来
   if (conv.type === 2) {
-    showFriendDetail.value = false
     const group = groups.value.find(g => String(g.id) === String(conv.targetId))
     selectedGroup.value = group || null
     if (group) {
@@ -1381,7 +1326,6 @@ async function selectConversation(conv) {
     // 单聊必须把 selectedGroup 和成员一起清掉：不清的话这个页签还挂着上一个群的设置和名单
     selectedGroup.value = null
     groupMembers.value = []
-    showFriendDetail.value = false
   }
 }
 
@@ -1790,7 +1734,26 @@ function runMsgMenu(it) {
   if (it.k === 'revoke') return handleDeleteMessage()
 }
 
-// 引用：把原文按「> 谁：内容」带进输入框。纯前端，不需要后端配合
+/* 引用没有后端列（chat_message 里找不到 quote/replyTo/parent），所以走纯文本约定：
+   首行 "> 谁：原文"，剩下的才是自己写的。渲染时把首行拆出来放到气泡下面那行灰字里。
+   代价：这是快照，原文之后被撤回/编辑这里不会跟着变，也点不回原消息。 */
+const QUOTE_RE = /^>\s*([^：:]{1,30})[：:]\s*([\s\S]*)$/
+function quoteOf(msg) {
+  if (!msg || msg.messageType !== 'TEXT') return null
+  const c = String(msg.content || '')
+  const nl = c.indexOf('\n')
+  const m = QUOTE_RE.exec(nl < 0 ? c : c.slice(0, nl))
+  return m ? { name: m[1].trim(), text: m[2].trim() } : null
+}
+// 去掉引用行之后的正文；非文本消息（图片/文件/撤回）原样返回
+function bodyText(msg) {
+  const c = String(msg?.content || '')
+  if (!quoteOf(msg)) return c
+  const nl = c.indexOf('\n')
+  return nl < 0 ? '' : c.slice(nl + 1)
+}
+
+// 引用：把原文按「> 谁：内容」放到输入框最前面，自己写的接在它下面
 function quoteMessage() {
   const m = selectedMsg.value
   if (!m) return
@@ -1798,8 +1761,13 @@ function quoteMessage() {
     : m.messageType === 'IMAGE' ? '[图片]'
     : `[文件] ${fileRefOf(m)?.name || ''}`
   const line = `> ${msgSenderName(m)}：${String(body || '').replace(/\s*\n\s*/g, ' ')}\n`
-  inputMessage.value = (inputMessage.value ? inputMessage.value.replace(/\n?$/, '\n') : '') + line
-  nextTick(() => document.querySelector('#chat-message-input')?.focus())
+  inputMessage.value = line + (inputMessage.value ? inputMessage.value.replace(/^\n?/, '') : '')
+  nextTick(() => {
+    const el = document.querySelector('#chat-message-input')
+    if (!el) return
+    el.focus()
+    el.setSelectionRange(el.value.length, el.value.length)
+  })
 }
 
 // 另存为：桌面壳走主进程弹系统对话框（渲染端在沙箱里弹不出、也拿不到用户选的路径），
@@ -1932,36 +1900,6 @@ async function onAddFriendsSubmit({ ids }) {
 
 const friendName = f => f.nickname || f.username || ''
 
-// 好友信息弹框：字段一律取 GET /api/user/{id} 的真实返回，空字段整行不显示，
-// 也不显示 remark / location —— 那两个后端是死字段，谁都是空串
-const friendCard = ref(null)
-const friendProfile = ref({})
-const CARD_FIELDS = [['department', '部门'], ['position', '职务'], ['email', '邮箱'], ['phone', '电话'], ['bio', '个性签名']]
-const friendCardRows = computed(() => CARD_FIELDS
-  .map(([k, label]) => ({ k, label, v: String(friendProfile.value[k] || '').trim() }))
-  .filter(r => r.v))
-
-async function openFriendCard(friend) {
-  friendCard.value = friend
-  friendProfile.value = {}
-  try {
-    const p = await getUserProfile(friend.friendId)
-    if (p && !p.error) friendProfile.value = p
-  } catch (e) { /* 拉不到就只展示列表里已有的昵称和账号 */ }
-}
-
-async function chatFromCard() {
-  const f = friendCard.value
-  friendCard.value = null
-  if (f) await startChatWithFriend(f)
-}
-
-async function removeFriendFromCard() {
-  const f = friendCard.value
-  friendCard.value = null
-  if (f) await handleRemoveFriend(f)
-}
-
 /* 群组信息弹框：字段一律取 GET /group/{id} 的真实返回（GroupDTO 只有
    id / name / avatar / ownerId / announcement / memberCount / groupType），
    没有创建时间、没有群人数上限，就不列这两行；群主名字再拿 /api/user/{ownerId} 补 */
@@ -2009,21 +1947,6 @@ async function settingsFromGroupCard() {
   drawerOpen.value = true
 }
 
-async function handleRemoveFriend(friend) {
-  const ok = await confirmBox({
-    message: `确定删除好友 ${friend.nickname || friend.username}？`,
-    title: '确认'
-  })
-  if (!ok) return
-  try {
-    await removeFriend(friend.friendId)
-    toast('已删除', 'success')
-    await loadFriends()
-  } catch (e) {
-    toast(e.response?.data?.error || '删除失败', 'error')
-  }
-}
-
 // —— 组织架构 / 在线状态：创建群聊与添加用户两个弹窗的数据源 ——
 const orgData = ref([])
 const onlineUsers = ref([])   // [{ userId, status: 'ONLINE'|'BUSY' }]，不在里面就是离线
@@ -2034,7 +1957,7 @@ const showAddMembers = ref(false)
 // （菜单 z-index 9999 > 遮罩 95）。这段必须放在所有被引用 ref 之后 —— 放前面是 TDZ，
 // setup 直接抛错，整页空白
 watch(
-  [showProfile, showAddFriend, showAddMembers, showCreateGroup, showInviteMember, showFriendDetail, friendCard, groupCard],
+  [showProfile, showAddFriend, showAddMembers, showCreateGroup, showInviteMember, groupCard],
   (vals) => { if (vals.some(Boolean)) closeAllMenus() }
 )
 
@@ -2130,22 +2053,6 @@ async function onAddMembersSubmit({ ids, sendWelcome, welcome }) {
     toast(e.response?.data?.error || '添加失败', 'error')
   }
 }
-
-// 单聊详情面板：切换显示
-function toggleFriendDetail() {
-  if (showFriendDetail.value) {
-    showFriendDetail.value = false
-    return
-  }
-  if (currentConversation.value && currentConversation.value.type === 1) {
-    selectedFriend.value = {
-      id: currentConversation.value.targetId,
-      name: currentConversation.value.name
-    }
-    showFriendDetail.value = true
-  }
-}
-
 /* ---- 抽屉「成员」页签：移出模式 + 群名/群公告表单 ---- */
 const removeMode = ref(false)
 const groupNameDraft = ref('')
@@ -2212,11 +2119,16 @@ async function clearGroupHistory() {
 }
 function restoreGroupHistory() { restoreScreen() }
 
-// 单聊转群聊：打开邀请框，确认后创建群
+// 抽屉「成员」页签那颗 ＋ ：群聊走邀请，单聊走转群
+function onAddMemberTile() {
+  if (selectedGroup.value) openAddMembers()
+  else convertToGroup()
+}
+
+// 单聊转群聊：打开邀请框，确认后新建一个群会话（这条私聊和它的记录原样留着）
 function convertToGroup() {
   if (!selectedFriend.value) return
   isConvertToGroup.value = true
-  showFriendDetail.value = false
   showInviteMember.value = true
 }
 
@@ -2321,14 +2233,15 @@ async function handleInviteMember() {
     const memberIds = [...new Set([friendId, ...extraIds])]
 
     if (memberIds.length <= 1) {
-      toast('请至少选择一位成员', 'warning')
+      toast('再至少选 1 人：加上你和对方满 3 人才能转成群聊', 'warning')
       return
     }
 
     try {
       const friendName = selectedFriend.value.name || '好友'
-      const groupName = `${userStore.username}、${friendName}` + (extraIds.length > 0 ? ` 等${memberIds.length}人` : '')
-      const group = await createGroup(groupName, null, memberIds)
+      // memberIds 里没有我自己，所以群名上的人数要 +1
+      const total = memberIds.length + 1
+      const group = await createGroup(`${userStore.username}、${friendName} 等${total}人`, null, memberIds)
       toast('群聊已创建', 'success')
       showInviteMember.value = false
       isConvertToGroup.value = false
@@ -2671,10 +2584,13 @@ async function handleInputCut() {
 
 // 会话列表：获取最后消息显示文本
 function getConvLastMessage(conv) {
-  const msg = conv.lastMessage
+  let msg = conv.lastMessage
   if (!msg) return '暂无消息'
   // 如果是图片类型
   if (msg === '[图片]') return '[图片]'
+  // 列表里不露 "> " 这个约定标记：有正文就显示正文，只有引用那行就显示被引用的那句
+  const t = String(msg), nl = t.indexOf('\n'), q = QUOTE_RE.exec(nl < 0 ? t : t.slice(0, nl))
+  if (q) msg = (nl < 0 ? '' : t.slice(nl + 1).trim()) || `${q[1].trim()}: ${q[2].trim()}`
   // 截断过长文本
   if (msg.length > 30) return msg.substring(0, 30) + '...'
   return msg
@@ -3642,64 +3558,6 @@ function previewImage(url) {
   font-size: 48px;
 }
 
-/* ---- 群详情 ---- */
-.group-detail-header {
-  display: flex;
-  align-items: center;
-  gap: 16px;
-}
-
-.group-detail-header h3 {
-  color: var(--nb-text);
-}
-
-.group-detail-header p {
-  margin: 0;
-  color: var(--nb-dim);
-  font-size: 14px;
-}
-
-.group-actions {
-  display: flex;
-  gap: 8px;
-}
-
-/* ---- 群成员 ---- */
-.group-member-header {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-}
-
-.group-member-header h4 {
-  margin: 0;
-  color: var(--nb-text);
-  letter-spacing: 2px;
-  flex-shrink: 0;
-}
-
-.group-member-item {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  padding: 8px 0;
-  border-bottom: 1px solid rgba(43, 107, 232, 0.08);
-}
-
-.group-member-item:hover {
-  background: rgba(43, 107, 232, 0.04);
-}
-
-/* 群成员名单已经改成抽屉里的头像宫格，这里只剩「好友信息」那两行；min-width:0 留着，
-   长名字在 320px 的栏里也会把行撑出去 */
-.member-name {
-  flex: 1;
-  min-width: 0;
-  color: var(--nb-text);
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
 /* ---- 成员信息弹框 ---- */
 .member-info-modal {
   max-width: 340px;
@@ -3755,41 +3613,6 @@ function previewImage(url) {
 .member-info-value {
   font-size: 14px;
   color: var(--nb-text);
-}
-
-/* ---- 群设置面板（第三栏） ---- */
-.group-panel {
-  width: 320px;
-  background: rgba(255, 255, 255, 0.88);
-  display: flex;
-  flex-direction: column;
-  overflow: hidden;
-  backdrop-filter: blur(6px);
-}
-
-.group-panel-header {
-  height: 56px;
-  padding: 16px 20px;
-  border-bottom: 1px solid rgba(43, 107, 232, 0.14);
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  font-weight: 500;
-  flex-shrink: 0;
-  background: linear-gradient(90deg, rgba(43, 107, 232, 0.06), transparent 70%);
-  color: var(--nb-text);
-}
-
-.group-panel-title {
-  font-size: 14px;
-  color: var(--nb-text);
-  letter-spacing: 2px;
-}
-
-.group-panel-body {
-  flex: 1;
-  overflow-y: auto;
-  padding: 16px 20px;
 }
 
 /* ---- 创建群 / 成员搜索 ---- */
@@ -4354,7 +4177,7 @@ function previewImage(url) {
    不能再 row-reverse —— 两次反转会把头像甩到左边。 */
 .msg.self { justify-content: flex-end; }
 .msg-ava {
-  width: 34px; height: 34px; flex: 0 0 34px; border-radius: 50%; background: var(--brand); color: #fff;
+  width: 34px; height: 34px; flex: 0 0 34px; border-radius: 10px; background: var(--brand); color: #fff;
   display: grid; place-items: center; font-size: 13px; overflow: hidden; cursor: pointer;
 }
 .msg-ava.self { background: var(--brand-strong); cursor: default; }
@@ -4367,11 +4190,19 @@ function previewImage(url) {
 .msg-line { display: flex; align-items: flex-start; gap: 6px; }
 .msg.self .msg-line { flex-direction: row-reverse; }
 .bubble {
-  padding: 10px 13px; border-radius: 10px; background: var(--nb-bg-3);
-  color: var(--nb-text); line-height: 1.65; word-break: break-word; white-space: pre-wrap;
+  padding: 6px 13px; border-radius: 10px; background: var(--nb-bg-3);
+  color: var(--nb-text); line-height: 22px; word-break: break-word; white-space: pre-wrap;
   box-shadow: var(--shadow-1);
 }
 .msg.self .bubble { background: var(--brand); color: #fff; }
+/* 引用行：气泡下方一小块灰字，左边一条竖线。自己发的要靠右，所以用 fit-content + margin-left:auto */
+.msg-quote {
+  margin-top: 4px; width: fit-content; max-width: 100%;
+  padding: 1px 0 1px 8px; border-left: 2px solid var(--nb-line);
+  font-size: 12px; line-height: 1.5; color: var(--nb-dim);
+  white-space: pre-wrap; word-break: break-word;
+}
+.msg.self .msg-quote { margin-left: auto; }
 .mention { color: var(--brand); font-weight: 500; }
 .msg.self .mention { color: #dbe7ff; }
 .b-del { color: var(--nb-dim-2); font-style: italic; }

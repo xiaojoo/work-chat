@@ -141,7 +141,7 @@ public class ConversationService {
                 dto.setUnreadCount(uc.getUnreadCount());
 
                 if (conv.getType() == 1) {
-                    resolvePrivateConversationName(userId, conv, dto);
+                    fillPrivateCounterpart(userId, conv, dto);
                 } else if (conv.getType() == 2) {
                     resolveGroupConversationName(userId, conv, dto);
                 }
@@ -152,13 +152,16 @@ public class ConversationService {
         return result;
     }
 
-    private void resolvePrivateConversationName(Long userId, Conversation conv, ConversationDTO dto) {
+    private void fillPrivateCounterpart(Long userId, Conversation conv, ConversationDTO dto) {
         // 通过 user_conversation 表找到会话中的另一个用户
         List<UserConversation> bindings = userConversationRepository.findByConversationId(conv.getId());
         
         for (UserConversation uc : bindings) {
             if (!uc.getUserId().equals(userId)) {
                 Long otherUserId = uc.getUserId();
+                // 私聊在 conversation 表里只有 userA/userB 两列，targetId 一直是 null，
+                // 前端拿不到"对面是谁"（成员宫格要点对方头像、单聊转群聊要带对方 id），这里补上
+                dto.setTargetId(otherUserId);
                 userRepository.findById(otherUserId).ifPresent(user -> {
                     dto.setName(user.getNickname() != null ? user.getNickname() : user.getUsername());
                     dto.setAvatar(user.getAvatar());
