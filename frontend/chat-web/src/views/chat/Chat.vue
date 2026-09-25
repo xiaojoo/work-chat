@@ -498,74 +498,13 @@
         <CreateGroupModal :open="showCreateGroup" :candidates="orgCandidates"
                         @close="showCreateGroup = false" @submit="onCreateGroupSubmit" />
 
-    <AddMembersModal :open="showAddMembers" :org="orgData" :groups="groups" :online="onlineUsers"
-                     :exclude-ids="groupMemberIds" :group-members-cache="groupMemberCache"
-                     @close="showAddMembers = false" @add="onAddMembersSubmit" @expand-group="onExpandGroup" />
+    <!-- 同一棵树两种用途：往当前群里加人，或者单聊转群聊时挑人建群（mode/exclude 跟着换） -->
+    <AddMembersModal :open="showAddMembers" :mode="isConvertToGroup ? 'convert' : 'group'"
+                     :org="orgData" :groups="groups" :online="onlineUsers"
+                     :exclude-ids="isConvertToGroup ? convertExcludeIds : groupMemberIds"
+                     :group-members-cache="groupMemberCache"
+                     @close="closeAddMembers" @add="onAddMembersSubmit" @expand-group="onExpandGroup" />
 
-    <!-- 邀请成员对话框 -->
-    <div v-if="showInviteMember" class="modal-overlay" @click.self="closeInviteModal">
-      <div class="modal invite-dialog">
-        <div class="modal-head">
-          <div class="invite-dlg-head">
-            <div class="invite-dlg-title">{{ isConvertToGroup ? '邀请成员建群' : '邀请成员' }}</div>
-            <div class="invite-dlg-kicker">{{ isConvertToGroup ? 'CREATE GROUP · 选择成员创建群聊' : 'INVITE MEMBER · 群成员接入协议' }}</div>
-          </div>
-          <button class="btn btn-link btn-sm" @click="closeInviteModal">✕</button>
-        </div>
-
-        <div class="modal-body">
-          <div class="invite-scope">
-            <!-- 搜索框：图标 + 输入 + SCAN 按钮一体 -->
-            <div class="invite-search-box">
-              <span class="invite-s-ico">⌕</span>
-              <input
-                id="invite-user-search"
-                v-model="inviteUserId"
-                name="inviteUserId"
-                class="invite-s-input"
-                placeholder="用户ID / 昵称 / 用户名，多个ID用逗号分隔"
-                @keyup.enter="searchInviteUsers"
-                @input="onInviteIdInput"
-              />
-              <button class="invite-s-btn" :class="{ loading: inviteSearching }" @click="searchInviteUsers">
-                {{ inviteSearching ? '···' : 'SCAN' }}
-              </button>
-            </div>
-
-            <div v-if="inviteSearchResults.length > 0" class="invite-results">
-              <div v-for="user in inviteSearchResults" :key="user.id" class="invite-item">
-                <div class="invite-avatar">
-                  <div class="avatar s36">{{ (user.nickname || user.username)?.charAt(0)?.toUpperCase() }}</div>
-                </div>
-                <div class="invite-info">
-                  <div class="invite-name">{{ user.nickname || user.username }}</div>
-                  <div class="invite-meta">ID:{{ user.id }} · @{{ user.username }}</div>
-                </div>
-                <span v-if="isUserInGroup(user)" class="invite-tag">已在群中</span>
-                <span v-else-if="invitedIds.has(user.id)" class="invite-tag done">已邀请 ✓</span>
-                <button v-else class="invite-btn" @click="inviteSingleUser(user)">＋ 邀请</button>
-              </div>
-            </div>
-            <div v-else-if="inviteSearched" class="invite-empty">
-              <span class="invite-empty-ico">✕</span>
-              NO SIGNAL · 未找到匹配用户
-            </div>
-            <div v-else class="invite-hint">
-              输入用户ID / 昵称 / 用户名开始扫描
-            </div>
-          </div>
-        </div>
-
-        <div class="modal-foot">
-          <div class="invite-footer">
-            <button class="invite-ghost" @click="closeInviteModal">取消</button>
-            <button class="invite-primary" @click="handleInviteMember">
-              {{ isConvertToGroup ? '建群' : '全部邀请' }}
-            </button>
-          </div>
-        </div>
-      </div>
-    </div>
 
     <!-- 设置：个人信息 / 账号 / 通知 / 安全 / 外观 -->
     <SettingsModal :open="showProfile" @close="showProfile = false" @saved="onSettingsSaved" />
@@ -672,7 +611,7 @@ import { notifyDesktop } from '../../config'
 import { getConversationList, createConversation, clearUnread, deleteConversation } from '../../api/conversation'
 import { getFriendList, addFriend, checkFriend } from '../../api/friend'
 import { createGroup, getMyGroups, getGroup, getGroupMembers, inviteMembers, removeMember, leaveGroup, dissolveGroup, updateGroup } from '../../api/group'
-import { getUserProfile, searchUser, searchUsersByKeyword, updateProfile, getMe, getOrg, getOnline } from '../../api/user'
+import { getUserProfile, searchUser, updateProfile, getMe, getOrg, getOnline } from '../../api/user'
 import { uploadFile, fileObjectUrl, parseFileRef, previewOf } from '../../api/file'
 import CreateGroupModal from '../../components/CreateGroupModal.vue'
 import AddMembersModal from '../../components/AddMembersModal.vue'
@@ -858,14 +797,7 @@ const filteredGroupMembers = computed(() => {
     return name.includes(q) || String(m.userId).includes(q)
   })
 })
-const showInviteMember = ref(false)
-const inviteUserId = ref('')
-const inviteSearchResults = ref([])
-const inviteSearching = ref(false)
-const inviteSearched = ref(false)
-const invitedIds = ref(new Set())
-const isConvertToGroup = ref(false) // 是否处于「单聊转群聊」模式
-let inviteSearchTimer = null
+const isConvertToGroup = ref(false) // 同一棵树的两种用途：false=往当前群加人，true=单聊转群聊
 
 // 设置弹窗
 const showProfile = ref(false)
@@ -1997,7 +1929,7 @@ const showAddMembers = ref(false)
 // （菜单 z-index 9999 > 遮罩 95）。这段必须放在所有被引用 ref 之后 —— 放前面是 TDZ，
 // setup 直接抛错，整页空白
 watch(
-  [showProfile, showAddFriend, showAddMembers, showCreateGroup, showInviteMember, groupCard],
+  [showProfile, showAddFriend, showAddMembers, showCreateGroup, groupCard],
   (vals) => { if (vals.some(Boolean)) closeAllMenus() }
 )
 
@@ -2067,6 +1999,8 @@ async function onExpandGroup(g) {
 }
 
 async function onAddMembersSubmit({ ids, sendWelcome, welcome }) {
+  // 同一棵树，两种落法：转群模式下是"建一个新群"，否则是"往当前群里加人"
+  if (isConvertToGroup.value) { createGroupFromPrivate(ids); return }
   if (!selectedGroup.value) return
   try {
     await inviteMembers(selectedGroup.value.id, ids)
@@ -2165,155 +2099,44 @@ function onAddMemberTile() {
   else convertToGroup()
 }
 
-// 单聊转群聊：打开邀请框，确认后新建一个群会话（这条私聊和它的记录原样留着）
+// 单聊转群聊：走「添加好友」那棵组织架构树挑人，确定后新建一个群会话跳过去
+// （这条私聊和它的记录原样留着）
 function convertToGroup() {
   if (!selectedFriend.value) return
   isConvertToGroup.value = true
-  showInviteMember.value = true
+  refreshOnline()
+  showAddMembers.value = true
 }
 
-function isUserInGroup(user) {
-  return groupMembers.value.some(m => String(m.userId) === String(user.id))
-}
+// 建群时把自己和对方从树上排掉：自己不用选（后端落成群主），对方已经在群里了
+const convertExcludeIds = computed(() => [
+  String(userStore.userId || ''),
+  String(selectedFriend.value?.id ?? '')
+].filter(Boolean))
 
-// 输入时防抖搜索
-function onInviteIdInput() {
-  clearTimeout(inviteSearchTimer)
-  inviteSearchTimer = setTimeout(() => {
-    searchInviteUsers()
-  }, 300)
-}
-
-// 根据输入的 ID / 昵称 / 用户名搜索用户，结果显示在下方
-async function searchInviteUsers() {
-  const raw = (inviteUserId.value || '').trim()
-  if (!raw) {
-    inviteSearchResults.value = []
-    inviteSearched.value = false
-    return
-  }
-  const parts = raw.split(',').map(s => s.trim()).filter(Boolean)
-  // 全部为纯数字 → 按 ID 精确查（支持逗号分隔多个）；否则 → 按昵称/用户名模糊搜索
-  const allIds = parts.length > 0 && parts.every(s => /^\d+$/.test(s))
-  inviteSearching.value = true
-  try {
-    let results = []
-    if (allIds) {
-      for (const id of parts.slice(0, 10)) {
-        try {
-          const user = await getUserProfile(id)
-          if (user && !user.error) {
-            results.push(user)
-          }
-        } catch (e) {
-          // 该 ID 用户不存在，跳过
-        }
-      }
-    } else {
-      const users = await searchUsersByKeyword(raw)
-      if (Array.isArray(users)) {
-        results = users.slice(0, 20)
-      }
-    }
-    // 去重并过滤掉自己
-    const seen = new Set()
-    inviteSearchResults.value = results.filter(u => {
-      if (String(u.id) === String(userStore.userId)) return false
-      if (seen.has(String(u.id))) return false
-      seen.add(String(u.id))
-      return true
-    })
-    inviteSearched.value = true
-  } finally {
-    inviteSearching.value = false
-  }
-}
-
-// 单独邀请搜索结果中的某位用户
-async function inviteSingleUser(user) {
-  if (!selectedGroup.value) return
-  try {
-    await inviteMembers(selectedGroup.value.id, [user.id])
-    invitedIds.value.add(user.id)
-    toast(`已邀请 ${user.nickname || user.username}`, 'success')
-    groupMembers.value = await getGroupMembers(selectedGroup.value.id)
-    if (selectedGroup.value) {
-      selectedGroup.value.memberCount = groupMembers.value.length
-    }
-  } catch (e) {
-    toast(e.response?.data?.error || '邀请失败', 'error')
-  }
-}
-
-// 关闭弹窗时重置
-function resetInviteDialog() {
-  inviteUserId.value = ''
-  inviteSearchResults.value = []
-  inviteSearched.value = false
-  invitedIds.value = new Set()
+function closeAddMembers() {
+  showAddMembers.value = false
   isConvertToGroup.value = false
-  clearTimeout(inviteSearchTimer)
 }
 
-// 点击遮罩关闭邀请弹窗（复用原生模态框）
-function closeInviteModal() {
-  showInviteMember.value = false
-  resetInviteDialog()
-}
-
-async function handleInviteMember() {
-  // 单聊转群聊模式：创建群并邀请选中的用户
-  if (isConvertToGroup.value && selectedFriend.value) {
-    const targets = inviteSearchResults.value.filter(u => !invitedIds.value.has(u.id) && !isUserInGroup(u))
-    const extraIds = targets.length > 0
-      ? targets.map(u => Number(u.id))
-      : inviteUserId.value.split(',').map(id => Number(id.trim())).filter(id => !isNaN(id))
-    // 好友 ID 始终包含在内
-    const friendId = Number(selectedFriend.value.id)
-    const memberIds = [...new Set([friendId, ...extraIds])]
-
-    if (memberIds.length <= 1) {
-      toast('再至少选 1 人：加上你和对方满 3 人才能转成群聊', 'warning')
-      return
-    }
-
-    try {
-      const friendName = selectedFriend.value.name || '好友'
-      // memberIds 里没有我自己，所以群名上的人数要 +1
-      const total = memberIds.length + 1
-      const group = await createGroup(`${userStore.username}、${friendName} 等${total}人`, null, memberIds)
-      toast('群聊已创建', 'success')
-      showInviteMember.value = false
-      isConvertToGroup.value = false
-      resetInviteDialog()
-      await loadGroups()
-      startChatWithGroup(group)
-    } catch (e) {
-      toast(e.response?.data?.error || '创建群失败', 'error')
-    }
-    return
-  }
-
-  // 普通群聊邀请模式
-  if (!selectedGroup.value) return
-  const targets = inviteSearchResults.value.filter(u => !invitedIds.value.has(u.id) && !isUserInGroup(u))
-  const ids = targets.length > 0
-    ? targets.map(u => u.id)
-    : inviteUserId.value.split(',').map(id => Number(id.trim())).filter(id => !isNaN(id))
-  if (ids.length === 0) {
-    toast('请输入要邀请的用户ID', 'warning')
+// 成员 = 对方 + 树上挑中的人；加上我自己（群主）才是总人数
+async function createGroupFromPrivate(ids) {
+  const f = selectedFriend.value
+  showAddMembers.value = false
+  isConvertToGroup.value = false
+  if (!f) return
+  const memberIds = [...new Set([Number(f.id), ...ids.map(Number)])]
+  if (memberIds.length < 2) {
+    toast('再至少选 1 人：加上你和对方满 3 人才能转成群聊', 'warning')
     return
   }
   try {
-    await inviteMembers(selectedGroup.value.id, ids)
-    toast('已邀请', 'success')
-    targets.forEach(u => invitedIds.value.add(u.id))
-    groupMembers.value = await getGroupMembers(selectedGroup.value.id)
-    if (selectedGroup.value) {
-      selectedGroup.value.memberCount = groupMembers.value.length
-    }
+    const group = await createGroup(`${userStore.username}、${f.name || '好友'} 等${memberIds.length + 1}人`, null, memberIds)
+    toast('群聊已创建', 'success')
+    await Promise.all([loadGroups(), loadConversations()])
+    startChatWithGroup(group)
   } catch (e) {
-    toast(e.response?.data?.error || '邀请失败', 'error')
+    toast(e.response?.data?.error || '创建群失败', 'error')
   }
 }
 
@@ -3743,301 +3566,6 @@ watch(imgView, v => {
   color: #69788f;
   margin-top: 4px;
 }
-
-/* ============================================================
-   邀请成员弹窗 · 星环科幻风（NEBULA 风格）
-   弹窗通过 teleport 挂载到 body，需使用非 scoped 样式
-   ============================================================ */
-.invite-dialog {
-  position: relative;
-  width: var(--invite-width);
-  max-width: 92vw;
-  background:
-    radial-gradient(420px 200px at 85% 8%, rgba(43, 107, 232, 0.18), transparent 60%),
-    radial-gradient(360px 220px at 10% 95%, rgba(43, 107, 232, 0.10), transparent 60%),
-    linear-gradient(150deg, #ffffff 0%, #ffffff 55%, #f0f3f8 100%);
-  border: 1px solid var(--invite-line);
-  border-radius: 8px;
-  box-shadow:
-    0 0 0 1px rgba(43, 107, 232, 0.05),
-    0 24px 80px rgba(0, 0, 0, 0.65),
-    0 0 60px rgba(43, 107, 232, 0.08),
-    inset 0 0 46px rgba(43, 107, 232, 0.03);
-  overflow: hidden;
-}
-
-/* 四角科技角标 */
-.invite-dialog::before,
-.invite-dialog::after {
-  content: "";
-  position: absolute;
-  width: 24px;
-  height: 24px;
-  pointer-events: none;
-  z-index: 3;
-}
-.invite-dialog::before {
-  top: 0;
-  left: 0;
-  border-top: 2px solid var(--invite-cyan);
-  border-left: 2px solid var(--invite-cyan);
-  border-top-left-radius: 10px;
-  filter: drop-shadow(0 0 6px rgba(43, 107, 232, 0.8));
-}
-.invite-dialog::after {
-  bottom: 0;
-  right: 0;
-  border-bottom: 2px solid var(--invite-magenta);
-  border-right: 2px solid var(--invite-magenta);
-  border-bottom-right-radius: 10px;
-  filter: drop-shadow(0 0 6px rgba(217, 72, 96, 0.8));
-}
-
-/* ===== 头部 ===== */
-.invite-dialog .modal-head {
-  margin: 0;
-  padding: 12px;
-  border-bottom: 1px solid rgba(43, 107, 232, 0.14);
-  background: linear-gradient(90deg, rgba(43, 107, 232, 0.07), transparent 65%);
-}
-.invite-dlg-title {
-  font-family: 'Orbitron', 'Rajdhani', 'Microsoft YaHei', sans-serif;
-  font-weight: 700;
-  font-size: var(--invite-font-title);
-  color: #fff;
-  letter-spacing: 3px;
-}
-.invite-dlg-kicker {
-  font-family: 'Share Tech Mono', monospace;
-  font-size: var(--invite-font-kicker);
-  letter-spacing: 3px;
-  color: #69788f;
-  margin-top: 4px;
-}
-
-/* ===== 主体 ===== */
-.invite-dialog .modal-body {
-  padding: 0;
-}
-.invite-scope {
-  padding: 20px;
-}
-
-/* 搜索框：⌕ 图标 + 输入 + SCAN 按钮一体（参考 NEBULA MART 头部搜索框） */
-.invite-search-box {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  background: rgba(255, 255, 255, 0.7);
-  border: 1px solid rgba(43, 107, 232, 0.35);
-  border-radius: var(--invite-radius-box);
-  padding: 5px 6px 5px 18px;
-  transition: border-color 0.25s, box-shadow 0.25s;
-  position: relative;
-}
-.invite-search-box:focus-within {
-  border-color: var(--invite-cyan);
-  box-shadow: 0 0 18px rgba(43, 107, 232, 0.35), inset 0 0 12px rgba(43, 107, 232, 0.05);
-}
-.invite-s-ico {
-  color: var(--invite-cyan);
-  font-size: var(--invite-font-icon);
-  flex-shrink: 0;
-  text-shadow: 0 0 8px rgba(43, 107, 232, 0.9);
-}
-.invite-s-input {
-  flex: 1;
-  min-width: 0;
-  background: transparent;
-  border: none;
-  outline: none;
-  color: #1b2434;
-  font-size: var(--invite-font-input);
-  padding: 8px 0;
-  letter-spacing: 0.5px;
-  font-family: 'Rajdhani', 'Microsoft YaHei', sans-serif;
-}
-.invite-s-input::placeholder {
-  color: #8a97ab;
-  letter-spacing: 1px;
-}
-.invite-s-btn {
-  flex-shrink: 0;
-  border: none;
-  border-radius: 5px;
-  background: linear-gradient(90deg, #2b6be8, #2b6be8);
-  color: #ffffff;
-  font-family: 'Orbitron', 'Share Tech Mono', monospace;
-  font-size: var(--invite-font-scan);
-  font-weight: 700;
-  letter-spacing: 2px;
-  padding: 8px 18px;
-  cursor: pointer;
-  transition: all 0.2s;
-  box-shadow: 0 0 14px rgba(43, 107, 232, 0.35);
-}
-.invite-s-btn:hover {
-  filter: brightness(1.18);
-  box-shadow: 0 0 22px rgba(43, 107, 232, 0.6);
-}
-.invite-s-btn.loading {
-  animation: invite-blink 0.9s steps(2) infinite;
-}
-@keyframes invite-blink {
-  50% { opacity: 0.45; }
-}
-
-/* ===== 搜索结果 ===== */
-.invite-results {
-  margin-top: 14px;
-  max-height: 300px;
-  overflow-y: auto;
-  border: 1px solid rgba(43, 107, 232, 0.14);
-  border-radius: 8px;
-  background: rgba(255, 255, 255, 0.55);
-}
-.invite-item {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  padding: 10px 14px;
-  border-bottom: 1px solid rgba(43, 107, 232, 0.08);
-  transition: background 0.2s;
-}
-.invite-item:last-child {
-  border-bottom: none;
-}
-.invite-item:hover {
-  background: rgba(43, 107, 232, 0.06);
-}
-.invite-avatar .avatar {
-  background: linear-gradient(135deg, var(--invite-cyan), var(--invite-purple));
-  color: #ffffff;
-  font-weight: 700;
-  border: 1px solid rgba(43, 107, 232, 0.5);
-  box-shadow: 0 0 10px rgba(43, 107, 232, 0.35);
-  width: var(--invite-avatar) !important;
-  height: var(--invite-avatar) !important;
-  font-size: calc(var(--invite-avatar) / 2.4) !important;
-}
-.invite-info {
-  flex: 1;
-  min-width: 0;
-}
-.invite-name {
-  color: #fff;
-  font-size: var(--invite-font-name);
-  font-weight: 600;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-.invite-meta {
-  font-family: 'Share Tech Mono', monospace;
-  font-size: var(--invite-font-meta);
-  color: var(--invite-cyan);
-  opacity: 0.75;
-  letter-spacing: 1px;
-  margin-top: 2px;
-}
-.invite-tag {
-  flex-shrink: 0;
-  font-size: var(--invite-font-tag);
-  padding: 3px 10px;
-  border-radius: 5px;
-  border: 1px solid rgba(43, 107, 232, 0.35);
-  color: #8a97ab;
-  font-family: 'Share Tech Mono', monospace;
-  letter-spacing: 1px;
-  background: rgba(43, 107, 232, 0.06);
-}
-.invite-tag.done {
-  border-color: rgba(31, 157, 85, 0.45);
-  color: var(--invite-green);
-  background: rgba(31, 157, 85, 0.08);
-  text-shadow: 0 0 8px rgba(31, 157, 85, 0.5);
-}
-.invite-btn {
-  flex-shrink: 0;
-  border: 1px solid rgba(43, 107, 232, 0.55);
-  background: linear-gradient(90deg, rgba(43, 107, 232, 0.18), rgba(43, 107, 232, 0.18));
-  color: var(--invite-cyan);
-  border-radius: 5px;
-  padding: 6px 12px;
-  cursor: pointer;
-  font-family: 'Share Tech Mono', monospace;
-  font-size: var(--invite-font-btn);
-  letter-spacing: 1px;
-  transition: all 0.2s;
-}
-.invite-btn:hover {
-  box-shadow: 0 0 14px rgba(43, 107, 232, 0.55);
-  background: linear-gradient(90deg, var(--invite-cyan), var(--invite-purple));
-  color: #03101f;
-}
-
-/* 空状态 / 提示 */
-.invite-empty,
-.invite-hint {
-  margin-top: 14px;
-  padding: 22px 10px;
-  text-align: center;
-  color: #8a97ab;
-  font-family: 'Share Tech Mono', monospace;
-  font-size: var(--invite-font-hint);
-  letter-spacing: 2px;
-  border: 1px dashed rgba(43, 107, 232, 0.18);
-  border-radius: 6px;
-  background: rgba(255, 255, 255, 0.4);
-}
-.invite-empty-ico {
-  color: var(--invite-cyan);
-  margin-right: 6px;
-  text-shadow: 0 0 8px rgba(43, 107, 232, 0.7);
-}
-
-/* ===== 底部按钮 ===== */
-.invite-footer {
-  display: flex;
-  justify-content: flex-end;
-  gap: 12px;
-}
-.invite-ghost {
-  background: transparent;
-  border: 1px solid rgba(217, 72, 96, 0.4);
-  color: #2b6be8;
-  padding: 9px 22px;
-  border-radius: 5px;
-  cursor: pointer;
-  font-size: var(--invite-font-footer);
-  letter-spacing: 2px;
-  transition: all 0.2s;
-  font-family: 'Rajdhani', 'Microsoft YaHei', sans-serif;
-}
-.invite-ghost:hover {
-  box-shadow: 0 0 14px rgba(217, 72, 96, 0.4);
-  background: rgba(217, 72, 96, 0.1);
-  color: #fff;
-}
-.invite-primary {
-  border: none;
-  background: linear-gradient(90deg, var(--invite-magenta), var(--invite-purple));
-  color: #fff;
-  padding: 10px 24px;
-  border-radius: 5px;
-  cursor: pointer;
-  font-size: var(--invite-font-footer);
-  font-weight: 600;
-  letter-spacing: 2px;
-  box-shadow: 0 0 20px rgba(217, 72, 96, 0.45);
-  transition: all 0.25s;
-  font-family: 'Rajdhani', 'Microsoft YaHei', sans-serif;
-}
-.invite-primary:hover {
-  filter: brightness(1.15);
-  box-shadow: 0 0 30px rgba(217, 72, 96, 0.7);
-}
-
 
 /* ============================================================
    四栏骨架 · 设计稿图3（浅色蓝）

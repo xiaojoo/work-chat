@@ -1,6 +1,6 @@
 <template>
   <div v-if="open" class="ov" @click.self="$emit('close')">
-    <div class="dlg" role="dialog" aria-modal="true" :aria-label="isFriend ? '添加好友' : '添加用户'">
+    <div class="dlg" role="dialog" aria-modal="true" :aria-label="title">
       <header class="hd">
         <span class="hd-ic" aria-hidden="true">
           <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.7">
@@ -8,8 +8,8 @@
           </svg>
         </span>
         <div class="hd-tx">
-          <h2>{{ isFriend ? '添加好友' : '添加用户' }}</h2>
-          <p>{{ isFriend ? '从组织架构或你所在的群里挑人要加为好友' : '选择成员加入团队或群聊' }}</p>
+          <h2>{{ title }}</h2>
+          <p>{{ sub }}</p>
         </div>
         <button class="x" type="button" aria-label="关闭" @click="$emit('close')">✕</button>
       </header>
@@ -61,11 +61,11 @@
             </div>
           </div>
 
-          <button v-if="!isFriend" type="button" class="welcome" role="checkbox" :aria-checked="sendWelcome" @click="sendWelcome = !sendWelcome">
+          <button v-if="!isFriend && !isConvert" type="button" class="welcome" role="checkbox" :aria-checked="sendWelcome" @click="sendWelcome = !sendWelcome">
             <span class="cb" :class="{ on: sendWelcome }" aria-hidden="true">{{ sendWelcome ? '✓' : '' }}</span>
             <span>发送欢迎消息</span>
           </button>
-          <div v-if="!isFriend && sendWelcome" class="ipt-wrap">
+          <div v-if="!isFriend && !isConvert && sendWelcome" class="ipt-wrap">
             <textarea v-model="welcome" class="ipt ta" maxlength="200" rows="2" placeholder="欢迎加入团队！一起创造更好的内容！" />
             <span class="cnt">{{ welcome.length }}/200</span>
           </div>
@@ -87,7 +87,7 @@
         <div class="ft-btns">
           <button class="btn ghost" type="button" @click="$emit('close')">取消</button>
           <button class="btn pri" type="button" :disabled="!picked.length" @click="submit">
-            添加<span v-if="picked.length" class="with">（{{ picked.length }}）</span>
+            {{ okLabel }}<span v-if="picked.length" class="with">（{{ picked.length }}）</span>
           </button>
         </div>
       </footer>
@@ -115,8 +115,15 @@ const ALL_TABS = [{ key: 'org', name: '从组织架构添加' }, { key: 'group',
 const PLACEHOLDER_LINK = '—（待接入邀请令牌）—'
 
 const isFriend = computed(() => props.mode === 'friend')
+// 单聊转群聊走同一棵树：标题和按钮要说清这是"建一个新群"，不是"把人拉进当前群"
+const isConvert = computed(() => props.mode === 'convert')
+const title = computed(() => (isFriend.value ? '添加好友' : isConvert.value ? '邀请成员建群' : '添加用户'))
+const sub = computed(() => (isFriend.value ? '从组织架构或你所在的群里挑人要加为好友'
+  : isConvert.value ? '挑进来的人会和对方一起组成一个新群，这条私聊原样保留'
+  : '选择成员加入团队或群聊'))
+const okLabel = computed(() => (isConvert.value ? '建群' : '添加'))
 // 好友模式不给「通过链接邀请」：那条链路根本没有，给了就是个点了没反应的页签
-const TABS = computed(() => isFriend.value ? ALL_TABS.slice(0, 2) : ALL_TABS)
+const TABS = computed(() => isFriend.value || isConvert.value ? ALL_TABS.slice(0, 2) : ALL_TABS)
 const tab = ref('org')
 const q = ref('')
 const picked = ref([])
