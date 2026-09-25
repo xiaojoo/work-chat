@@ -278,13 +278,6 @@
           <span class="dot">·</span><span>💬 {{ docDetail.comments }}</span>
         </div>
 
-        <div class="dw-sec">内容预览</div>
-        <div class="preview">
-          <div class="pv-title" v-html="docPreview.title.replace('\n', '<br>')"></div>
-          <div class="pv-body">{{ docPreview.body }}</div>
-          <div class="pv-cta">{{ docPreview.cta }}</div>
-        </div>
-
         <div class="dw-sec">关联任务<span class="dw-sec-n">{{ docTasks.filter(t => !t.done).length }} 项待办</span></div>
         <div v-for="t in docTasks" :key="t.id" class="task">
           <span class="tk-box" :class="{ done: t.done }">{{ t.done ? '✓' : '' }}</span>
@@ -309,7 +302,6 @@
         <div v-for="r in docRelated" :key="r.name" class="rel">
           <span class="rel-ico" :class="r.type">{{ r.type.toUpperCase() }}</span>
           <div><div class="rel-name">{{ r.name }}</div><div class="rel-size">{{ r.size }}</div></div>
-          <span class="rel-caret">⌄</span>
         </div>
       </div>
 
@@ -743,7 +735,7 @@ import SettingsModal from '../../components/SettingsModal.vue'
 import AlphaList from '../../components/AlphaList.vue'
 import { toast, confirmBox } from '../../utils/ui'
 import { Minus, PictureOne, FolderUpload, MessageEmoji, Scissors, Mail, MicrophoneOne, People, History, Down, Pin, MessageUnread, Mute, Windows, PreviewClose, Delete, Copy, Clipboard, Undo, Redo, FullSelection, ZoomIn, Translate, Search, Share, Star, Selected, AlarmClock, Quote, Save, Refresh, Clear, PreviewOpen } from '@icon-park/vue-next'
-import { docDetail, docPreview, docTasks, docScores, docRelated } from '../../mock/workbench'
+import { docDetail, docTasks, docScores, docRelated } from '../../mock/workbench'
 
 const router = useRouter()
 
@@ -4573,16 +4565,6 @@ function previewImage(url) {
   font-size: 12px; font-weight: 600; color: var(--nb-text);
 }
 .dw-sec-n { margin-left: auto; font-weight: 400; font-size: 11px; color: var(--nb-dim-2); }
-.preview {
-  padding: 14px; border-radius: 10px; border: 1px solid var(--nb-line);
-  background: linear-gradient(160deg, #f2f7ff, #fff 60%);
-}
-.pv-title { font-size: 15px; font-weight: 700; color: var(--nb-text); line-height: 1.5; }
-.pv-body { margin-top: 8px; font-size: 12px; color: var(--nb-dim); line-height: 1.7; }
-.pv-cta {
-  display: inline-block; margin-top: 10px; padding: 5px 14px; border-radius: 6px;
-  background: var(--brand); color: #fff; font-size: 12px;
-}
 .task { display: flex; align-items: center; gap: 8px; padding: 6px 0; font-size: 12px; }
 .tk-box {
   width: 15px; height: 15px; flex: 0 0 15px; border: 1px solid var(--nb-line); border-radius: 4px;
@@ -4606,5 +4588,4 @@ function previewImage(url) {
 .rel-ico.pdf { background: var(--danger); }
 .rel-name { font-size: 12px; color: var(--nb-text); }
 .rel-size { font-size: 11px; color: var(--nb-dim-2); }
-.rel-caret { margin-left: auto; color: var(--nb-dim-2); }
 </style>
