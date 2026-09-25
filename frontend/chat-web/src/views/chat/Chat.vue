@@ -608,7 +608,7 @@
 
     <!-- 图片查看器：页内弹框，滚轮/±按钮缩放，放大后能拖着看，ESC 或点空白处关 -->
     <div v-if="imgView" class="img-view" @click.self="closeImageView" @wheel.prevent="onImgWheel">
-      <img class="iv-img" :src="imgView" alt="" draggable="false"
+      <img ref="ivImg" class="iv-img" :src="imgView" alt="" draggable="false"
            :style="{ transform: `translate(${imgPan.x}px, ${imgPan.y}px) scale(${imgZoom})` }"
            @pointerdown="imgDown" @pointermove="imgMove" @pointerup="imgUp" @pointercancel="imgUp"
            @dblclick="zoomReset" />
@@ -617,6 +617,8 @@
         <span class="iv-pct">{{ Math.round(imgZoom * 100) }}%</span>
         <button class="iv-btn" type="button" title="放大" :disabled="imgZoom >= 6" @click="zoomBy(1.25)">＋</button>
         <button class="iv-btn wide" type="button" title="回到适应窗口" @click="zoomReset">复原</button>
+        <!-- 编辑走桌面壳那套标注器：抓屏之外它还会画框/箭头/文字，网页端没这条路，所以照截图那颗一起藏 -->
+        <button v-if="canShot" class="iv-btn wide" type="button" title="用截图工具编辑这张图" @click="editViewingImage">编辑</button>
       </div>
       <button class="iv-x" type="button" title="关闭" @click="closeImageView">✕</button>
     </div>
@@ -2686,6 +2688,7 @@ function scrollToBottom() {
    网页端也是跳走一个标签页）。改成页内弹框，两端同一条路。
    缩放用 transform + 拖动平移：套滚动容器会多出一条滚动条，全站只留一处滚动条那条规矩 */
 const imgView = ref('')
+const ivImg = ref(null)
 const imgZoom = ref(1)
 const imgPan = ref({ x: 0, y: 0 })
 const ZOOM_MIN = 0.2, ZOOM_MAX = 6, ZOOM_STEP = 1.25
@@ -2715,6 +2718,24 @@ function imgMove(e) {
   imgPan.value = { x: e.clientX - imgDrag.x, y: e.clientY - imgDrag.y }
 }
 function imgUp() { imgDrag = null }
+// 「编辑」：把这张图交给桌面壳那套截图标注器（和截图共用一个编辑器，不另画一套）。
+// 走 fetch 拿原图字节而不是 canvas 重画：重画会把 JPEG 烘成 PNG，一条 IPC 消息大十倍
+async function editViewingImage() {
+  const el = ivImg.value
+  if (!el || !window.chatDesktop?.editImage) return
+  try {
+    const blob = await (await fetch(el.src)).blob()
+    const r = await window.chatDesktop.editImage({
+      bytes: new Uint8Array(await blob.arrayBuffer()),
+      mime: blob.type || 'image/png',
+      width: el.naturalWidth,
+      height: el.naturalHeight
+    })
+    if (r && !r.ok && !r.busy) toast('编辑没打开：' + (r.error || '未知原因'), 'error')
+  } catch (e) {
+    toast('编辑没打开：' + (e?.message || e), 'error')
+  }
+}
 // ESC 关查看器：只在开着的时候挂这个监听，不留全局按键钩子。
 // 顺带收掉右键菜单——菜单 z-index 9999 会浮到查看器上面（那段统一的弹框 watcher 在 imgView 之前，够不着）
 watch(imgView, v => {
