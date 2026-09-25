@@ -385,28 +385,35 @@
     </aside>
 
 
-    <!-- 消息操作菜单 -->
+    <!-- 消息操作菜单：照参考图摆十项，后端没接口的置灰不消失；图片/文件多一行「另存为…」 -->
     <div
       v-if="msgMenuVisible"
-      class="msg-context-menu"
+      class="conv-context-menu msg-menu-pop"
       :style="{ left: msgMenuX + 'px', top: msgMenuY + 'px' }"
     >
-      <div class="menu-item" @click="copyMessage">复制</div>
-      <div v-if="canDeleteMsg(selectedMsg)" class="menu-item danger" @click="handleDeleteMessage">撤回</div>
+      <div class="conv-menu-list">
+        <template v-for="it in msgMenu" :key="it.k">
+          <div v-if="it.sep" class="conv-menu-divider"></div>
+          <div class="conv-menu-item" :class="{ off: it.off, danger: it.danger }" @click="runMsgMenu(it)">
+            <component :is="it.icon" theme="outline" size="16" />
+            <span>{{ it.name }}</span>
+          </div>
+        </template>
+      </div>
     </div>
 
-    <!-- 背景右键菜单（清屏） -->
+    <!-- 消息区空白右键：清屏/恢复显示 + 刷新 + 消息保存（最后这项只预留显示） -->
     <div
       v-if="bgMenuVisible"
-      class="msg-context-menu"
+      class="conv-context-menu bg-menu-pop"
       :style="{ left: bgMenuX + 'px', top: bgMenuY + 'px' }"
     >
-      <template v-if="currentConversation && isConversationCleared(currentConversation.id)">
-        <div class="menu-item" @click="restoreScreen">恢复显示</div>
-      </template>
-      <template v-else>
-        <div class="menu-item" @click="clearScreen">清屏</div>
-      </template>
+      <div class="conv-menu-list">
+        <div v-for="it in bgMenu" :key="it.k" class="conv-menu-item" :class="{ off: it.off }" @click="runBgMenu(it)">
+          <component :is="it.icon" theme="outline" size="16" />
+          <span>{{ it.name }}</span>
+        </div>
+      </div>
     </div>
 
     <!-- 会话右键菜单 -->
@@ -447,24 +454,18 @@
       </div>
     </div>
 
-    <!-- 输入框右键菜单（复制/粘贴/剪切） -->
+    <!-- 输入框右键菜单：照参考图六项，右边带快捷键。没选区/空框的那几项置灰不消失 -->
     <div
       v-if="inputMenuVisible"
-      class="conv-context-menu"
+      class="conv-context-menu input-menu-pop"
       :style="{ left: inputMenuX + 'px', top: inputMenuY + 'px' }"
     >
       <div class="conv-menu-list">
-        <div v-if="inputHasSelection" class="conv-menu-item" @click="handleInputCopy">
-          <Copy theme="outline" size="16" />
-          <span>复制</span>
-        </div>
-        <div class="conv-menu-item" @click="handleInputPaste">
-          <Clipboard theme="outline" size="16" />
-          <span>粘贴</span>
-        </div>
-        <div v-if="inputHasSelection" class="conv-menu-item" @click="handleInputCut">
-          <Scissors theme="outline" size="16" />
-          <span>剪切</span>
+        <div v-for="it in inputMenu" :key="it.k" class="conv-menu-item" :class="{ off: it.off }"
+             @click="runInputMenu(it)">
+          <component :is="it.icon" theme="outline" size="16" />
+          <span>{{ it.name }}</span>
+          <span class="cm-kb">{{ it.kb }}</span>
         </div>
       </div>
     </div>
@@ -744,7 +745,7 @@ import AddMembersModal from '../../components/AddMembersModal.vue'
 import SettingsModal from '../../components/SettingsModal.vue'
 import AlphaList from '../../components/AlphaList.vue'
 import { toast, confirmBox } from '../../utils/ui'
-import { Minus, PictureOne, FolderUpload, MessageEmoji, Scissors, Mail, MicrophoneOne, People, History, Down, Pin, MessageUnread, Mute, Windows, PreviewClose, Delete, Copy, Clipboard } from '@icon-park/vue-next'
+import { Minus, PictureOne, FolderUpload, MessageEmoji, Scissors, Mail, MicrophoneOne, People, History, Down, Pin, MessageUnread, Mute, Windows, PreviewClose, Delete, Copy, Clipboard, Undo, Redo, FullSelection, ZoomIn, Translate, Search, Share, Star, Selected, AlarmClock, Quote, Save, Refresh, Clear, PreviewOpen } from '@icon-park/vue-next'
 import { docDetail, docPreview, docTasks, docScores, docRelated } from '../../mock/workbench'
 
 const router = useRouter()
@@ -1009,8 +1010,11 @@ const railMenuX = ref(0)
 const railMenuBottom = ref(0)
 
 function toggleRailMenu(e) {
-  railMenuOpen.value = !railMenuOpen.value
-  if (!railMenuOpen.value) return
+  // 先记下要开还是关，再关掉别的（包括自己）—— 否则 closeAllMenus 会把这次意图一起抹掉，永远只能开不能关
+  const next = !railMenuOpen.value
+  closeAllMenus()
+  railMenuOpen.value = next
+  if (!next) return
   const r = e.currentTarget.getBoundingClientRect()
   railMenuX.value = Math.round(r.right + 6)
   railMenuBottom.value = Math.round(window.innerHeight - r.bottom)
@@ -1690,14 +1694,16 @@ function sendFile(file) {
 }
 
 // 消息操作菜单
+// 页面上所有弹层的开关都登记在这张表里：closeAllMenus 遍历它，
+// 所以新增一个弹层只要往这里加一行，不会出现"忘了关别的、两个叠着显示"
+const popups = {
+  msg: msgMenuVisible, bg: bgMenuVisible, conv: convMenuVisible,
+  input: inputMenuVisible, rail: railMenuOpen, emoji: showEmojiPicker
+}
+
 // 关闭所有右键菜单
 function closeAllMenus() {
-  msgMenuVisible.value = false
-  bgMenuVisible.value = false
-  convMenuVisible.value = false
-  inputMenuVisible.value = false
-  railMenuOpen.value = false
-  showEmojiPicker.value = false
+  for (const k in popups) popups[k].value = false
 }
 
 function openMsgMenu(event, msg) {
@@ -1705,12 +1711,11 @@ function openMsgMenu(event, msg) {
   closeAllMenus()
 
   selectedMsg.value = msg
-  // 菜单显示在点击位置附近，确保不超出屏幕
-  const x = Math.min(event.clientX, window.innerWidth - 120)
-  const y = Math.min(event.clientY, window.innerHeight - 80)
-  msgMenuX.value = x
-  msgMenuY.value = y
+  // 位置先按点击点放，弹出来再按真实尺寸夹（宽和高都不按项数猜）
+  msgMenuX.value = event.clientX
+  msgMenuY.value = event.clientY
   msgMenuVisible.value = true
+  clampMenuY(msgMenuY, '.msg-menu-pop', msgMenuX)
 }
 
 const REVOKE_WINDOW_MS = 2 * 60 * 1000
@@ -1761,31 +1766,99 @@ function copyMessage() {
   msgMenuVisible.value = false
 }
 
+// 十项按参考图的顺序摆。off=true 是"这条我们真做不了"（后端没接口/没有本地能力），
+// 置灰不消失；撤回仍然只在"自己发的、两分钟内"才出现，不把必然失败的入口摆出来
+const msgMenu = computed(() => {
+  const m = selectedMsg.value
+  const type = String(m?.messageType || 'TEXT')
+  const isText = type === 'TEXT'
+  const isMedia = type === 'IMAGE' || type === 'FILE'
+  const live = type !== 'DELETED'
+  return [
+    { k: 'copy', name: '复制', icon: Copy, off: !isText },
+    { k: 'zoom', name: '放大阅读', icon: ZoomIn, off: true },
+    { k: 'translate', name: '翻译', icon: Translate, off: true },
+    { k: 'search', name: '搜一搜', icon: Search, off: true },
+    { k: 'forward', name: '转发…', icon: Share, off: true, sep: true },
+    { k: 'fav', name: '收藏', icon: Star, off: true },
+    { k: 'multi', name: '多选', icon: Selected, off: true },
+    { k: 'remind', name: '提醒', icon: AlarmClock, off: true, sep: true },
+    { k: 'quote', name: '引用', icon: Quote, off: !live },
+    ...(isMedia ? [{ k: 'save', name: '另存为…', icon: Save }] : []),
+    { k: 'del', name: '删除', icon: Delete, off: true, sep: true },
+    ...(m && canDeleteMsg(m) ? [{ k: 'revoke', name: '撤回', icon: Undo, danger: true }] : [])
+  ]
+})
+
+function runMsgMenu(it) {
+  if (it.off) return
+  msgMenuVisible.value = false
+  if (it.k === 'copy') return copyMessage()
+  if (it.k === 'quote') return quoteMessage()
+  if (it.k === 'save') return saveAsMessage()
+  if (it.k === 'revoke') return handleDeleteMessage()
+}
+
+// 引用：把原文按「> 谁：内容」带进输入框。纯前端，不需要后端配合
+function quoteMessage() {
+  const m = selectedMsg.value
+  if (!m) return
+  const body = m.messageType === 'TEXT' ? m.content
+    : m.messageType === 'IMAGE' ? '[图片]'
+    : `[文件] ${fileRefOf(m)?.name || ''}`
+  const line = `> ${msgSenderName(m)}：${String(body || '').replace(/\s*\n\s*/g, ' ')}\n`
+  inputMessage.value = (inputMessage.value ? inputMessage.value.replace(/\n?$/, '\n') : '') + line
+  nextTick(() => document.querySelector('#chat-message-input')?.focus())
+}
+
+// 另存为：桌面壳走主进程弹系统对话框（渲染端在沙箱里弹不出、也拿不到用户选的路径），
+// 网页端没有这条路，退回浏览器的 <a download>，落点是浏览器自己的设置
+async function saveAsMessage() {
+  const m = selectedMsg.value
+  const r = m ? fileRefOf(m) : null
+  if (!r) { toast('这条消息里没有可保存的文件', 'error'); return }
+  try {
+    if (!window.chatDesktop?.save) { downloadFile(m); toast('已交给浏览器下载', 'success'); return }
+    const url = r.dataUrl || await fileObjectUrl(r.fileId)
+    const bytes = new Uint8Array(await (await fetch(url)).arrayBuffer())
+    const res = await window.chatDesktop.save({ name: r.name || '文件', bytes })
+    if (res?.ok) toast(`已保存（${res.size} 字节）`, 'success')
+    else if (!res?.canceled) toast('保存失败：' + (res?.error || '未知错误'), 'error')
+  } catch (e) {
+    toast('另存为失败：' + (e?.message || e), 'error')
+  }
+}
+
+// 弹层的越界夹取按真实尺寸算，不按项数猜。
+// 必须用 offsetHeight：getBoundingClientRect 量的是变换后的盒子，而弹层带 0.15s 的
+// scale(0.95→1) 入场动画，nextTick 时正处在 0.95 —— 高度会少读 5%（443 读成 421），
+// 留的余量不够，最后一行就被窗口底边切掉。offsetHeight 是布局值，不受 transform 影响。
+// above=true：底边贴到光标上方（输入框在窗口最底下，往下开会把输入框和工具栏整块盖住）
+async function clampMenuY(posRef, sel, xRef, above) {
+  await nextTick()
+  const el = document.querySelector(sel)
+  if (!el) return
+  if (above) posRef.value = Math.max(8, Math.round(posRef.value - el.offsetHeight - 6))
+  const maxY = window.innerHeight - el.offsetHeight - 8
+  if (posRef.value > maxY) posRef.value = Math.max(8, Math.round(maxY))
+  if (xRef !== undefined) {
+    const maxX = window.innerWidth - el.offsetWidth - 8
+    if (xRef.value > maxX) xRef.value = Math.max(8, Math.round(maxX))
+  }
+}
+
 // 背景右键菜单（清屏）
 function openBgMenu(event) {
   event.preventDefault()
   event.stopPropagation()
   closeAllMenus()
 
-  const menuWidth = 100
-  const menuHeight = 50
-  const padding = 10
-
-  let x = event.clientX
-  let y = event.clientY
-
-  if (x + menuWidth > window.innerWidth) {
-    x = window.innerWidth - menuWidth - padding
-  }
-  if (y + menuHeight > window.innerHeight) {
-    y = window.innerHeight - menuHeight - padding
-  }
-  if (x < padding) x = padding
-  if (y < padding) y = padding
-
-  bgMenuX.value = x
-  bgMenuY.value = y
+  // 原来这里写死 menuWidth=100 / menuHeight=50 来夹取，那是清屏只有一项时的尺寸；
+  // 现在三项、图标行，改成弹出来按真实尺寸夹
+  bgMenuX.value = event.clientX
+  bgMenuY.value = event.clientY
   bgMenuVisible.value = true
+  clampMenuY(bgMenuY, '.bg-menu-pop', bgMenuX)
 }
 
 // 清屏功能：本地标记该会话已清屏，仅隐藏自己的历史消息显示，对方不受影响
@@ -1807,13 +1880,45 @@ function restoreScreen() {
   toast('已恢复显示历史消息', 'success')
 }
 
+// 空白右键的三项。消息保存按你说的只预留显示：后端没有导出/存档接口，
+// 做成能点但什么都不发生，比摆一个灰行更坏
+const bgMenu = computed(() => {
+  const conv = currentConversation.value
+  const cleared = !!conv && isConversationCleared(conv.id)
+  return [
+    cleared
+      ? { k: 'restore', name: '恢复显示', icon: PreviewOpen, off: !conv }
+      : { k: 'clear', name: '清屏', icon: Clear, off: !conv },
+    { k: 'refresh', name: '刷新', icon: Refresh, off: !conv },
+    { k: 'archive', name: '消息保存', icon: Save, off: true }
+  ]
+})
+
+function runBgMenu(it) {
+  if (it.off) return
+  bgMenuVisible.value = false
+  if (it.k === 'clear') return clearScreen()
+  if (it.k === 'restore') return restoreScreen()
+  if (it.k === 'refresh') return refreshMessages()
+}
+
+// 刷新：重拉这个会话的历史。已清屏的会话不会因此"偷偷恢复"—— LOAD_MESSAGES 那条
+// 分支里本来就守着清屏标记，这里不碰标记，所以刷新后仍是空的
+function refreshMessages() {
+  const conv = currentConversation.value
+  if (!conv) return
+  messages.value = []
+  send('LOAD_MESSAGES', { conversationId: String(conv.id), limit: 50 })
+  toast('已刷新', 'success')
+}
+
 // 点击空白处关闭菜单
 document.addEventListener('click', () => {
   closeAllMenus()
 })
 document.addEventListener('contextmenu', (e) => {
   // 如果右键点在输入框上，由 openInputMenu 处理；否则关闭所有菜单
-  if (!e.target.closest('.chat-textarea')) {
+  if (!e.target.closest('#chat-message-input')) {
     closeAllMenus()
   }
 })
@@ -2459,23 +2564,61 @@ async function handleConvDelete() {
 }
 
 // ===== 输入框右键菜单 =====
+// 原来这几个 handler 查的都是 .chat-textarea，可 textarea 的真实类是 .area（id=chat-message-input），
+// 选择器 0 命中 —— 整条菜单点了什么都不发生。统一走 inputEl() 一个口子
+const inputEl = () => document.querySelector('#chat-message-input')
+
+const inputMenu = computed(() => [
+  { k: 'undo', name: '撤销', kb: 'Ctrl+Z', icon: Undo },
+  { k: 'redo', name: '重做', kb: 'Ctrl+Y', icon: Redo },
+  { k: 'cut', name: '剪切', kb: 'Ctrl+X', icon: Scissors, off: !inputHasSelection.value },
+  { k: 'copy', name: '复制', kb: 'Ctrl+C', icon: Copy, off: !inputHasSelection.value },
+  { k: 'paste', name: '粘贴', kb: 'Ctrl+V', icon: Clipboard },
+  { k: 'all', name: '全选', kb: 'Ctrl+A', icon: FullSelection, off: !inputMessage.value.length }
+])
+
 function openInputMenu(event) {
   closeAllMenus()
 
-  const textarea = document.querySelector('.chat-textarea')
+  const textarea = inputEl()
   inputHasSelection.value = textarea
     ? textarea.selectionStart !== textarea.selectionEnd
     : false
 
-  const x = Math.min(event.clientX, window.innerWidth - 160)
-  const y = Math.min(event.clientY, window.innerHeight - 150)
-  inputMenuX.value = x
-  inputMenuY.value = y
+  inputMenuX.value = event.clientX
+  inputMenuY.value = event.clientY
   inputMenuVisible.value = true
+  clampMenuY(inputMenuY, '.input-menu-pop', inputMenuX, true)
+}
+
+function runInputMenu(it) {
+  if (it.off) return
+  ({ undo: handleInputUndo, redo: handleInputRedo, cut: handleInputCut,
+     copy: handleInputCopy, paste: handleInputPaste, all: handleInputSelectAll })[it.k]()
+}
+
+/* 撤销/重做走浏览器原生那条编辑栈：Chromium 不暴露 canUndo，JS 侧没法探测"还有没有可撤的"，
+   所以这两项不做探测性置灰 —— 没东西可撤时就是原生的空操作，和系统菜单一个行为 */
+function execOnInput(cmd) {
+  const textarea = inputEl()
+  if (!textarea) return
+  textarea.focus()
+  document.execCommand(cmd)
+}
+function handleInputUndo() { execOnInput('undo'); inputMenuVisible.value = false }
+function handleInputRedo() { execOnInput('redo'); inputMenuVisible.value = false }
+
+function handleInputSelectAll() {
+  const textarea = inputEl()
+  if (textarea) {
+    textarea.focus()
+    textarea.setSelectionRange(0, textarea.value.length)
+  }
+  inputMenuVisible.value = false
 }
 
 async function handleInputCopy() {
-  const textarea = document.querySelector('.chat-textarea')
+  const textarea = inputEl()
   if (textarea) {
     const selected = textarea.value.substring(textarea.selectionStart, textarea.selectionEnd)
     if (selected) {
@@ -2490,7 +2633,7 @@ async function handleInputPaste() {
   try {
     const text = await navigator.clipboard.readText()
     if (text) {
-      const textarea = document.querySelector('.chat-textarea')
+      const textarea = inputEl()
       if (textarea) {
         const start = textarea.selectionStart
         const end = textarea.selectionEnd
@@ -2508,7 +2651,7 @@ async function handleInputPaste() {
 }
 
 async function handleInputCut() {
-  const textarea = document.querySelector('.chat-textarea')
+  const textarea = inputEl()
   if (textarea) {
     const selected = textarea.value.substring(textarea.selectionStart, textarea.selectionEnd)
     if (selected) {
@@ -3116,40 +3259,6 @@ function previewImage(url) {
   font-family: 'Share Tech Mono', monospace;
 }
 
-.msg-context-menu {
-  position: fixed;
-  background: rgba(255, 255, 255, 0.96);
-  border: 0;
-  border-radius: 8px;
-  /* 阴影照参考图量的：边缘最暗 218、页面底 250（≈13% 黑），向外铺 12~16px、上下基本对称 */
-  box-shadow: 0 2px 14px rgba(20, 32, 56, 0.13);
-  backdrop-filter: blur(6px);
-  padding: 4px 0;
-  z-index: 9999;
-  min-width: 100px;
-}
-
-.menu-item {
-  padding: 8px 16px;
-  font-size: 13px;
-  cursor: pointer;
-  color: var(--nb-text);
-  transition: background 0.15s;
-  line-height: 1;
-}
-
-.menu-item:hover {
-  background: rgba(43, 107, 232, 0.08);
-}
-
-.menu-item.danger {
-  color: #2b6be8;
-}
-
-.menu-item.danger:hover {
-  background: rgba(217, 72, 96, 0.1);
-}
-
 /* ===== 会话右键菜单 ===== */
 /* 会话/输入框/消息区/背景这几个右键菜单共用的外壳（☰ 菜单不在这条里：它按参考图不描边） */
 .conv-context-menu {
@@ -3220,6 +3329,13 @@ function previewImage(url) {
 .conv-menu-item:hover {
   background: rgba(43, 107, 232, 0.07);
 }
+
+/* 快捷键那一列：靠右、淡一档，只是提示不是第二个按钮 */
+.cm-kb { margin-left: auto; padding-left: 24px; font-size: 11.5px; color: var(--nb-dim-2); letter-spacing: 0; }
+/* 置灰不消失：没选区的剪切/复制、空框的全选点了不该有反应，hover 底色也不该骗人 */
+.conv-menu-item.off { color: var(--nb-dim-2); cursor: default; }
+.conv-menu-item.off:hover { background: none; }
+.conv-menu-item.off .cm-kb { color: color-mix(in srgb, var(--nb-dim-2) 55%, #fff); }
 
 .conv-menu-item.danger {
   color: #d94860;
