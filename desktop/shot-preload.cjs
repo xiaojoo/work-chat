@@ -12,5 +12,16 @@ contextBridge.exposeInMainWorld('shot', {
 
 contextBridge.exposeInMainWorld('pin', {
   onData: cb => ipcRenderer.on('pin:data', (e, url) => cb(url)),
-  close: () => ipcRenderer.send('pin:close')
+  close: () => ipcRenderer.send('pin:close'),
+  copy: () => ipcRenderer.send('pin:copy'),
+  save: () => ipcRenderer.invoke('pin:save'),
+  zoom: dir => ipcRenderer.send('pin:zoom', dir),
+  reset: () => ipcRenderer.send('pin:reset'),
+  grow: n => ipcRenderer.send('pin:grow', n),
+  shrink: () => ipcRenderer.send('pin:shrink'),
+  dragStart: () => ipcRenderer.send('pin:drag-start'),
+  dragMove: d => ipcRenderer.send('pin:drag-move', d),
+  dragEnd: () => ipcRenderer.send('pin:drag-end'),
+  onZoomed: cb => ipcRenderer.on('pin:zoomed', (e, pct) => cb(pct)),
+  onNote: cb => ipcRenderer.on('pin:note', (e, text) => cb(text))
 })

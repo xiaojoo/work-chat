@@ -163,6 +163,8 @@ let shotOpener = null
 let shotShown = false
 let shotReveal = null
 const pinWins = []
+// 每个钉图窗的原始数据（截图那块）和当前缩放，右键菜单的复制/另存为/还原都从这取
+const pinInfo = new WeakMap()
 
 const shotPrefs = () => ({
   preload: path.join(__dirname, 'shot-preload.cjs'),
@@ -293,26 +295,73 @@ function pinImage(dataUrl) {
   const img = nativeImage.createFromDataURL(dataUrl)
   const b = img.getSize()
   const disp = currentDisplay()
-  // 等比缩进屏幕里，别单独夹宽高——那会把图拉变形
-  const fit = Math.min(1, (disp.bounds.width - 120) / (b.width || 1), (disp.bounds.height - 120) / (b.height || 1))
-  const w = Math.max(120, Math.round((b.width || 420) * fit))
-  const h = Math.max(90, Math.round((b.height || 300) * fit))
+  // 钉图就得是"截下来那一块"的原尺寸。以前用 Math.max(120, …)/Math.max(90, …) 兜底，
+  // 小区域被撑成 120x90、图在里面上下留白，看着就是"默认框大小"（实测 120x80 → 窗口 120x90）。
+  // 现在只在"比屏幕还大"时才等比缩，其余一律 1:1。
+  let w = b.width || 420
+  let h = b.height || 300
+  const cap = Math.min(1, (disp.bounds.width - 40) / w, (disp.bounds.height - 40) / h)
+  w = Math.max(1, Math.round(w * cap))
+  h = Math.max(1, Math.round(h * cap))
   const win = new BrowserWindow({
-    width: w, height: h,
+    width: w, height: h, useContentSize: true,
     x: disp.bounds.x + Math.round((disp.bounds.width - w) / 2),
     y: disp.bounds.y + Math.round((disp.bounds.height - h) / 3),
     show: false, frame: false, transparent: false, hasShadow: true, skipTaskbar: true,
     alwaysOnTop: true, minimizable: false, maximizable: false, fullscreenable: false,
+    resizable: true, backgroundColor: '#ffffff',
     webPreferences: shotPrefs()
   })
   win.setAlwaysOnTop(true, 'screen-saver')
+  pinInfo.set(win, { dataUrl, w, h, zoom: 1 })
   pinWins.push(win)
-  win.once('ready-to-show', () => win.show())
+  win.once('ready-to-show', () => fadeShow(win))
   win.webContents.on('did-finish-load', () => win.webContents.send('pin:data', dataUrl))
-  win.on('closed', () => { const i = pinWins.indexOf(win); if (i >= 0) pinWins.splice(i, 1) })
+  win.on('closed', () => { const i = pinWins.indexOf(win); if (i >= 0) pinWins.splice(i, 1); pinInfo.delete(win); log('pin closed') })
   win.loadFile(path.join(__dirname, 'pin.html'))
-  log(`pinned ${w}x${h} from ${b.width}x${b.height}`)
+  log(`pinned ${w}x${h} from ${b.width}x${b.height}${cap < 1 ? '（比屏幕大，等比缩到 ' + Math.round(cap * 100) + '%）' : ''}`)
   return { ok: true, w, h }
+}
+
+// 滚轮缩放：改的是窗口本身的大小，图始终铺满，所以不会出现留白；左上角不动，读内容时不跳。
+// dir > 0 = 放大（向上滚），和微信/Snipaste 一致
+function pinZoom(win, dir) {
+  const info = pinInfo.get(win)
+  if (!info || !win || win.isDestroyed()) return
+  const z = Math.min(4, Math.max(0.25, info.zoom * (dir > 0 ? 1.1 : 1 / 1.1)))
+  if (z === info.zoom) return
+  info.zoom = z
+  pinSizeTo(win, info.w * z, info.h * z)
+  win.webContents.send('pin:zoomed', Math.round(z * 100))
+}
+
+function pinReset(win) {
+  const info = pinInfo.get(win)
+  if (!info || !win || win.isDestroyed()) return
+  info.zoom = 1
+  pinSizeTo(win, info.w, info.h)
+  win.webContents.send('pin:zoomed', 100)
+}
+
+// 窗口按"图的自然尺寸 × 缩放"来定，左上角不动；disallowWorkAreaClamping 防止被夹回工作区
+function pinSizeTo(win, w, h) {
+  const b = win.getBounds()
+  win.setBounds({ x: b.x, y: b.y, width: Math.max(1, Math.round(w)), height: Math.max(1, Math.round(h)) },
+    { disallowWorkAreaClamping: true })
+}
+
+// 菜单比钉图本身还大时（小区域），窗口临时长到装得下菜单，图锁在原来的像素尺寸上不被拉伸；
+// 菜单一收就缩回去。不这么做的话菜单会被 overflow:hidden 裁掉（实测 120x80 的钉图裁掉 200x221 的菜单）
+function pinGrowForMenu(win, needW, needH) {
+  const info = pinInfo.get(win)
+  if (!info || !win || win.isDestroyed()) return
+  pinSizeTo(win, Math.max(info.w * info.zoom, needW), Math.max(info.h * info.zoom, needH))
+}
+
+function pinShrinkBack(win) {
+  const info = pinInfo.get(win)
+  if (!info || !win || win.isDestroyed()) return
+  pinSizeTo(win, info.w * info.zoom, info.h * info.zoom)
 }
 
 function buildTray() {
@@ -418,6 +467,61 @@ if (!app.requestSingleInstanceLock()) {
     ipcMain.on('pin:close', (event) => {
       const win = BrowserWindow.fromWebContents(event.sender)
       if (win && !win.isDestroyed()) win.close()
+    })
+    // 钉图窗的右键菜单项：复制 / 另存为 走主进程（渲染端在沙箱里，写不了剪贴板也弹不出保存框）
+    ipcMain.on('pin:zoom', (event, dir) => pinZoom(BrowserWindow.fromWebContents(event.sender), dir > 0 ? 1 : -1))
+    ipcMain.on('pin:reset', (event) => pinReset(BrowserWindow.fromWebContents(event.sender)))
+    ipcMain.on('pin:grow', (event, n) => pinGrowForMenu(BrowserWindow.fromWebContents(event.sender), n.w, n.h))
+    ipcMain.on('pin:shrink', (event) => pinShrinkBack(BrowserWindow.fromWebContents(event.sender)))
+    // 手动拖窗：整块 app-region: drag 会把右键和滚轮挡在"非客户区"，所以拖动得自己实现
+    ipcMain.on('pin:drag-start', (event) => {
+      const win = BrowserWindow.fromWebContents(event.sender)
+      const info = win && pinInfo.get(win)
+      if (!info) return
+      const b = win.getBounds()
+      info.drag = { x: b.x, y: b.y }
+    })
+    ipcMain.on('pin:drag-move', (event, d) => {
+      const win = BrowserWindow.fromWebContents(event.sender)
+      const info = win && pinInfo.get(win)
+      if (!info || !info.drag || win.isDestroyed()) return
+      win.setPosition(Math.round(info.drag.x + d.dx), Math.round(info.drag.y + d.dy))
+    })
+    ipcMain.on('pin:drag-end', (event) => {
+      const info = pinInfo.get(BrowserWindow.fromWebContents(event.sender))
+      if (info) info.drag = null
+    })
+    ipcMain.on('pin:copy', (event) => {
+      const win = BrowserWindow.fromWebContents(event.sender)
+      const info = win && pinInfo.get(win)
+      if (!info) return
+      try {
+        clipboard.writeImage(nativeImage.createFromDataURL(info.dataUrl))
+        win.webContents.send('pin:note', '已复制')
+      } catch (e) {
+        win.webContents.send('pin:note', '复制失败')
+        log(`pin copy failed: ${e.message}`)
+      }
+    })
+    ipcMain.handle('pin:save', async (event) => {
+      const win = BrowserWindow.fromWebContents(event.sender)
+      const info = win && pinInfo.get(win)
+      if (!info) return { ok: false, error: '这张钉图没有原始数据' }
+      const buf = Buffer.from(String(info.dataUrl).split(',')[1] || '', 'base64')
+      const name = `截图-${new Date().toISOString().slice(0, 19).replace(/[:T]/g, '-')}.png`
+      const { canceled, filePath } = await dialog.showSaveDialog(win, {
+        defaultPath: name, filters: [{ name: 'PNG 图片', extensions: ['png'] }]
+      })
+      if (canceled || !filePath) return { ok: false, canceled: true }
+      try {
+        fs.writeFileSync(filePath, buf)
+        log(`saved ${filePath} (${buf.length} bytes)`)
+        win.webContents.send('pin:note', '已保存')
+        return { ok: true, path: filePath, size: buf.length }
+      } catch (e) {
+        log(`pin save failed: ${e.message}`)
+        return { ok: false, error: String(e.message || e) }
+      }
     })
 
     buildTray()
