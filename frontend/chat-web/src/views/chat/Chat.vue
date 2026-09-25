@@ -422,9 +422,6 @@
       class="conv-context-menu"
       :style="{ left: convMenuX + 'px', top: convMenuY + 'px' }"
     >
-      <div class="conv-menu-head">
-        <span class="conv-menu-title">{{ selectedConv?.name }}</span>
-      </div>
       <div class="conv-menu-list">
         <div class="conv-menu-item" @click="handleConvTop">
           <Pin theme="outline" size="16" />
@@ -1009,15 +1006,17 @@ const railMenuOpen = ref(false)
 const railMenuX = ref(0)
 const railMenuBottom = ref(0)
 
-function toggleRailMenu(e) {
+function toggleRailMenu() {
   // 先记下要开还是关，再关掉别的（包括自己）—— 否则 closeAllMenus 会把这次意图一起抹掉，永远只能开不能关
   const next = !railMenuOpen.value
   closeAllMenus()
   railMenuOpen.value = next
   if (!next) return
-  const r = e.currentTarget.getBoundingClientRect()
-  railMenuX.value = Math.round(r.right + 6)
-  railMenuBottom.value = Math.round(window.innerHeight - r.bottom)
+  // 锚线用会话列表那块面板：左边贴它的左边、底边贴它的底边。
+  // 原来量的是 ☰ 那颗按钮（右 +6、底对齐），所以左留了 3px、底留了 5px 的缝
+  const side = document.querySelector('.side').getBoundingClientRect()
+  railMenuX.value = Math.round(side.left)
+  railMenuBottom.value = Math.round(window.innerHeight - side.bottom)
 }
 
 function setPresence(key) {
@@ -3278,23 +3277,6 @@ function previewImage(url) {
 @keyframes convMenuIn {
   from { opacity: 0; transform: scale(0.95); }
   to { opacity: 1; transform: none; }
-}
-
-.conv-menu-head {
-  padding: 12px 16px 8px;
-  border-bottom: 1px solid rgba(43, 107, 232, 0.1);
-}
-
-.conv-menu-title {
-  font-size: 14px;
-  font-weight: 600;
-  color: #fff;
-  letter-spacing: 0.5px;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  display: block;
-  max-width: 180px;
 }
 
 .conv-menu-list {
