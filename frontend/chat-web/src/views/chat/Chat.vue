@@ -219,14 +219,19 @@
                   @keydown.enter.exact.prevent="sendMessage" @contextmenu.prevent.stop="openInputMenu($event)"
                   @paste="handlePaste" :disabled="!connected || !currentConversation"></textarea>
         <div class="bar">
-          <div class="bar-tools" @mouseenter="onEmojiEnter" @mouseleave="onEmojiLeave">
+          <div class="bar-tools">
             <button class="tool" title="文件" @click="$refs.fileInput.click()"><FolderUpload theme="outline" size="17" /></button>
             <button class="tool" title="图片" @click="$refs.imageInput.click()"><PictureOne theme="outline" size="17" /></button>
-            <div class="tool-wrap">
-              <button class="tool" title="表情"><MessageEmoji theme="outline" size="17" /></button>
-              <div v-if="showEmojiPicker" class="emoji-pop" @mouseenter="onEmojiEnter" @mouseleave="onEmojiLeave">
+            <div class="tool-wrap" @mouseenter="openEmojiPicker" @mouseleave="showEmojiPicker = false">
+              <!-- 不挂 title：uaTip 全局接管 title，挂了就会在弹框旁边再飘一个重复气泡；名字改挂 aria-label。
+                   悬停区域绑在 .tool-wrap 上而不是按钮上：弹框是这个容器的后代，从按钮移进弹框
+                   不算离开，所以不用留"宽限计时器"去赌那几像素的缝 -->
+              <button class="tool" aria-label="表情" aria-haspopup="true" :aria-expanded="showEmojiPicker"
+                      :class="{ open: showEmojiPicker }" @click="openEmojiPicker"><MessageEmoji theme="outline" size="17" /></button>
+              <div v-if="showEmojiPicker" class="emoji-pop">
                 <div class="emoji-grid">
-                  <span v-for="item in emojiList" :key="item.e" class="emoji-cell" @click="insertEmoji(item.e)"
+                  <!-- .stop：选一个就把弹层关掉的话，想连选得反复点开；点外面才收（document 那个监听走 closeAllMenus） -->
+                  <span v-for="item in emojiList" :key="item.e" class="emoji-cell" @click.stop="insertEmoji(item.e)"
                         @mouseenter="hoveredEmoji = item" @mouseleave="hoveredEmoji = null">{{ item.e }}</span>
                 </div>
                 <div class="emoji-hint">{{ hoveredEmoji ? hoveredEmoji.e + ' ' + hoveredEmoji.l : '选择表情' }}</div>
@@ -785,18 +790,12 @@ function rzKey(e) {
 const showEmojiPicker = ref(false)
 const hoveredEmoji = ref(null)
 const isDragging = ref(false)
-let emojiHideTimer = null
 
-function onEmojiEnter() {
-  clearTimeout(emojiHideTimer)
+// 原来不是点开的，是 .bar-tools 整条工具栏 mouseenter 开的 —— 鼠标扫过文件/图片/@/AI 任何一个
+// 都会把表情框弹出来，而「表情」那颗按钮自己反而没有 click。现在只认这一颗（连同它的弹框所在的那个容器）。
+function openEmojiPicker() {
+  closeAllMenus()
   showEmojiPicker.value = true
-}
-
-function onEmojiLeave() {
-  clearTimeout(emojiHideTimer)
-  emojiHideTimer = setTimeout(() => {
-    showEmojiPicker.value = false
-  }, 200)
 }
 
 const emojiList = [
@@ -1695,6 +1694,7 @@ function closeAllMenus() {
   convMenuVisible.value = false
   inputMenuVisible.value = false
   railMenuOpen.value = false
+  showEmojiPicker.value = false
 }
 
 function openMsgMenu(event, msg) {
@@ -4312,13 +4312,17 @@ function previewImage(url) {
   width: 30px; height: 30px; border: 0; border-radius: 7px; background: transparent;
   color: var(--nb-dim); display: grid; place-items: center; cursor: pointer; font-size: 15px;
 }
-.tool:hover { background: var(--brand-soft); color: var(--brand); }
+.tool:hover, .tool.open { background: var(--brand-soft); color: var(--brand); }
 .tool.at { font-size: 17px; }
 .tool.ai { color: var(--brand); }
 .emoji-pop {
   position: absolute; bottom: 34px; left: 0; z-index: 20; width: 272px; padding: 8px;
   background: #fff; border: 1px solid var(--nb-line); border-radius: 10px; box-shadow: var(--shadow-2);
 }
+/* 弹框底边离工具栏那行只有 4px（bottom:34px 减掉 30px 高的按钮），鼠标跨这 4px 时既不在按钮上
+   也不在弹框上 → mouseleave 先把它关了，看着就是"还没移上去就没了"。
+   补一条透明的桥：它是弹框的后代，指针落在桥上仍算在弹框内，所以不用退回去加宽限计时器 */
+.emoji-pop::after { content: ""; position: absolute; left: 0; right: 0; top: 100%; height: 16px; }
 /* 轨道原来缩在弹框里 8px（.emoji-pop 的 padding），右边露出一条缝、看着像滚动条跑偏。
    把格子的盒子往外推 8px 让轨道贴住边框，再用 padding 把格子本身留回 8px 不贴条 */
 .emoji-grid { display: grid; grid-template-columns: repeat(8, 1fr); gap: 2px; margin-right: -8px; padding-right: 8px; }
