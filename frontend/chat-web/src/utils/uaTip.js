@@ -9,6 +9,7 @@ const MARGIN = 8
 let host = null
 let current = null
 let timer = 0
+let pressed = false   // 左键按着 = 正在做下一步操作（点击、拖动），这段时间不显示气泡
 
 function ensureHost() {
   if (host && host.isConnected) return host
@@ -54,6 +55,7 @@ function hide() {
 }
 
 function schedule(node) {
+  if (pressed) return          // 按住鼠标就是要做下一步操作了，别再飘气泡
   if (node === current) return
   // 指针一进来就把 title 摘走，不等延迟 —— 否则这 150ms 里原生气泡可能已经抢跑
   claim(node)
@@ -71,10 +73,24 @@ export function initUaTip() {
   document.body.dataset.uaTip = '1'
   document.querySelectorAll('[title]').forEach(claim)
 
-  const over = e => { const n = tipTarget(e.target); n ? schedule(n) : hide() }
+  const over = e => {
+    // 在窗口外松开鼠标时 pointerup 收不到，靠下一次移动自愈，免得 pressed 卡住再也不出气泡
+    if (pressed && !e.buttons) pressed = false
+    const n = tipTarget(e.target); n ? schedule(n) : hide()
+  }
   document.addEventListener('pointerover', over)
-  document.addEventListener('pointerdown', hide)
-  document.addEventListener('focusin', e => { const n = tipTarget(e.target); if (n) show(n) })
+  // 按下就收，并且按住期间不再弹：拖动把手那种 setPointerCapture 会让 pointerover
+  // 一直落在同一个元素上，只 hide 不挡 schedule 的话气泡会被抖回来
+  document.addEventListener('pointerdown', () => { pressed = true; hide() })
+  const release = () => { pressed = false; hide() }
+  document.addEventListener('pointerup', release)
+  document.addEventListener('pointercancel', release)
+  // focusin 原来是直接 show：一次鼠标点击的事件顺序是 pointerdown → focusin → pointerup，
+  // 所以点完一下，气泡反倒被这次 focus 叫回来了。现在只在键盘（Tab）移焦点时才显示。
+  document.addEventListener('focusin', e => {
+    if (pressed) return
+    const n = tipTarget(e.target); if (n) show(n)
+  })
   document.addEventListener('focusout', hide)
   // 滚动/缩放后元素已经不在原来的位置，气泡跟着飘不如直接收掉
   document.addEventListener('scroll', hide, true)
@@ -87,7 +103,7 @@ export function initUaTip() {
       const n = m.target
       if (n.nodeType !== 1 || !n.hasAttribute('title')) continue
       claim(n)
-      if (n === current) show(n)
+      if (n === current && !pressed) show(n)
     }
   }).observe(document.body, { attributes: true, attributeFilter: ['title'], subtree: true })
 }
