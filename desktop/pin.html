@@ -1,0 +1,27 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8" />
+<title>钉图</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  html, body { width: 100%; height: 100%; overflow: hidden; background: transparent; }
+  /* 整块可拖：Electron 无边框窗口的 app-region: drag 就是"按住图挪位置"，
+     放大缩小交给窗口自己那圈隐形边框（原生 resize，不用自己写手势） */
+  #wrap { position: relative; width: 100%; height: 100%; -webkit-app-region: drag;
+          background: #fff; border: 1px solid rgba(43, 107, 232, .5); }
+  img { display: block; width: 100%; height: 100%; object-fit: contain; }
+  #x { position: absolute; top: 4px; right: 4px; width: 22px; height: 22px; border: 0; border-radius: 5px;
+       background: rgba(28, 33, 44, .8); color: #fff; font-size: 12px; display: grid; place-items: center;
+       cursor: pointer; -webkit-app-region: no-drag; opacity: 0; transition: opacity .12s; }
+  #wrap:hover #x { opacity: 1; }
+</style>
+</head>
+<body>
+  <div id="wrap">
+    <img id="im" alt="" />
+    <button id="x" title="关闭">✕</button>
+  </div>
+  <script src="pin.js"></script>
+</body>
+</html>

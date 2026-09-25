@@ -157,7 +157,8 @@
                   <span class="msg-time">{{ formatConvTime(msg.timestamp || msg.createTime) }}</span>
                 </div>
                 <div class="msg-line">
-                  <div v-if="bodyText(msg)" class="bubble" @contextmenu.prevent.stop="openMsgMenu($event, msg)">
+                  <div v-if="bodyText(msg)" class="bubble" :class="{ 'b-media': msg.messageType === 'IMAGE' }"
+                       @contextmenu.prevent.stop="openMsgMenu($event, msg)">
                     <span v-if="msg.messageType === 'DELETED'" class="b-del">{{ msg.content }}</span>
                     <template v-else-if="msg.messageType === 'IMAGE'">
                       <img v-if="mediaSrc(msg)" :src="mediaSrc(msg)" class="b-img" @click="previewImage(mediaSrc(msg))" />
@@ -222,6 +223,8 @@
           <div class="bar-tools">
             <button class="tool" title="文件" @click="$refs.fileInput.click()"><FolderUpload theme="outline" size="17" /></button>
             <button class="tool" title="图片" @click="$refs.imageInput.click()"><PictureOne theme="outline" size="17" /></button>
+            <!-- 截图只有桌面壳有：抓屏、遮罩窗、写剪贴板都得主进程出手，网页端没有这条路，所以不摆出来 -->
+            <button v-if="canShot" class="tool" title="截图" @click="startShot"><CameraOne theme="outline" size="17" /></button>
             <div class="tool-wrap" @mouseenter="openEmojiPicker" @mouseleave="showEmojiPicker = false">
               <!-- 不挂 title：uaTip 全局接管 title，挂了就会在弹框旁边再飘一个重复气泡；名字改挂 aria-label。
                    悬停区域绑在 .tool-wrap 上而不是按钮上：弹框是这个容器的后代，从按钮移进弹框
@@ -641,6 +644,21 @@
         </div>
       </div>
     </div>
+
+    <!-- 图片查看器：页内弹框，滚轮/±按钮缩放，放大后能拖着看，ESC 或点空白处关 -->
+    <div v-if="imgView" class="img-view" @click.self="closeImageView" @wheel.prevent="onImgWheel">
+      <img class="iv-img" :src="imgView" alt="" draggable="false"
+           :style="{ transform: `translate(${imgPan.x}px, ${imgPan.y}px) scale(${imgZoom})` }"
+           @pointerdown="imgDown" @pointermove="imgMove" @pointerup="imgUp" @pointercancel="imgUp"
+           @dblclick="zoomReset" />
+      <div class="iv-bar" @wheel.stop @click.stop>
+        <button class="iv-btn" type="button" title="缩小" :disabled="imgZoom <= 0.2" @click="zoomBy(1 / 1.25)">－</button>
+        <span class="iv-pct">{{ Math.round(imgZoom * 100) }}%</span>
+        <button class="iv-btn" type="button" title="放大" :disabled="imgZoom >= 6" @click="zoomBy(1.25)">＋</button>
+        <button class="iv-btn wide" type="button" title="回到适应窗口" @click="zoomReset">复原</button>
+      </div>
+      <button class="iv-x" type="button" title="关闭" @click="closeImageView">✕</button>
+    </div>
   </div>
 </template>
 
@@ -661,7 +679,7 @@ import AddMembersModal from '../../components/AddMembersModal.vue'
 import SettingsModal from '../../components/SettingsModal.vue'
 import AlphaList from '../../components/AlphaList.vue'
 import { toast, confirmBox } from '../../utils/ui'
-import { Minus, PictureOne, FolderUpload, MessageEmoji, Scissors, Mail, MicrophoneOne, People, History, Down, Pin, MessageUnread, Mute, Windows, PreviewClose, Delete, Copy, Clipboard, Undo, Redo, FullSelection, ZoomIn, Translate, Search, Share, Star, Selected, AlarmClock, Quote, Save, Refresh, Clear, PreviewOpen } from '@icon-park/vue-next'
+import { Minus, PictureOne, FolderUpload, MessageEmoji, Scissors, Mail, MicrophoneOne, People, History, Down, Pin, MessageUnread, Mute, Windows, PreviewClose, Delete, Copy, Clipboard, Undo, Redo, FullSelection, ZoomIn, Translate, Search, Share, Star, Selected, AlarmClock, Quote, Save, Refresh, Clear, PreviewOpen, CameraOne } from '@icon-park/vue-next'
 import { docDetail, docTasks, docScores, docRelated } from '../../mock/workbench'
 
 const router = useRouter()
@@ -1131,6 +1149,14 @@ onMounted(async () => {
     connect(userStore.accessToken)
   }
 
+  // 遮罩窗复制完/钉完由主进程回一句，好让这边知道那一下到底成了没有
+  if (window.chatDesktop?.onShotResult) {
+    offShotResult = window.chatDesktop.onShotResult(r => {
+      if (!r?.ok) toast('截图没送到：' + (r?.error || '未知原因'), 'error')
+      else toast(r.action === 'pin' ? '已钉到屏幕上' : '已复制到剪贴板，去输入框 Ctrl+V 就能发', 'success')
+    })
+  }
+
   await Promise.all([loadConversations(), loadFriends(), loadGroups(), loadMyName(), loadOrg(), refreshOnline()])
 
   // 恢复上次打开的会话（等待 WebSocket 连接）
@@ -1253,6 +1279,7 @@ onMounted(async () => {
 onUnmounted(() => {
   disconnect()
   rzEnd()   // 拖到一半被卸载的话，window 上的 pointermove 会一直留着
+  offShotResult?.()
 })
 
 async function loadConversations() {
@@ -1787,6 +1814,19 @@ async function saveAsMessage() {
     toast('另存为失败：' + (e?.message || e), 'error')
   }
 }
+
+// 截图：抓屏 / 遮罩窗 / 剪贴板都在桌面壳主进程，这边只发起和收结果。
+// 遮罩是"冻住的那张屏幕"，所以主窗口不用隐藏也看不到重影。
+const canShot = !!window.chatDesktop?.shot
+async function startShot() {
+  try {
+    const r = await window.chatDesktop.shot()
+    if (r && !r.ok && !r.busy) toast('截图没起来：' + (r.error || '未知原因'), 'error')
+  } catch (e) {
+    toast('截图没起来：' + (e?.message || e), 'error')
+  }
+}
+let offShotResult = null
 
 // 弹层的越界夹取按真实尺寸算，不按项数猜。
 // 必须用 offsetHeight：getBoundingClientRect 量的是变换后的盒子，而弹层带 0.15s 的
@@ -2759,9 +2799,47 @@ function scrollToBottom() {
   })
 }
 
+/* 图片查看：以前是 window.open 到新窗口，桌面壳里那条路打不开（app:// 页开不了新窗，
+   网页端也是跳走一个标签页）。改成页内弹框，两端同一条路。
+   缩放用 transform + 拖动平移：套滚动容器会多出一条滚动条，全站只留一处滚动条那条规矩 */
+const imgView = ref('')
+const imgZoom = ref(1)
+const imgPan = ref({ x: 0, y: 0 })
+const ZOOM_MIN = 0.2, ZOOM_MAX = 6, ZOOM_STEP = 1.25
 function previewImage(url) {
-  window.open(url, '_blank')
+  if (!url) return
+  imgView.value = url
+  imgZoom.value = 1
+  imgPan.value = { x: 0, y: 0 }
 }
+function closeImageView() { imgView.value = '' }
+function zoomBy(f) {
+  const z = Math.min(ZOOM_MAX, Math.max(ZOOM_MIN, imgZoom.value * f))
+  imgZoom.value = Math.round(z * 1000) / 1000
+  if (imgZoom.value <= 1) imgPan.value = { x: 0, y: 0 }
+}
+function zoomReset() { imgZoom.value = 1; imgPan.value = { x: 0, y: 0 } }
+function onImgWheel(e) { zoomBy(e.deltaY < 0 ? ZOOM_STEP : 1 / ZOOM_STEP) }
+let imgDrag = null
+function imgDown(e) {
+  if (imgZoom.value <= 1) return
+  imgDrag = { x: e.clientX - imgPan.value.x, y: e.clientY - imgPan.value.y }
+  // 捕获指针：拖出图片边界还能继续跟手；合成事件下 pointerId 可能不存在，抓不到就算了
+  try { e.currentTarget.setPointerCapture(e.pointerId) } catch (err) { /* ignore */ }
+}
+function imgMove(e) {
+  if (!imgDrag) return
+  imgPan.value = { x: e.clientX - imgDrag.x, y: e.clientY - imgDrag.y }
+}
+function imgUp() { imgDrag = null }
+// ESC 关查看器：只在开着的时候挂这个监听，不留全局按键钩子。
+// 顺带收掉右键菜单——菜单 z-index 9999 会浮到查看器上面（那段统一的弹框 watcher 在 imgView 之前，够不着）
+watch(imgView, v => {
+  if (!v) return
+  closeAllMenus()
+  const off = e => { if (e.key === 'Escape') { closeImageView(); document.removeEventListener('keydown', off) } }
+  document.addEventListener('keydown', off)
+})
 </script>
 
 <style scoped>
@@ -4195,6 +4273,9 @@ function previewImage(url) {
   box-shadow: var(--shadow-1);
 }
 .msg.self .bubble { background: var(--brand); color: #fff; }
+/* 图片消息不要那圈底色和内边距：图自己就是这块表面。圆角 10px 和头像/文字气泡同值，
+   白底上的白图靠图自己那点投影分出来，不靠色块 */
+.bubble.b-media, .msg.self .bubble.b-media { padding: 0; background: none; box-shadow: none; }
 /* 引用行：气泡下方一小块灰字，左边一条竖线。自己发的要靠右，所以用 fit-content + margin-left:auto */
 .msg-quote {
   margin-top: 4px; width: fit-content; max-width: 100%;
@@ -4206,7 +4287,36 @@ function previewImage(url) {
 .mention { color: var(--brand); font-weight: 500; }
 .msg.self .mention { color: #dbe7ff; }
 .b-del { color: var(--nb-dim-2); font-style: italic; }
-.b-img { display: block; max-width: 280px; border-radius: 8px; cursor: zoom-in; }
+.b-img { display: block; max-width: 280px; border-radius: 10px; cursor: zoom-in; box-shadow: var(--shadow-1); }
+/* ---- 图片查看器 ---- */
+.img-view {
+  position: fixed; inset: 0; z-index: 10000; background: rgba(12, 18, 30, .86);
+  display: grid; place-items: center; overflow: hidden;
+}
+.iv-img {
+  max-width: 86vw; max-height: 82vh; border-radius: 10px; user-select: none; touch-action: none;
+  cursor: grab; will-change: transform;
+}
+.iv-img:active { cursor: grabbing; }
+.iv-bar {
+  position: absolute; left: 50%; bottom: 22px; transform: translateX(-50%);
+  display: flex; align-items: center; gap: 2px; padding: 5px 6px; border-radius: 10px;
+  background: rgba(255, 255, 255, .94); box-shadow: 0 2px 14px rgba(20, 32, 56, .13);
+}
+.iv-btn {
+  width: 28px; height: 28px; border: 0; border-radius: 7px; background: transparent;
+  color: var(--nb-text); font-size: 16px; display: grid; place-items: center; cursor: pointer;
+}
+.iv-btn.wide { width: auto; padding: 0 10px; font-size: 12px; }
+/* 悬停只换底色，不长尺寸 */
+.iv-btn:hover:not(:disabled) { background: var(--nb-bg-3); }
+.iv-btn:disabled { color: var(--nb-dim-2); cursor: default; }
+.iv-pct { min-width: 46px; text-align: center; font-size: 12px; color: var(--nb-dim); }
+.iv-x {
+  position: absolute; top: 14px; right: 16px; width: 30px; height: 30px; border: 0; border-radius: 8px;
+  background: rgba(255, 255, 255, .14); color: #fff; font-size: 15px; display: grid; place-items: center; cursor: pointer;
+}
+.iv-x:hover { background: rgba(255, 255, 255, .26); }
 .b-wait { display: inline-block; min-width: 96px; font-size: 12px; color: var(--nb-dim); }
 /* 气泡已经是灰底了，里面这颗文件片得反过来用白底才分得开（原来是灰片在白气泡上） */
 .b-file { display: inline-flex; align-items: center; gap: 8px; max-width: 240px; padding: 6px 10px; border: 1px solid var(--nb-line); border-radius: 8px; background: var(--nb-bg-1); color: inherit; text-decoration: none; cursor: pointer; }

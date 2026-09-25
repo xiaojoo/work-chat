@@ -1,0 +1,82 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8" />
+<title>截图</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  html, body { width: 100%; height: 100%; overflow: hidden; background: #000; }
+  /* 一进来就是十字准星（微信截图那条），只有拖选区/改大小时才换成 move / 角标箭头 */
+  body { font-family: "Segoe UI", "Microsoft YaHei", system-ui, sans-serif; user-select: none; cursor: crosshair; }
+  #bg { position: fixed; inset: 0; width: 100%; height: 100%; display: block; }
+  /* 遮罩用选区自己那圈超大的 box-shadow 挖洞，比四块遮罩板省事也不会漏缝 */
+  #sel { position: fixed; display: none; box-shadow: 0 0 0 100000px rgba(8, 12, 22, .45);
+         border: 1px solid rgba(255, 255, 255, .9); cursor: move; }
+  #sel.on { display: block; }
+  /* 标注层只是画布，事件一律走 document，所以它不能挡在选区上面抢光标和点击 */
+  #cv { position: fixed; inset: 0; width: 100%; height: 100%; display: none; pointer-events: none; }
+  #cv.on { display: block; }
+  .hd { position: absolute; width: 9px; height: 9px; background: #fff; border: 1px solid #2b6be8; display: none; }
+  #sel.tool-none .hd { display: block; }
+  .hd-nw { left: -5px; top: -5px; cursor: nwse-resize; }
+  .hd-ne { right: -5px; top: -5px; cursor: nesw-resize; }
+  .hd-sw { left: -5px; bottom: -5px; cursor: nesw-resize; }
+  .hd-se { right: -5px; bottom: -5px; cursor: nwse-resize; }
+  #bar { position: fixed; display: none; align-items: center; gap: 2px; padding: 4px;
+         background: rgba(28, 33, 44, .95); border-radius: 8px; box-shadow: 0 4px 18px rgba(0, 0, 0, .35); }
+  #bar.on { display: flex; }
+  .b { width: 30px; height: 30px; border: 0; border-radius: 6px; background: transparent; color: #e8ecf4;
+       font-size: 14px; display: grid; place-items: center; cursor: pointer; }
+  .b:hover { background: rgba(255, 255, 255, .14); }
+  .b.on { background: #2b6be8; color: #fff; }
+  .b.wide { width: auto; padding: 0 10px; font-size: 12px; }
+  .b:disabled { color: #5d6678; cursor: default; background: transparent; }
+  .sp { width: 1px; height: 20px; margin: 0 3px; background: rgba(255, 255, 255, .18); }
+  .dot { width: 18px; height: 18px; border-radius: 50%; border: 2px solid transparent; cursor: pointer; }
+  .dot.on { border-color: #fff; }
+  #tip { position: fixed; left: 50%; top: 42%; transform: translateX(-50%); padding: 8px 14px;
+         background: rgba(28, 33, 44, .92); color: #cfd6e4; font-size: 13px; border-radius: 8px; pointer-events: none; }
+  #txt { position: fixed; display: none; min-width: 90px; padding: 3px 6px; border: 1px solid #2b6be8;
+         border-radius: 4px; background: rgba(255, 255, 255, .96); color: #111; font-size: 16px; outline: none; }
+  /* 放大镜：跟微信一样挂在光标右下，画的是"冻住的那张屏幕"的局部像素，所以不会进导出结果。
+     容器不留内边距和描边（那会围出一圈黑框），像素图铺到边；读数单独一条深色带，分三行显示 */
+  #loupe { position: fixed; display: none; z-index: 5; pointer-events: none }
+  #loupe.on { display: block }
+  #lp { display: block; width: 150px; height: 150px }
+  #lpr { display: block; margin-top: 2px; padding: 3px 0; background: rgba(28, 33, 44, .92);
+         font: 11px/1.45 Consolas, monospace; color: #e8ecf4; text-align: center }
+  #lpr span { display: block }
+  #lpsw { display: inline-block; width: 9px; height: 9px; border: 1px solid rgba(255, 255, 255, .6);
+          vertical-align: -1px; margin-right: 4px }
+</style>
+</head>
+<body>
+<canvas id="bg"></canvas>
+<div id="sel">
+  <i class="hd hd-nw" data-h="nw"></i><i class="hd hd-ne" data-h="ne"></i>
+  <i class="hd hd-sw" data-h="sw"></i><i class="hd hd-se" data-h="se"></i>
+</div>
+<canvas id="cv"></canvas>
+<div id="bar">
+  <button class="b" data-t="rect" title="方框">▢</button>
+  <button class="b" data-t="arrow" title="箭头">↗</button>
+  <button class="b" data-t="text" title="文字">T</button>
+  <button class="b" data-t="pen" title="涂鸦">✎</button>
+  <span class="sp"></span>
+  <span class="dot" data-c="#ff3b30" style="background:#ff3b30"></span>
+  <span class="dot" data-c="#ffb300" style="background:#ffb300"></span>
+  <span class="dot" data-c="#2b6be8" style="background:#2b6be8"></span>
+  <span class="sp"></span>
+  <button class="b" id="undo" title="撤销">↶</button>
+  <span class="sp"></span>
+  <button class="b wide" id="pin">钉图</button>
+  <button class="b wide" id="copy">复制</button>
+  <button class="b wide" id="cancel">取消</button>
+</div>
+<div id="tip">拖动框选要截的区域</div>
+<input id="txt" type="text" placeholder="输入文字，回车确认" />
+<div id="loupe"><canvas id="lp" width="150" height="150"></canvas>
+  <span id="lpr"><span id="lpc"><i id="lpsw"></i><span id="lpcv"></span></span><span id="lpp"></span><span id="lpsz"></span></span></div>
+<script src="shot.js"></script>
+</body>
+</html>

@@ -9,6 +9,13 @@ contextBridge.exposeInMainWorld('chatDesktop', {
   notify: (payload) => ipcRenderer.send('chat:notify', payload),
   // 「另存为」：字节在渲染端取好送过来，主进程弹系统对话框再写盘
   save: (payload) => ipcRenderer.invoke('chat:save', payload),
+  // 截图：抓屏和遮罩窗都在主进程，这边只发起 + 收结果
+  shot: () => ipcRenderer.invoke('chat:shot'),
+  onShotResult: (cb) => {
+    const handler = (_e, r) => cb(r)
+    ipcRenderer.on('chat:shot-result', handler)
+    return () => ipcRenderer.removeListener('chat:shot-result', handler)
+  },
   win: {
     min: () => ipcRenderer.send('chat:win', 'min'),
     max: () => ipcRenderer.send('chat:win', 'max'),
