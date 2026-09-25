@@ -172,8 +172,23 @@
                   </div>
                   <span v-if="msg.status === 'FAILED'" class="msg-fail" title="发送失败：这条没有存进服务器">!</span>
                 </div>
-                <!-- 引用是气泡下面那一行灰字＋左竖线（照参考图），不再把 "> 谁：" 混在气泡正文里 -->
-                <div v-if="quoteOf(msg)" class="msg-quote" @contextmenu.prevent.stop="openMsgMenu($event, msg)">{{ quoteOf(msg).name }}: {{ quoteOf(msg).text }}</div>
+                <!-- 引用是气泡下面那一行灰字＋左竖线（照参考图），不再把 "> 谁：" 混在气泡正文里。
+                     引用的是图片/文件时按类型渲染：图片出缩略图（点开走大图查看器），
+                     文件出和内容里一样的那张文件片（点开下载），不再只写 [图片] 三个字 -->
+                <div v-if="quoteOf(msg)" class="msg-quote" :class="{ 'q-media': quoteOf(msg).ref }"
+                     @contextmenu.prevent.stop="openMsgMenu($event, msg)">
+                  <span class="mq-name">{{ quoteOf(msg).name }}:</span>
+                  <template v-if="quoteOf(msg).ref && quoteOf(msg).ref.kind === 'IMAGE'">
+                    <img v-if="srcOfRef(quoteOf(msg).ref)" :src="srcOfRef(quoteOf(msg).ref)" class="mq-th" alt=""
+                         @click.stop="previewImage(srcOfRef(quoteOf(msg).ref))" />
+                    <span v-else class="mq-wait">{{ stateOfRef(quoteOf(msg).ref) === 'err' ? '图片加载失败' : '图片加载中…' }}</span>
+                  </template>
+                  <a v-else-if="quoteOf(msg).ref" class="b-file mq-file" @click.stop="downloadRef(quoteOf(msg).ref)">
+                    <span class="b-file-nm">{{ quoteOf(msg).ref.name }}</span>
+                    <span class="b-file-sz">{{ sizeLabel(quoteOf(msg).ref.size) }}</span>
+                  </a>
+                  <span v-else class="mq-tx">{{ quoteOf(msg).text }}</span>
+                </div>
               </div>
               <div v-if="String(msg.senderId) === String(userStore.userId)" class="msg-ava self">
                 {{ userStore.username?.charAt(0)?.toUpperCase() }}
@@ -1465,12 +1480,13 @@ function sendTextMessage() {
   const convId = String(currentConversation.value.id)
   const messageId = `local-${Date.now()}`
   const reqId = nextReqId('send')
+  // 引用体只在输入框第一行还是那条引用的时候才带上：那行被删掉就是不想引用了
+  const extra = pendingQuote.value && content.startsWith(pendingQuote.value.head)
+    ? JSON.stringify({ quote: pendingQuote.value.ref })
+    : ''
+  const payload = { conversationId: convId, messageType: 'TEXT', content, extra }
 
-  const sent = send('MESSAGE_SEND', {
-    conversationId: convId,
-    messageType: 'TEXT',
-    content
-  }, reqId)
+  const sent = send('MESSAGE_SEND', payload, reqId)
 
   // 本地立即显示
   const newMsg = {
@@ -1479,10 +1495,12 @@ function sendTextMessage() {
     senderId: userStore.userId,
     messageType: 'TEXT',
     content,
+    extra,
     timestamp: Date.now(),
     status: sent ? 'SENT' : 'FAILED'
   }
   messages.value.push(newMsg)
+  ensureMedia(newMsg)
   // 必须存数组里那个响应式代理：改原始对象不会触发重渲染
   if (sent) pendingSends.set(reqId, messages.value[messages.value.length - 1])
 
@@ -1490,11 +1508,7 @@ function sendTextMessage() {
   if (!sent) {
     setTimeout(() => {
       if (newMsg.status === 'FAILED' && connected.value) {
-        const retrySent = send('MESSAGE_SEND', {
-          conversationId: convId,
-          messageType: 'TEXT',
-          content
-        }, reqId)
+        const retrySent = send('MESSAGE_SEND', payload, reqId)
         if (retrySent) {
           pendingSends.set(reqId, messages.value.find(m => String(m.messageId) === String(newMsg.messageId)) || newMsg)
           newMsg.status = 'SENT'
@@ -1511,6 +1525,7 @@ function sendTextMessage() {
   }
 
   inputMessage.value = ''
+  pendingQuote.value = null
   scrollToBottom()
 }
 
@@ -1564,18 +1579,18 @@ function fileRefOf(msg) {
   return null
 }
 
-function mediaSrc(msg) {
-  const r = fileRefOf(msg)
+function srcOfRef(r) {
   if (!r) return ''
-  return r.dataUrl || mediaSrcs.value[r.fileId] || ''
+  return r.dataUrl || (r.fileId ? mediaSrcs.value[r.fileId] : '') || ''
 }
-
-function mediaState(msg) {
-  const r = fileRefOf(msg)
-  if (!r) return 'none'
-  if (r.dataUrl || mediaSrcs.value[r.fileId]) return 'ready'
+function stateOfRef(r) {
+  if (!r || (!r.fileId && !r.dataUrl)) return 'none'
+  if (srcOfRef(r)) return 'ready'
   return mediaBad.value[r.fileId] ? 'err' : 'loading'
 }
+
+function mediaSrc(msg) { return srcOfRef(fileRefOf(msg)) }
+function mediaState(msg) { return stateOfRef(fileRefOf(msg)) }
 
 function sizeLabel(n) {
   const v = Number(n)
@@ -1585,27 +1600,34 @@ function sizeLabel(n) {
   return (v / 1024 / 1024).toFixed(1) + ' MB'
 }
 
-// 只有图片需要提前拉缩略，文件等点开再取
+// 图片本体要提前拉缩略，引用体（图片/文件）也要——它俩走同一份 objectURL 缓存；文件等点开再取
 async function ensureMedia(msg) {
-  if (msg.messageType !== 'IMAGE') return
-  const r = fileRefOf(msg)
-  if (!r || !r.fileId || mediaSrcs.value[r.fileId] || mediaBad.value[r.fileId]) return
-  try {
-    const url = await fileObjectUrl(r.fileId)
-    mediaSrcs.value = { ...mediaSrcs.value, [r.fileId]: url }
-  } catch (e) {
-    mediaBad.value = { ...mediaBad.value, [r.fileId]: true }
+  const refs = []
+  if (msg.messageType === 'IMAGE') refs.push(fileRefOf(msg))
+  const q = quoteOf(msg)
+  if (q && q.ref && q.ref.kind === 'IMAGE') refs.push(q.ref)
+  for (const r of refs) {
+    if (!r || !r.fileId || mediaSrcs.value[r.fileId] || mediaBad.value[r.fileId]) continue
+    try {
+      const url = await fileObjectUrl(r.fileId)
+      mediaSrcs.value = { ...mediaSrcs.value, [r.fileId]: url }
+    } catch (e) {
+      mediaBad.value = { ...mediaBad.value, [r.fileId]: true }
+    }
   }
 }
 
-async function downloadFile(msg) {
-  const r = fileRefOf(msg)
+async function downloadRef(r) {
   if (!r) return
   const url = r.dataUrl || await fileObjectUrl(r.fileId)
   const a = document.createElement('a')
   a.href = url
   a.download = r.name || '文件'
   a.click()
+}
+
+async function downloadFile(msg) {
+  downloadRef(fileRefOf(msg))
 }
 
 async function sendMediaFile(file, type) {
@@ -1757,14 +1779,24 @@ function runMsgMenu(it) {
 
 /* 引用没有后端列（chat_message 里找不到 quote/replyTo/parent），所以走纯文本约定：
    首行 "> 谁：原文"，剩下的才是自己写的。渲染时把首行拆出来放到气泡下面那行灰字里。
-   代价：这是快照，原文之后被撤回/编辑这里不会跟着变，也点不回原消息。 */
+   代价：这是快照，原文之后被撤回/编辑这里不会跟着变，也点不回原消息。
+   引用的是图片/文件时那行拿不回对象键（只有 "[图片]" 三个字），所以引用体塞在 extra 里：
+   网关和 messages 表本来就带 extra 这一列，历史消息没这段就退回纯文字引用。 */
 const QUOTE_RE = /^>\s*([^：:]{1,30})[：:]\s*([\s\S]*)$/
+function quoteRefOf(msg) {
+  try {
+    const q = JSON.parse(msg.extra || '{}').quote
+    return q && q.fileId ? q : null
+  } catch (e) {
+    return null   // extra 不是 JSON（老消息的 {name,size} 之外还有别的写法）就当没有引用体
+  }
+}
 function quoteOf(msg) {
   if (!msg || msg.messageType !== 'TEXT') return null
   const c = String(msg.content || '')
   const nl = c.indexOf('\n')
   const m = QUOTE_RE.exec(nl < 0 ? c : c.slice(0, nl))
-  return m ? { name: m[1].trim(), text: m[2].trim() } : null
+  return m ? { name: m[1].trim(), text: m[2].trim(), ref: quoteRefOf(msg) } : null
 }
 // 去掉引用行之后的正文；非文本消息（图片/文件/撤回）原样返回
 function bodyText(msg) {
@@ -1775,13 +1807,20 @@ function bodyText(msg) {
 }
 
 // 引用：把原文按「> 谁：内容」放到输入框最前面，自己写的接在它下面
+// 引用体（图片/文件的对象键）另存一份，发送时塞进 extra——那行灰字里放不下 fileId
+const pendingQuote = ref(null)
 function quoteMessage() {
   const m = selectedMsg.value
   if (!m) return
+  const r = m.messageType === 'IMAGE' || m.messageType === 'FILE' ? fileRefOf(m) : null
   const body = m.messageType === 'TEXT' ? m.content
     : m.messageType === 'IMAGE' ? '[图片]'
-    : `[文件] ${fileRefOf(m)?.name || ''}`
+    : `[文件] ${r?.name || ''}`
   const line = `> ${msgSenderName(m)}：${String(body || '').replace(/\s*\n\s*/g, ' ')}\n`
+  // 老图片是整张 base64 塞在 content 里的，没有对象键可带，那种就退回纯文字引用
+  pendingQuote.value = r && r.fileId
+    ? { head: line.trimEnd(), ref: { kind: m.messageType, fileId: r.fileId, name: r.name, size: r.size, contentType: r.contentType } }
+    : null
   inputMessage.value = line + (inputMessage.value ? inputMessage.value.replace(/^\n?/, '') : '')
   nextTick(() => {
     const el = document.querySelector('#chat-message-input')
@@ -3893,6 +3932,13 @@ watch(imgView, v => {
   white-space: pre-wrap; word-break: break-word;
 }
 .msg.self .msg-quote { margin-left: auto; }
+/* 引用的是图片/文件：名字和缩略图/文件片排一行，放不下就折，别把图挤扁 */
+.msg-quote.q-media { display: flex; align-items: center; flex-wrap: wrap; gap: 6px; white-space: normal }
+.mq-name { flex: none }
+.mq-th { max-width: 132px; max-height: 88px; border-radius: 8px; object-fit: cover; cursor: zoom-in; box-shadow: var(--shadow-1) }
+.mq-wait { flex: none; color: var(--nb-dim-2) }
+/* 引用里的文件片只改尺寸，形状/描边/点开行为跟正文里那张是同一个 .b-file */
+.mq-file { max-width: 220px; padding: 4px 8px }
 .mention { color: var(--brand); font-weight: 500; }
 .msg.self .mention { color: #dbe7ff; }
 .b-del { color: var(--nb-dim-2); font-style: italic; }
@@ -3927,8 +3973,10 @@ watch(imgView, v => {
 }
 .iv-x:hover { background: rgba(255, 255, 255, .26); }
 .b-wait { display: inline-block; min-width: 96px; font-size: 12px; color: var(--nb-dim); }
-/* 气泡已经是灰底了，里面这颗文件片得反过来用白底才分得开（原来是灰片在白气泡上） */
-.b-file { display: inline-flex; align-items: center; gap: 8px; max-width: 240px; padding: 6px 10px; border: 1px solid var(--nb-line); border-radius: 8px; background: var(--nb-bg-1); color: inherit; text-decoration: none; cursor: pointer; }
+/* 气泡已经是灰底了，里面这颗文件片得反过来用白底才分得开（原来是灰片在白气泡上）。
+   文字颜色必须写死：片子底永远是白的，跟着气泡 inherit 的话自己发的那条就是白字落白底
+   （实测名字对底 Δ0，只剩右边那个灰色的"5 B"看得见） */
+.b-file { display: inline-flex; align-items: center; gap: 8px; max-width: 240px; padding: 6px 10px; border: 1px solid var(--nb-line); border-radius: 8px; background: var(--nb-bg-1); color: var(--nb-text); text-decoration: none; cursor: pointer; }
 .b-file:hover { border-color: var(--brand); }
 .b-file-nm { overflow: hidden; white-space: nowrap; text-overflow: ellipsis; font-size: 13px; }
 .b-file-sz { flex: none; font-size: 11px; color: var(--nb-dim); }
