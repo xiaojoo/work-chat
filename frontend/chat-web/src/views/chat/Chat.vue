@@ -474,16 +474,19 @@
     <div v-if="railMenuOpen" class="rail-menu" role="menu"
          :style="{ left: railMenuX + 'px', bottom: railMenuBottom + 'px' }">
       <div class="rail-menu-hd">在线状态</div>
-      <button v-for="s in PRESENCE" :key="s.key" type="button" role="menuitemradio"
-              class="rail-menu-item" :class="{ on: presence === s.key }" :aria-checked="presence === s.key"
-              @click="setPresence(s.key)">
-        <i class="pm-dot" :class="s.key" /><span>{{ s.name }}</span>
-        <span v-if="presence === s.key" class="pm-tick">✓</span>
-      </button>
-      <div class="rail-menu-sep"></div>
-      <button type="button" role="menuitem" class="rail-menu-item quit" @click="pickLogout">
-        <span>退出登录</span>
-      </button>
+      <!-- 结构和右键菜单对齐：外壳不内缩，列表给 4px，行自己给 9px 16px（原来行贴着圆角边、hover 不满行） -->
+      <div class="rail-menu-list">
+        <button v-for="s in PRESENCE" :key="s.key" type="button" role="menuitemradio"
+                class="rail-menu-item" :class="{ on: presence === s.key }" :aria-checked="presence === s.key"
+                @click="setPresence(s.key)">
+          <i class="pm-dot" :class="s.key" /><span>{{ s.name }}</span>
+          <span v-if="presence === s.key" class="pm-tick">✓</span>
+        </button>
+        <div class="rail-menu-sep"></div>
+        <button type="button" role="menuitem" class="rail-menu-item quit" @click="pickLogout">
+          <span>退出登录</span>
+        </button>
+      </div>
     </div>
 
     <!-- 单聊详情面板 -->
@@ -3116,9 +3119,10 @@ function previewImage(url) {
 .msg-context-menu {
   position: fixed;
   background: rgba(255, 255, 255, 0.96);
-  border: 1px solid rgba(43, 107, 232, 0.2);
+  border: 0;
   border-radius: 8px;
-  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.65), 0 0 20px rgba(43, 107, 232, 0.1);
+  /* 阴影照参考图量的：边缘最暗 218、页面底 250（≈13% 黑），向外铺 12~16px、上下基本对称 */
+  box-shadow: 0 2px 14px rgba(20, 32, 56, 0.13);
   backdrop-filter: blur(6px);
   padding: 4px 0;
   z-index: 9999;
@@ -3147,12 +3151,14 @@ function previewImage(url) {
 }
 
 /* ===== 会话右键菜单 ===== */
+/* 会话/输入框/消息区/背景这几个右键菜单共用的外壳（☰ 菜单不在这条里：它按参考图不描边） */
 .conv-context-menu {
   position: fixed;
   background: rgba(255, 255, 255, 0.97);
-  border: 1px solid rgba(43, 107, 232, 0.25);
+  border: 0;
   border-radius: 12px;
-  box-shadow: 0 16px 48px rgba(0, 0, 0, 0.6), 0 0 24px rgba(43, 107, 232, 0.08);
+  /* 同上：参考图量出来的边缘 13% 黑、14px 铺开 */
+  box-shadow: 0 2px 14px rgba(20, 32, 56, 0.13);
   backdrop-filter: blur(8px);
   z-index: 9999;
   min-width: 200px;
@@ -4085,27 +4091,31 @@ function previewImage(url) {
 .rail-conn.ONLINE { background: var(--ok); }
 .rail-conn.BUSY { background: var(--warn); }
 
-/* ---- 图标栏 ☰ 菜单：向上弹（bottom 定位），反馈只换底色不动尺寸 ---- */
+/* ---- 图标栏 ☰ 菜单：照参考图，纯平面板 —— 不描边、不投影，靠白底和后面的浅灰分层 ---- */
 .rail-menu {
-  position: fixed; z-index: 9999; min-width: 172px; padding: 5px;
-  background: var(--nb-bg-1); border: 1px solid var(--nb-line); border-radius: 12px;
-  box-shadow: var(--shadow-2); animation: convMenuIn .14s ease-out;
+  position: fixed; z-index: 9999; min-width: 200px;
+  background: rgba(255, 255, 255, 0.97); border: 0; border-radius: 12px;
+  backdrop-filter: blur(8px); overflow: hidden; animation: convMenuIn .15s ease-out;
 }
-.rail-menu-hd { padding: 6px 10px 7px; font-size: 11.5px; color: var(--nb-dim); }
+.rail-menu-hd { padding: 12px 16px 8px; font-size: 11.5px; color: var(--nb-dim); }
+.rail-menu-list { padding: 4px 0; }
 .rail-menu-item {
-  display: flex; align-items: center; gap: 9px; width: 100%; padding: 8px 10px;
-  font: inherit; font-size: 13px; text-align: left; color: var(--nb-text);
-  background: none; border: 0; border-radius: 8px; cursor: pointer;
+  display: flex; align-items: center; gap: 10px; width: 100%; padding: 9px 16px;
+  /* 16px 是右键菜单那行里图标撑出来的内容高；全局是 border-box，上下 9px 内距必须一起算进
+     min-height，只写 16px 会被内距吃掉完全不生效（量出来 31 vs 34 就是这么来的） */
+  min-height: calc(16px + 9px + 9px);
+  font: inherit; font-size: 13px; line-height: 1; letter-spacing: 0.3px; text-align: left; color: var(--nb-text);
+  background: none; border: 0; cursor: pointer;
   transition: background-color .12s ease, color .12s ease;
 }
-.rail-menu-item:hover { background: var(--nb-bg-3); }
+.rail-menu-item:hover { background: rgba(43, 107, 232, 0.07); }
 .rail-menu-item.on { color: var(--brand); }
 .rail-menu-item.quit:hover { color: var(--danger); }
 .pm-tick { margin-left: auto; font-size: 12px; color: var(--brand); }
 .pm-dot { flex: 0 0 8px; width: 8px; height: 8px; border-radius: 50%; background: var(--nb-dim-2); }
 .pm-dot.ONLINE { background: var(--ok); }
 .pm-dot.BUSY { background: var(--warn); }
-.rail-menu-sep { height: 1px; margin: 5px 8px; background: var(--nb-line); }
+.rail-menu-sep { height: 1px; margin: 4px 12px; background: rgba(43, 107, 232, 0.1); }
 
 /* ---- ② 列表栏 ---- */
 /* 卡片内部不画分隔线：列表比会话区深一档，靠这一步色差分出轮廓。
