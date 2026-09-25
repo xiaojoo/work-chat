@@ -162,6 +162,8 @@ let shotWin = null
 let shotOpener = null
 let shotShown = false
 let shotReveal = null
+// 编辑态：这张编辑窗是从哪张钉图来的（改完换回那张，而不是多钉一张）
+let shotEditPin = null
 const pinWins = []
 // 每个钉图窗的原始数据（截图那块）和当前缩放，右键菜单的复制/另存为/还原都从这取
 const pinInfo = new WeakMap()
@@ -287,6 +289,86 @@ function closeShot() {
   fadeClose(shotWin)   // 关掉由窗口的 closed 事件负责置空
 }
 
+/* ---- 编辑一张已有的图：钉图右键的「编辑」和大图查看器的「编辑」都走这里 ----
+   复用截图那套标注器，只是底图换成这张图、窗口按图的大小开（不铺满屏）。
+   shot.js 里的映射是 bg.width / innerWidth，所以图比屏幕大、窗口等比缩过也不会导出糊的。 */
+async function startEdit(sender, dataUrl, editPin, size) {
+  if (shotWin && !shotWin.isDestroyed()) return { ok: false, busy: true }
+  const url = String(dataUrl || '')
+  if (!url.startsWith('data:image/')) return { ok: false, error: '这张图不是 data:image 开头的' }
+  const sw = Math.round(Number(size && size.width) || 0)
+  const sh = Math.round(Number(size && size.height) || 0)
+  if (!sw || !sh) return { ok: false, error: '这张图量不出尺寸' }
+  const disp = currentDisplay()
+  const dpr = disp.scaleFactor || 1
+  shotOpener = sender ? BrowserWindow.fromWebContents(sender) : null
+  shotEditPin = editPin && !editPin.isDestroyed() ? editPin : null
+  // 窗口是 DIP、图是源像素，按 dpr 换算。只往小夹（比工作区大时），不往大撑：
+  // 撑大了 1:1 就破了，而且整张图会被 CSS 拉变形（实测 160x100 的图开成 200x140 那次）
+  const BAR_W = 355, BAR_H = 38   // 截图工具条的实测尺寸（shot.html 那一条）
+  let iw = Math.max(1, Math.round(sw / dpr))
+  let ih = Math.max(1, Math.round(sh / dpr))
+  // workArea 本身就是 {x,y,width,height}（没有 .size 这一层，那是 display.size 的形状）
+  const wa = disp.workArea
+  const cap = Math.min(1, (wa.width - 60) / iw, (wa.height - BAR_H - 60) / ih)
+  iw = Math.max(1, Math.round(iw * cap))
+  ih = Math.max(1, Math.round(ih * cap))
+  // 图比工具条窄就左右留一圈，否则右边那三颗（钉图/复制/取消）出窗、点不着（160 宽的图就踩过）；
+  // 图太矮时再在底下留一条，不让工具条压在图身上
+  const padX = Math.max(0, Math.ceil((BAR_W + 16 - iw) / 2))
+  const top = padX ? 10 : 0
+  const bottom = ih < BAR_H * 3 ? BAR_H + 12 : 0
+  const w = iw + padX * 2
+  const h = ih + top + bottom
+  const win = new BrowserWindow({
+    width: w, height: h, useContentSize: true,
+    x: wa.x + Math.round((wa.width - w) / 2),
+    y: wa.y + Math.round((wa.height - h) / 2),
+    show: false, frame: false, resizable: false, minimizable: false, maximizable: false,
+    fullscreenable: false, skipTaskbar: true, alwaysOnTop: true,
+    backgroundColor: '#000000', webPreferences: shotPrefs()
+  })
+  shotWin = win
+  win.setAlwaysOnTop(true, 'screen-saver')
+  win.on('closed', () => { if (shotWin === win) { shotWin = null; shotEditPin = null } })
+  const loaded = new Promise(res => win.webContents.once('did-finish-load', res))
+  win.loadFile(path.join(__dirname, 'shot.html')).catch(e => log(`edit load failed: ${e.message}`))
+  await loaded
+  if (win.isDestroyed()) return { ok: false, error: '编辑窗被关掉了' }
+  win.webContents.send('shot:data', { edit: true, url, dpr, w: sw, h: sh, img: { x: padX, y: top, w: iw, h: ih } })
+  shotShown = false
+  shotReveal = () => {
+    if (shotShown || win.isDestroyed()) return
+    shotShown = true
+    fadeShow(win)
+  }
+  setTimeout(shotReveal, 1500)
+  log(`edit 窗 ${w}x${h}｜图 ${iw}x${ih} DIP @${padX},${top} ← 源图 ${sw}x${sh}，dpr=${dpr}${cap < 1 ? '（比屏幕大，缩到 ' + Math.round(cap * 100) + '%）' : ''}`)
+  return { ok: true }
+}
+
+// 编辑完点「钉图」：原来那张钉图换成改过的图，不再多钉一张（尺寸算法和 pinImage 同一条）
+function pinSetImage(win, dataUrl) {
+  const info = win && !win.isDestroyed() ? pinInfo.get(win) : null
+  const url = String(dataUrl || '')
+  if (!info || !url.startsWith('data:image/')) return false
+  const b = nativeImage.createFromDataURL(url).getSize()
+  if (!b.width || !b.height) return false
+  const disp = screen.getDisplayMatching(win.getBounds())
+  const cap = Math.min(1, (disp.bounds.width - 40) / b.width, (disp.bounds.height - 40) / b.height)
+  info.dataUrl = url
+  info.nw = b.width
+  info.nh = b.height
+  info.zoom = 1
+  info.w = Math.max(1, Math.round(b.width * cap))
+  info.h = Math.max(1, Math.round(b.height * cap))
+  pinSizeTo(win, info.w, info.h)
+  win.webContents.send('pin:data', info.dataUrl)
+  win.webContents.send('pin:note', '已换成编辑后的图')
+  log(`pin repainted ${info.w}x${info.h} ← ${b.width}x${b.height}`)
+  return true
+}
+
 function tellOpener(payload) {
   if (shotOpener && !shotOpener.isDestroyed()) shotOpener.webContents.send('chat:shot-result', payload)
 }
@@ -313,7 +395,7 @@ function pinImage(dataUrl) {
     webPreferences: shotPrefs()
   })
   win.setAlwaysOnTop(true, 'screen-saver')
-  pinInfo.set(win, { dataUrl, w, h, zoom: 1 })
+  pinInfo.set(win, { dataUrl, w, h, nw: b.width, nh: b.height, zoom: 1 })
   pinWins.push(win)
   win.once('ready-to-show', () => fadeShow(win))
   win.webContents.on('did-finish-load', () => win.webContents.send('pin:data', dataUrl))
@@ -446,6 +528,22 @@ if (!app.requestSingleInstanceLock()) {
 
     // 截图：主窗口只能"发起"，抓屏/遮罩窗/剪贴板都在上面那几个函数里
     ipcMain.handle('chat:shot', (event) => startShot(event.sender))
+    // 大图查看器的「编辑」：把这张图交给同一个标注器。字节原样送过来拼 dataURL，
+    // 不在任何一边重编码——JPEG 转 PNG 会让一条 IPC 消息涨十倍大
+    ipcMain.handle('chat:shot-edit', (event, p) => {
+      const buf = Buffer.from(p?.bytes || new Uint8Array())
+      if (!buf.length) return { ok: false, error: '这张图是空的' }
+      const mime = /^image\//.test(String(p.mime || '')) ? String(p.mime) : 'image/png'
+      return startEdit(event.sender, `data:${mime};base64,${buf.toString('base64')}`, null,
+        { width: p.width, height: p.height })
+    })
+    // 钉图右键的「编辑」：改完是换回这张钉图，不是再钉一张
+    ipcMain.handle('pin:edit', (event) => {
+      const win = BrowserWindow.fromWebContents(event.sender)
+      const info = win && pinInfo.get(win)
+      if (!info) return { ok: false, error: '这张钉图没有原始数据' }
+      return startEdit(event.sender, info.dataUrl, win, { width: info.nw || info.w, height: info.nh || info.h })
+    })
     ipcMain.on('shot:copy', (event, dataUrl) => {
       try {
         clipboard.writeImage(nativeImage.createFromDataURL(String(dataUrl || '')))
@@ -455,10 +553,13 @@ if (!app.requestSingleInstanceLock()) {
         log(`clipboard failed: ${e.message}`)
         tellOpener({ ok: false, error: String(e.message || e) })
       }
+      // 编辑态是从钉图来的：钉图窗没订 chat:shot-result，回一句给它自己那行提示
+      if (shotEditPin && !shotEditPin.isDestroyed()) shotEditPin.webContents.send('pin:note', '已复制到剪贴板')
       closeShot()
     })
     ipcMain.on('shot:pin', (event, dataUrl) => {
-      pinImage(String(dataUrl || ''))
+      // 编辑态是从某张钉图进来的，就换那张；否则新开一张
+      if (!(shotEditPin && pinSetImage(shotEditPin, dataUrl))) pinImage(String(dataUrl || ''))
       tellOpener({ ok: true, action: 'pin' })
       closeShot()
     })

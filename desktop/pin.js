@@ -62,7 +62,8 @@ menu.addEventListener('click', e => {
   if (!it || it.classList.contains('off')) return
   const a = it.dataset.a
   hideMenu()
-  if (a === 'copy') window.pin.copy()
+  if (a === 'edit') window.pin.edit().then(r => { if (r && !r.ok) showNote('编辑没打开：' + (r.error || '未知原因')) })
+  else if (a === 'copy') window.pin.copy()
   else if (a === 'save') window.pin.save()
   else if (a === 'reset') window.pin.reset()
   else if (a === 'quit') window.pin.close()

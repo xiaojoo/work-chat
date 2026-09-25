@@ -17,6 +17,8 @@ contextBridge.exposeInMainWorld('pin', {
   save: () => ipcRenderer.invoke('pin:save'),
   zoom: dir => ipcRenderer.send('pin:zoom', dir),
   reset: () => ipcRenderer.send('pin:reset'),
+  // 编辑：把这张钉图交给截图那套标注器，改完「钉图」是换回本窗（主进程认得来源）
+  edit: () => ipcRenderer.invoke('pin:edit'),
   grow: n => ipcRenderer.send('pin:grow', n),
   shrink: () => ipcRenderer.send('pin:shrink'),
   dragStart: () => ipcRenderer.send('pin:drag-start'),
