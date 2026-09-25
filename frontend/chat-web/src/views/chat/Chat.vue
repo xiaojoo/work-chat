@@ -2037,6 +2037,15 @@ const orgData = ref([])
 const onlineUsers = ref([])   // [{ userId, status: 'ONLINE'|'BUSY' }]，不在里面就是离线
 const showAddMembers = ref(false)
 
+// 弹框和右键菜单不能叠着出现。联系人/群组行上那颗 ⋯ 带 @click.stop，打开弹框的那一下点击
+// 不会冒到 document，全局那条 closeAllMenus 兜底收不到，于是先右键过的菜单会活着浮到弹框上面
+// （菜单 z-index 9999 > 遮罩 95）。这段必须放在所有被引用 ref 之后 —— 放前面是 TDZ，
+// setup 直接抛错，整页空白
+watch(
+  [showProfile, showAddFriend, showAddMembers, showCreateGroup, showInviteMember, showFriendDetail, friendCard, groupCard],
+  (vals) => { if (vals.some(Boolean)) closeAllMenus() }
+)
+
 const orgCandidates = computed(() => orgData.value
   .flatMap(d => d.members.map(m => ({ ...m, department: m.department || d.department })))
   .filter(m => String(m.id) !== String(userStore.userId)))
@@ -3259,8 +3268,10 @@ function previewImage(url) {
 }
 
 /* ===== 会话右键菜单 ===== */
-/* 会话/输入框/消息区/背景这几个右键菜单共用的外壳（☰ 菜单不在这条里：它按参考图不描边） */
-.conv-context-menu {
+/* 会话/输入框/消息区/背景这几个右键菜单 + 图标栏 ☰ 弹层共用的外壳。
+   ☰ 原来自己带 --shadow-2 和不透明白底，跟这几个不是一类；现在两边的值逐项相同，
+   合成一条规则，免得以后各改一边又对不齐 */
+.conv-context-menu, .rail-menu {
   position: fixed;
   background: rgba(255, 255, 255, 0.97);
   border: 0;
@@ -4189,12 +4200,7 @@ function previewImage(url) {
 .rail-conn.ONLINE { background: var(--ok); }
 .rail-conn.BUSY { background: var(--warn); }
 
-/* ---- 图标栏 ☰ 菜单：照参考图，纯平面板 —— 不描边、不投影，靠白底和后面的浅灰分层 ---- */
-.rail-menu {
-  position: fixed; z-index: 9999; min-width: 200px;
-  background: rgba(255, 255, 255, 0.97); border: 0; border-radius: 12px;
-  backdrop-filter: blur(8px); overflow: hidden; animation: convMenuIn .15s ease-out;
-}
+/* ---- 图标栏 ☰ 菜单：外壳在上面那条共用规则里，这里只留自己的注释 ---- */
 .rail-menu-hd { padding: 12px 16px 8px; font-size: 11.5px; color: var(--nb-dim); }
 .rail-menu-list { padding: 4px 0; }
 .rail-menu-item {
