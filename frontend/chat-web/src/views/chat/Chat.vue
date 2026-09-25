@@ -248,9 +248,22 @@
           <span class="rz-grip" role="separator" aria-orientation="horizontal" tabindex="0"
                 title="拖动调整输入框高度，双击复原" @pointerdown="rzStart" @keydown="rzKey" @dblclick="rzSet(AREA_MIN)"></span>
         </div>
-        <textarea id="chat-message-input" v-model="inputMessage" name="message" class="area" :style="{ height: areaH + 'px' }"
+        <!-- 群聊里打一个 @ 会浮出成员名单（微信那条）：弹框挂在 .m-input 上，向上开 -->
+        <div v-if="mentionOpen" class="mention-pop" @mousedown.prevent>
+          <p class="mp-cap">提到</p>
+          <div class="mp-list">
+            <button v-for="(m, i) in mentionList" :key="m.userId" type="button" class="mp-row"
+                    :class="{ on: i === mentionIndex }" @click="pickMention(m)">
+              <span class="mp-av">{{ m.name.charAt(0).toUpperCase() }}</span>
+              <span class="mp-nm">{{ m.name }}</span>
+            </button>
+            <p v-if="!mentionList.length" class="mp-empty">没有匹配的成员</p>
+          </div>
+        </div>
+        <textarea id="chat-message-input" ref="areaRef" v-model="inputMessage" name="message" class="area" :style="{ height: areaH + 'px' }"
                   placeholder="输入消息，或使用 / 触发 AI 功能…"
-                  @keydown.enter.exact.prevent="sendMessage" @contextmenu.prevent.stop="openInputMenu($event)"
+                  @keydown="onAreaKey" @contextmenu.prevent.stop="openInputMenu($event)"
+                  @input="syncMention" @click="syncMention" @blur="closeMention"
                   @paste="handlePaste" :disabled="!connected || !currentConversation"></textarea>
         <div class="bar">
           <div class="bar-tools">
@@ -273,7 +286,10 @@
                 <div class="emoji-hint">{{ hoveredEmoji ? hoveredEmoji.e + ' ' + hoveredEmoji.l : '选择表情' }}</div>
               </div>
             </div>
-            <button class="tool at" title="提及">@</button>
+            <!-- 原来这颗是死的（没有任何 handler）。现在它在光标处补一个 @，把成员名单顶出来；
+                 私聊没有"群里的人"可 @，所以置灰不消失。开面板的控件不挂 title，名字走 aria-label -->
+            <button class="tool at" :class="{ open: mentionOpen }" :disabled="!canMention"
+                    aria-label="提及群成员" @click="insertMentionAt">@</button>
             <button class="tool ai" title="AI 结果">✦</button>
             <input ref="imageInput" id="image-upload" type="file" accept="image/*" multiple style="display:none" @change="handleImageUpload" />
             <input ref="fileInput" id="file-upload" type="file" multiple style="display:none" @change="handleFileUpload" />
@@ -748,6 +764,100 @@ function dropPending(id) {
 function clearPending() {
   for (const a of pendingFiles.value) if (a.url) URL.revokeObjectURL(a.url)
   pendingFiles.value = []
+}
+
+/* ===== 群聊里的 @：光标前那一段打一个 @ 就顶出成员名单（照微信）=====
+   判据是"那一段里只有一个 @、@ 后面还没打空格"：所以 "@张@三"（一段里两个 @）顶不出来，
+   打完 @张三 再敲空格之后那段也没有 @ —— 多个 @ 挤在一起没有指代对象，就不给名单。
+   私聊没有"群里的人"可 @，一律不顶。 */
+const areaRef = ref(null)
+const mentionOpen = ref(false)
+const mentionQ = ref('')
+const mentionIndex = ref(0)
+const MENTION_RE = /(?:^|\s)@([^@\s]*)$/
+const canMention = computed(() => currentConversation.value?.type === 2 && connected.value)
+const mentionList = computed(() => {
+  const kw = mentionQ.value.trim().toLowerCase()
+  const src = (groupMembers.value || []).map(m => ({ userId: m.userId, name: memberName(m) }))
+  return kw ? src.filter(m => m.name.toLowerCase().includes(kw) || String(m.userId).includes(kw)) : src
+})
+function caretOf() {
+  const el = areaRef.value
+  return el && typeof el.selectionStart === 'number' ? el.selectionStart : 0
+}
+function syncMention() {
+  const el = areaRef.value
+  const m = el && canMention.value ? MENTION_RE.exec(el.value.slice(0, caretOf())) : null
+  if (!m) { mentionOpen.value = false; return }
+  // 关键词没变就别把上下选中的那一项重置回第一条（按方向键时也会走到这里）
+  if (mentionQ.value !== m[1]) { mentionQ.value = m[1]; mentionIndex.value = 0 }
+  if (mentionIndex.value >= mentionList.value.length) mentionIndex.value = 0
+  mentionOpen.value = true
+}
+function closeMention() {
+  mentionOpen.value = false
+  // 下次顶出来要从第一条开始，别留着上次方向键选中的那个下标
+  mentionQ.value = ''
+  mentionIndex.value = 0
+}
+function scrollMentionRow() {
+  nextTick(() => {
+    const box = document.querySelector('.mp-list')
+    const row = box && box.children[mentionIndex.value]
+    if (!box || !row) return
+    if (row.offsetTop < box.scrollTop) box.scrollTop = row.offsetTop
+    else if (row.offsetTop + row.offsetHeight > box.scrollTop + box.clientHeight)
+      box.scrollTop = row.offsetTop + row.offsetHeight - box.clientHeight
+  })
+}
+function moveMention(d) {
+  const n = mentionList.value.length
+  if (!n) return
+  mentionIndex.value = (mentionIndex.value + d + n) % n
+  scrollMentionRow()
+}
+function pickMention(m) {
+  const el = areaRef.value
+  if (!el || !m) { closeMention(); return }
+  const end = caretOf()
+  const at = el.value.lastIndexOf('@', end - 1)
+  if (at < 0) { closeMention(); return }
+  inputMessage.value = el.value.slice(0, at) + '@' + m.name + ' ' + el.value.slice(end)
+  closeMention()
+  const p = at + m.name.length + 2
+  nextTick(() => { el.focus(); el.setSelectionRange(p, p) })
+}
+// 工具栏那颗 @：在光标处补一个 @，名单就顶出来了。@ 前面补个空格才认（判据要行首或空白）
+function insertMentionAt() {
+  const el = areaRef.value
+  if (!el || !canMention.value) return
+  el.focus()
+  const s = typeof el.selectionStart === 'number' ? el.selectionStart : el.value.length
+  const e2 = typeof el.selectionEnd === 'number' ? el.selectionEnd : s
+  const gap = s > 0 && !/\s/.test(el.value[s - 1]) ? ' ' : ''
+  inputMessage.value = el.value.slice(0, s) + gap + '@' + el.value.slice(e2)
+  const p = s + gap.length + 1
+  nextTick(() => { el.setSelectionRange(p, p); syncMention() })
+}
+// 回车原来绑的是 @keydown.enter.exact.prevent，名单顶出来时回车得改成"选人"，
+// 所以整段收进这一个 handler 里；顺带挡掉输入法选词那一下回车（原来会直接发出去）
+function onAreaKey(e) {
+  if (e.key === 'Enter' && e.isComposing) return
+  if (mentionOpen.value) {
+    if (e.key === 'ArrowDown') { e.preventDefault(); moveMention(1); return }
+    if (e.key === 'ArrowUp') { e.preventDefault(); moveMention(-1); return }
+    if (e.key === 'Escape') { e.preventDefault(); closeMention(); return }
+    if (e.key === 'Enter') {
+      e.preventDefault()
+      const pick = mentionList.value[mentionIndex.value]
+      if (pick) pickMention(pick); else closeMention()
+      return
+    }
+  }
+  if (e.key === 'Enter' && !e.shiftKey && !e.ctrlKey && !e.altKey && !e.metaKey) {
+    e.preventDefault()
+    sendMessage()
+  }
 }
 
 // 一个一个来：uploadFile 是 REST，多个大文件一起传会把这条链挤满；没发出去的留在条上可重试
@@ -1362,9 +1472,11 @@ async function loadGroups() {
 async function selectConversation(conv) {
   currentConversation.value = conv
   messages.value = []
+  closeMention()   // 名单是"这个群的人"，换会话不能还挂着上一份
   // 暂存的附件不跨会话：切会话把它清掉。留着的话下一次点发送会静默发到新会话里，
   // 发错人比丢一张还没发出去的图严重得多（文字草稿可以继续留着，那是他自己打的）
   clearPending()
+  closeMention()
   // 抽屉「成员」页签的两个临时态不该跟着换会话留下来：正在勾选移出、正在改群名
   removeMode.value = false
   groupMemberSearchText.value = ''
@@ -1526,6 +1638,7 @@ function sendTextMessage() {
 
   inputMessage.value = ''
   pendingQuote.value = null
+  closeMention()   // 程序改 value 不会触发 input，名单得自己收，不然发完还挂着
   scrollToBottom()
 }
 
@@ -4041,8 +4154,27 @@ watch(imgView, v => {
   color: var(--nb-dim); display: grid; place-items: center; cursor: pointer; font-size: 15px;
 }
 .tool:hover, .tool.open { background: var(--brand-soft); color: var(--brand); }
+/* 置灰不消失：私聊里没有"群里的人"可 @，但这颗的位置要留着，抽掉整条工具栏会跳 */
+.tool:disabled { color: var(--nb-dim-2); cursor: default; }
+.tool:disabled:hover { background: transparent; color: var(--nb-dim-2); }
 .tool.at { font-size: 17px; }
 .tool.ai { color: var(--brand); }
+/* @ 成员名单：挂在输入区上、往上开（输入区贴着窗口底，往下开就出屏了）。
+   外壳和表情框同一套：白底、10px 圆角、软阴影、一条线描边 */
+.mention-pop {
+  position: absolute; bottom: calc(100% - 2px); left: 16px; z-index: 24; width: 232px; padding: 6px;
+  background: #fff; border: 1px solid var(--nb-line); border-radius: 10px; box-shadow: var(--shadow-2);
+}
+.mp-cap { padding: 2px 6px 6px; font-size: 11px; letter-spacing: 1px; color: var(--nb-dim-2); }
+/* 名单只在里面滚，外层不滚；行高 30px，八条出头就开始滚 */
+.mp-list { max-height: 244px; overflow-y: auto }
+.mp-row { display: flex; align-items: center; gap: 8px; width: 100%; padding: 4px 6px; border: 0;
+  border-radius: 7px; background: transparent; color: var(--nb-text); font: inherit; font-size: 13px; text-align: left; cursor: pointer }
+.mp-row:hover, .mp-row.on { background: var(--brand-soft) }
+.mp-av { width: 22px; height: 22px; flex: none; border-radius: 6px; background: var(--brand-soft);
+  color: var(--brand-strong); font-size: 11px; font-weight: 600; display: grid; place-items: center }
+.mp-nm { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap }
+.mp-empty { padding: 10px 6px; font-size: 12px; color: var(--nb-dim); text-align: center }
 .emoji-pop {
   position: absolute; bottom: 34px; left: 0; z-index: 20; width: 272px; padding: 8px;
   background: #fff; border: 1px solid var(--nb-line); border-radius: 10px; box-shadow: var(--shadow-2);
