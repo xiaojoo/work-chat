@@ -1,4 +1,4 @@
-const { app, BrowserWindow, Tray, Menu, Notification, shell, ipcMain, protocol, net, nativeImage } = require('electron')
+const { app, BrowserWindow, Tray, Menu, Notification, shell, ipcMain, protocol, net, nativeImage, dialog } = require('electron')
 const path = require('path')
 const fs = require('fs')
 const crypto = require('crypto')
@@ -213,6 +213,25 @@ if (!app.requestSingleInstanceLock()) {
       const n = new Notification({ title: String(title || 'Chat'), body: String(body || '') })
       n.on('click', () => focusMainWindow())
       n.show()
+    })
+    // 「另存为」：渲染端在沙箱里，既弹不出系统保存对话框也不知道用户选了哪儿，
+    // 所以字节由渲染端取好送过来，主进程弹框 + 写盘
+    ipcMain.handle('chat:save', async (event, { name, bytes }) => {
+      const win = BrowserWindow.fromWebContents(event.sender)
+      const buf = Buffer.from(bytes || new Uint8Array())
+      const { canceled, filePath } = await dialog.showSaveDialog(win, {
+        defaultPath: path.basename(String(name || '文件')),
+        filters: [{ name: '所有文件', extensions: ['*'] }]
+      })
+      if (canceled || !filePath) return { ok: false, canceled: true }
+      try {
+        fs.writeFileSync(filePath, buf)
+        log(`saved ${filePath} (${buf.length} bytes)`)
+        return { ok: true, path: filePath, size: buf.length }
+      } catch (e) {
+        log(`save failed: ${e.message}`)
+        return { ok: false, error: String(e.message || e) }
+      }
     })
 
     buildTray()

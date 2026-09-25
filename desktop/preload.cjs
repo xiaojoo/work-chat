@@ -7,6 +7,8 @@ contextBridge.exposeInMainWorld('chatDesktop', {
   // 同名会互相顶号，所以不能像网页那样写死 'web'
   deviceId: () => ipcRenderer.invoke('chat:device-id'),
   notify: (payload) => ipcRenderer.send('chat:notify', payload),
+  // 「另存为」：字节在渲染端取好送过来，主进程弹系统对话框再写盘
+  save: (payload) => ipcRenderer.invoke('chat:save', payload),
   win: {
     min: () => ipcRenderer.send('chat:win', 'min'),
     max: () => ipcRenderer.send('chat:win', 'max'),
