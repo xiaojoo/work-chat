@@ -211,6 +211,24 @@
 
       <footer v-if="currentConversation" class="m-input" :class="{ rzging: rzOn }" @dragover.prevent="isDragging = true" @dragleave.prevent="isDragging = false" @drop.prevent="handleDrop">
         <div v-if="isDragging" class="drop-mask"><div class="drop-ico">📎</div><div>松开鼠标上传文件</div></div>
+        <!-- 待发送附件：选完/粘完/拖进来先落在这条上，点「发送」才真的发出去。
+             文件名不给省略号，让它折行——截断了等于这张卡片没做完 -->
+        <div v-if="pendingFiles.length" class="pend">
+          <div v-for="f in pendingFiles" :key="f.id" class="pc" :class="{ busy: f.sending, err: f.failed }">
+            <img v-if="f.kind === 'IMAGE'" :src="f.url" class="pc-th" alt="" />
+            <span v-else class="pc-ic" aria-hidden="true">
+              <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.7">
+                <path d="M14 3v5h5" /><path d="M6 3h8l5 5v13H6z" />
+              </svg>
+            </span>
+            <span class="pc-tx">
+              <b class="pc-nm">{{ f.name }}</b>
+              <small class="pc-sz">{{ f.sending ? '上传中…' : (f.failed ? '没发出去，再点一次发送重试' : sizeLabel(f.size)) }}</small>
+            </span>
+            <button class="pc-x" type="button" title="移除" :aria-label="'移除 ' + f.name"
+                    @click="dropPending(f.id)">✕</button>
+          </div>
+        </div>
         <div class="rz">
           <span class="rz-grip" role="separator" aria-orientation="horizontal" tabindex="0"
                 title="拖动调整输入框高度，双击复原" @pointerdown="rzStart" @keydown="rzKey" @dblclick="rzSet(AREA_MIN)"></span>
@@ -242,13 +260,17 @@
             </div>
             <button class="tool at" title="提及">@</button>
             <button class="tool ai" title="AI 结果">✦</button>
-            <input ref="imageInput" id="image-upload" type="file" accept="image/*" style="display:none" @change="handleImageUpload" />
-            <input ref="fileInput" id="file-upload" type="file" style="display:none" @change="handleFileUpload" />
+            <input ref="imageInput" id="image-upload" type="file" accept="image/*" multiple style="display:none" @change="handleImageUpload" />
+            <input ref="fileInput" id="file-upload" type="file" multiple style="display:none" @change="handleFileUpload" />
           </div>
           <div class="bar-right">
             <span v-if="!connected" class="bar-warn">连接已断开，正在重连…</span>
             <span v-else-if="!currentConversation" class="bar-warn">选择一个会话后才能发送</span>
-            <button class="send" @click="sendMessage" :disabled="!connected || !currentConversation || !inputMessage.trim()">发送</button>
+            <span v-else-if="pendingFiles.length" class="pend-n">{{ pendingFiles.length }} 个附件待发送</span>
+            <button class="send" @click="sendMessage"
+                    :disabled="!connected || !currentConversation || pendingSending || (!inputMessage.trim() && !pendingFiles.length)">
+              {{ pendingSending ? '发送中…' : '发送' }}<span v-if="pendingFiles.length && !pendingSending" class="snd-n">（{{ (inputMessage.trim() ? 1 : 0) + pendingFiles.length }}）</span>
+            </button>
           </div>
         </div>
       </footer>
@@ -668,6 +690,64 @@ const showEmojiPicker = ref(false)
 const hoveredEmoji = ref(null)
 const isDragging = ref(false)
 
+// ===== 待发送附件：图片/文件先进这条，点「发送」才上传并发出去 =====
+// 原来选完图/粘完图是直接发出去的：误粘一张就进会话了，删都删不回来（撤回有 2 分钟窗口，
+// 而且对方已经看到）。上传也放到点发送之后，取消掉的文件不会在 MinIO 留孤儿对象。
+const pendingFiles = ref([])
+const pendingSending = ref(false)
+let pendingSeq = 0
+
+function stageFile(file) {
+  if (!file || !currentConversation.value) return
+  const kind = String(file.type || '').startsWith('image/') ? 'IMAGE' : 'FILE'
+  const att = {
+    id: ++pendingSeq,
+    kind,
+    name: file.name || (kind === 'IMAGE' ? '图片' : '文件'),
+    size: file.size || 0,
+    file,
+    url: '',
+    sending: false
+  }
+  // 缩略图用本地 objectURL，不上传就取不到服务器地址；发出去或移掉时要 revoke，不然整张图留在内存里
+  if (kind === 'IMAGE') att.url = URL.createObjectURL(file)
+  pendingFiles.value.push(att)
+}
+
+function stageFiles(files) {
+  const list = Array.from(files || [])
+  if (!list.length || !currentConversation.value) return
+  if (!connected.value) { toast('连接已断开，正在重连…先不发文件', 'warning'); return }
+  list.forEach(stageFile)
+}
+
+function dropPending(id) {
+  const i = pendingFiles.value.findIndex(a => a.id === id)
+  if (i < 0) return
+  const [a] = pendingFiles.value.splice(i, 1)
+  if (a.url) URL.revokeObjectURL(a.url)
+}
+
+function clearPending() {
+  for (const a of pendingFiles.value) if (a.url) URL.revokeObjectURL(a.url)
+  pendingFiles.value = []
+}
+
+// 一个一个来：uploadFile 是 REST，多个大文件一起传会把这条链挤满；没发出去的留在条上可重试
+async function flushPendingFiles() {
+  pendingSending.value = true
+  for (const att of [...pendingFiles.value]) {
+    if (att.sending) continue
+    att.sending = true
+    att.failed = false
+    const ok = await sendMediaFile(att.file, att.kind)
+    att.sending = false
+    if (ok) dropPending(att.id)
+    else att.failed = true
+  }
+  pendingSending.value = false
+}
+
 // 原来不是点开的，是 .bar-tools 整条工具栏 mouseenter 开的 —— 鼠标扫过文件/图片/@/AI 任何一个
 // 都会把表情框弹出来，而「表情」那颗按钮自己反而没有 click。现在只认这一颗（连同它的弹框所在的那个容器）。
 function openEmojiPicker() {
@@ -1068,6 +1148,7 @@ onUnmounted(() => {
   msgRO?.disconnect(); msgMO?.disconnect()
   messagesRef.value?.removeEventListener('load', queueMeasure, true)
   if (msgRaf) cancelAnimationFrame(msgRaf)
+  clearPending()   // 没发出去的缩略图也是整张图在内存里，离开页面要还掉
 })
 
 onMounted(async () => {
@@ -1085,7 +1166,7 @@ onMounted(async () => {
   if (window.chatDesktop?.onShotResult) {
     offShotResult = window.chatDesktop.onShotResult(r => {
       if (!r?.ok) toast('截图没送到：' + (r?.error || '未知原因'), 'error')
-      else toast(r.action === 'pin' ? '已钉到屏幕上' : '已复制到剪贴板，去输入框 Ctrl+V 就能发', 'success')
+      else toast(r.action === 'pin' ? '已钉到屏幕上' : '已复制到剪贴板，去输入框 Ctrl+V 贴上，点发送才发出去', 'success')
     })
   }
 
@@ -1264,6 +1345,9 @@ async function loadGroups() {
 async function selectConversation(conv) {
   currentConversation.value = conv
   messages.value = []
+  // 暂存的附件不跨会话：切会话把它清掉。留着的话下一次点发送会静默发到新会话里，
+  // 发错人比丢一张还没发出去的图严重得多（文字草稿可以继续留着，那是他自己打的）
+  clearPending()
   // 抽屉「成员」页签的两个临时态不该跟着换会话留下来：正在勾选移出、正在改群名
   removeMode.value = false
   groupMemberSearchText.value = ''
@@ -1364,9 +1448,17 @@ async function startChatWithGroup(group) {
   try { groupMembers.value = await getGroupMembers(group.id) } catch (e) { /* ignore */ }
 }
 
+// 发送这一步现在做两件事：先发文字，再把暂存的图片/文件按挑的顺序逐个传上去发出去。
+// 回车和点按钮走同一条路，所以暂存的东西不会被"顺手"发出去——只有这一句会被触发。
 function sendMessage() {
-  if (!inputMessage.value.trim() || !currentConversation.value || !connected.value) return
+  if (!currentConversation.value || !connected.value || pendingSending.value) return
+  const hasText = !!inputMessage.value.trim()
+  if (!hasText && !pendingFiles.value.length) return
+  if (hasText) sendTextMessage()
+  if (pendingFiles.value.length) flushPendingFiles()
+}
 
+function sendTextMessage() {
   const content = inputMessage.value.trim()
   const convId = String(currentConversation.value.id)
   const messageId = `local-${Date.now()}`
@@ -1425,56 +1517,32 @@ function insertEmoji(emoji) {
   inputMessage.value += emoji
 }
 
-// 上传图片（转 base64 发送）
+// 图片选择器：只放进待发送条，不直接发
 function handleImageUpload(e) {
-  const file = e.target.files[0]
-  if (!file || !currentConversation.value || !connected.value) return
+  const files = e.target.files
+  if (files && files.length) stageFiles(files)
   e.target.value = ''
-  sendImageFile(file)
 }
 
-// 拖拽上传
+// 拖进来的：图片和文件混着来都行，各自按类型落条
 function handleDrop(e) {
   isDragging.value = false
-  const files = e.dataTransfer?.files
-  if (!files || files.length === 0 || !currentConversation.value || !connected.value) return
-
-  for (const file of files) {
-    if (file.type.startsWith('image/')) {
-      sendImageFile(file)
-    } else {
-      sendFile(file)
-    }
-  }
+  stageFiles(e.dataTransfer?.files)
 }
 
-// 粘贴上传（截图 / 复制图片直接粘贴发送）
+// 粘贴：剪贴板里有文件（截图、复制的图片、复制的文件）就走附件条；纯文字照旧进输入框
 function handlePaste(e) {
   const items = e.clipboardData?.items
-  if (!items || items.length === 0 || !currentConversation.value || !connected.value) return
-
-  // 查找剪贴板中的图片
-  let imageFile = null
-  let regularFile = null
+  if (!items || items.length === 0) return
+  const files = []
   for (const item of items) {
-    if (item.kind === 'file') {
-      const file = item.getAsFile()
-      if (!file) continue
-      if (file.type.startsWith('image/') && !imageFile) {
-        imageFile = file
-      } else if (!regularFile) {
-        regularFile = file
-      }
-    }
+    if (item.kind !== 'file') continue
+    const f = item.getAsFile()
+    if (f) files.push(f)
   }
-
-  if (imageFile) {
-    e.preventDefault()
-    sendImageFile(imageFile)
-  } else if (regularFile) {
-    e.preventDefault()
-    sendFile(regularFile)
-  }
+  if (!files.length) return
+  e.preventDefault()
+  stageFiles(files)
 }
 
 // 图片/文件：先 REST 上传拿对象键，WS 帧里只放 JSON 引用
@@ -1539,7 +1607,7 @@ async function downloadFile(msg) {
 }
 
 async function sendMediaFile(file, type) {
-  if (!currentConversation.value || !connected.value) return
+  if (!currentConversation.value || !connected.value) return false
   const convId = String(currentConversation.value.id)
   let info
   try {
@@ -1547,7 +1615,7 @@ async function sendMediaFile(file, type) {
   } catch (e) {
     const why = e?.response?.status === 413 ? '文件超过 20MB' : (e?.message || '上传失败')
     toast(`发送失败：${why}`, 'error')
-    return
+    return false
   }
   const payload = JSON.stringify({
     fileId: info.fileId, name: info.name, size: info.size, contentType: info.contentType
@@ -1569,22 +1637,14 @@ async function sendMediaFile(file, type) {
   const conv = conversations.value.find(c => String(c.id) === convId)
   if (conv) { conv.lastMessage = previewOf(payload); conv.lastMessageTime = Date.now() }
   scrollToBottom()
+  return sent
 }
 
-function sendImageFile(file) {
-  sendMediaFile(file, 'IMAGE')
-}
-
-// 上传文件（转 base64 发送）
+// 文件选择器：跟图片一样只进待发送条
 function handleFileUpload(e) {
-  const file = e.target.files[0]
-  if (!file || !currentConversation.value || !connected.value) return
+  const files = e.target.files
+  if (files && files.length) stageFiles(files)
   e.target.value = ''
-  sendFile(file)
-}
-
-function sendFile(file) {
-  sendMediaFile(file, 'FILE')
 }
 
 // 消息操作菜单
@@ -3860,6 +3920,30 @@ watch(imgView, v => {
 
 /* ---- 输入区 ---- */
 .m-input { position: relative; border-top: 1px solid var(--nb-line); background: #fff; padding: 10px 16px 12px; }
+/* 待发送附件条：横向卡片流，和选人弹框那两块一个做法；只在里面滚，外层不滚。
+   文件名折行不截断——截了等于这张卡片没做完，而且这是要发出去的东西，看不全就不该点发送 */
+.pend {
+  display: flex; flex-wrap: wrap; gap: 6px; max-height: 132px; overflow-y: auto;
+  margin-bottom: 8px; padding-bottom: 8px; border-bottom: 1px solid var(--nb-line);
+}
+.pc {
+  display: grid; grid-template-columns: auto auto minmax(0, 1fr) auto; align-items: center; gap: 8px;
+  max-width: 260px; padding: 5px 6px; border: 1px solid var(--nb-line); border-radius: 10px; background: var(--nb-bg-1);
+}
+.pc-th { width: 38px; height: 38px; border-radius: 8px; object-fit: cover; }
+.pc-ic { display: grid; place-items: center; width: 38px; height: 38px; border-radius: 8px;
+  background: var(--nb-bg-3); color: var(--brand); }
+.pc-tx { display: flex; flex-direction: column; gap: 1px; min-width: 0; }
+.pc-nm { font-size: 12.5px; font-weight: 600; line-height: 15px; color: var(--nb-text); word-break: break-all }
+.pc-sz { font-size: 11px; line-height: 14px; color: var(--nb-dim) }
+.pc.busy { border-color: var(--brand-line) }
+.pc.err { border-color: var(--danger) }
+/* ✕ 一直看得见：hover 才出现的角标，看不见的时候也就点不着；这里只换颜色不动尺寸 */
+.pc-x { width: 20px; height: 20px; flex: none; border: 0; border-radius: 6px; background: none;
+  color: var(--nb-dim-2); font-size: 11px; line-height: 20px; text-align: center; cursor: pointer; transition: background .12s, color .12s }
+.pc-x:hover { background: var(--nb-bg-3); color: var(--danger) }
+.pend-n { font-size: 12px; color: var(--nb-dim) }
+.snd-n { font-size: 12px; font-weight: 400 }
 .drop-mask {
   position: absolute; inset: 0; z-index: 2; display: grid; place-content: center; justify-items: center; gap: 6px;
   background: rgba(43, 107, 232, .08); border: 1px dashed var(--brand-line); color: var(--brand);
