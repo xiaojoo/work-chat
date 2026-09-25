@@ -43,8 +43,8 @@
         </aside>
 
         <!-- 右：已选（和创建群聊同一个面板）；群聊页签再多一块候选面板；最下面是欢迎消息 -->
-        <div class="side">
-          <PickPanel :picked="picked" :class="{ fill: tab === 'org' }" @remove="toggle" @clear="picked = []" />
+        <div class="side" :class="{ two: tab === 'group' }">
+          <PickPanel :picked="picked" @remove="toggle" @clear="picked = []" />
 
           <div v-if="tab === 'group'" class="pane">
             <div class="pane-hd">候选成员 <b>{{ candidates.length }}</b> 人</div>
@@ -186,9 +186,13 @@ function submit() {
 .x { border: 0; background: none; color: var(--nb-dim); font-size: 14px; cursor: pointer; padding: 4px 6px; border-radius: 8px; }
 .x:hover { background: var(--nb-bg-3); color: var(--nb-text); }
 .tabs { display: flex; gap: 4px; padding: 10px 18px 0; border-bottom: 1px solid var(--nb-line); }
-.tab { padding: 8px 12px 10px; font: inherit; font-size: 13.5px; color: var(--nb-dim); background: none; border: 0; border-bottom: 2px solid transparent; cursor: pointer; }
+/* 下划线只画在文字那一段上：按钮左右各有 12px 内边距，用 ::after 卡在这两段内边距之间，
+   宽度就等于文字宽（原来整条 border-bottom 会把那 24px 也涂进去）。
+   2px 的透明边框留着撑高度，不然换画法会让页签条矮 2px */
+.tab { position: relative; padding: 8px 12px 10px; font: inherit; font-size: 13.5px; color: var(--nb-dim); background: none; border: 0; border-bottom: 2px solid transparent; cursor: pointer; }
 .tab:hover { color: var(--nb-text); }
-.tab.on { color: var(--brand); font-weight: 600; border-bottom-color: var(--brand); }
+.tab.on { color: var(--brand); font-weight: 600; }
+.tab.on::after { content: ""; position: absolute; left: 12px; right: 12px; bottom: -2px; height: 2px; background: var(--brand); }
 
 .bar { display: flex; gap: 9px; padding: 12px 18px 0; }
 .grow { flex: 1; min-width: 0; }
@@ -214,18 +218,25 @@ function submit() {
 .nd-tx { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .nd-n { font-size: 11.5px; color: var(--nb-dim); }
 
-.side { display: flex; flex-direction: column; gap: 9px; min-width: 0; min-height: 0; }
+/* 右栏两块面板各占等高的一份：谁的内容多都撑不动对方。
+   原来「已选择」是按人数长高的，勾满 4 个人就把候选面板压到只剩一条 */
+.side { display: grid; grid-template-rows: minmax(0, 1fr) auto auto; gap: 9px; min-width: 0; min-height: 0; }
+.side.two { grid-template-rows: minmax(0, 1fr) minmax(0, 1fr) auto auto; }
 .lnk { border: 0; background: none; padding: 0; font: inherit; font-size: 12.5px; color: var(--brand); cursor: pointer; }
 
-.list { flex: 1; min-height: 60px; overflow-y: auto; }
+/* 候选成员：横向卡片流，一行放得下几张就放几张，放不下自动换行，超出只在面板内滚 */
+.list { flex: 1; min-height: 0; overflow-y: auto; padding: 6px; display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(158px, 1fr)); grid-auto-rows: max-content; gap: 6px; align-content: start; }
 /* 面板外壳和 MemberTree / PickPanel 同一套：边框、圆角、表头 */
-.pane { display: flex; flex-direction: column; flex: 1; min-height: 0; border: 1px solid var(--nb-line); border-radius: 10px; background: var(--nb-bg-2); }
+.pane { display: flex; flex-direction: column; min-height: 0; border: 1px solid var(--nb-line); border-radius: 10px; background: var(--nb-bg-2); }
 .pane-hd { padding: 8px 9px; font-size: 12.5px; color: var(--nb-text); border-bottom: 1px solid var(--nb-line); }
 .pane-hd b { color: var(--brand); }
-.fill { flex: 1; }
-.mrow { display: grid; grid-template-columns: 18px 30px minmax(0, 1fr); gap: 9px; align-items: center; width: 100%; padding: 8px 11px; text-align: left; font: inherit; background: none; border: 0; border-bottom: 1px solid var(--nb-line); color: var(--nb-text); cursor: pointer; }
-.mrow:last-child { border-bottom: 0; }
-.mrow:hover { background: var(--nb-bg-3); }
+.mrow { display: grid; grid-template-columns: 18px 30px minmax(0, 1fr); gap: 9px; align-items: center;
+  min-width: 0; padding: 7px 8px; text-align: left; font: inherit; color: var(--nb-text);
+  background: var(--nb-bg-3); border: 0; border-radius: 8px; cursor: pointer; }
+.mrow:hover { background: var(--brand-soft); }
+/* 选中态用 outline（不占布局），不会像加 border 那样让卡片跳 1px */
+.mrow[aria-pressed="true"] { background: var(--brand-soft); outline: 1px solid var(--brand-line); outline-offset: -1px; }
 .cb { display: grid; place-items: center; width: 16px; height: 16px; font-size: 11px; color: #fff; border: 1.5px solid var(--nb-line); border-radius: 5px; background: var(--nb-bg-1); }
 .cb.on { background: var(--brand); border-color: var(--brand); }
 .av { position: relative; display: grid; place-items: center; width: 28px; height: 28px; font-size: 12px; font-weight: 600; color: var(--brand-strong); background: var(--brand-soft); border-radius: 50%; }
@@ -235,7 +246,7 @@ function submit() {
 .mcol small { display: block; font-size: 11.5px; color: var(--nb-dim); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
 .welcome { display: inline-flex; align-items: center; gap: 7px; padding: 0; font: inherit; font-size: 12.5px; color: var(--nb-text); background: none; border: 0; cursor: pointer; }
-.empty { margin: 0; padding: 14px; font-size: 12.5px; color: var(--nb-dim); text-align: center; }
+.empty { grid-column: 1 / -1; margin: 0; padding: 14px; font-size: 12.5px; color: var(--nb-dim); text-align: center; }
 
 .shell { flex: 1; padding: 20px 18px; display: flex; flex-direction: column; gap: 10px; }
 .shell h3 { margin: 0; font-size: 14.5px; color: var(--nb-text); }

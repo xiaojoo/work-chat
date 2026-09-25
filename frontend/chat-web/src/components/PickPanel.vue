@@ -32,12 +32,16 @@ const initial = (m) => String(m.nickname || m.username || '?').charAt(0).toUpper
 .pp-t { font-size: 12.5px; color: var(--nb-text); }
 .pp-t b { color: var(--brand); }
 .lnk { border: 0; background: none; padding: 0; font: inherit; font-size: 12.5px; color: var(--brand); cursor: pointer; }
-.pp-body { flex: 1; min-height: 0; overflow-y: auto; padding: 4px; }
-.prow { display: grid; grid-template-columns: 24px minmax(0, 1fr) auto; gap: 7px; align-items: center; padding: 5px 6px; border-radius: 8px; }
-.prow:hover { background: var(--nb-bg-3); }
+/* 已选也改成横向卡片流：一行放得下几张放几张，容器高度由外面那栏定死，超出只在这里面滚。
+   原来是一行一个人的长列表，人数一多整块面板跟着长高，把下面的候选面板压扁 */
+.pp-body { flex: 1; min-height: 0; overflow-y: auto; padding: 6px; display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(126px, 1fr)); grid-auto-rows: max-content; gap: 6px; align-content: start; }
+.prow { display: grid; grid-template-columns: 24px minmax(0, 1fr) auto; gap: 6px; align-items: center;
+  min-width: 0; padding: 6px 7px; border-radius: 8px; background: var(--nb-bg-3); }
+.prow:hover { background: var(--brand-soft); }
 .av { display: grid; place-items: center; width: 24px; height: 24px; font-size: 11.5px; font-weight: 600; color: var(--brand-strong); background: var(--brand-soft); border-radius: 50%; }
 .nm { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 13px; color: var(--nb-text); }
 .rm { border: 0; background: none; padding: 0; font-size: 11px; color: var(--nb-dim); cursor: pointer; }
 .rm:hover { color: var(--danger, #d92d20); }
-.empty { margin: 0; padding: 14px; font-size: 12.5px; color: var(--nb-dim); text-align: center; }
+.empty { grid-column: 1 / -1; margin: 0; padding: 14px; font-size: 12.5px; color: var(--nb-dim); text-align: center; }
 </style>
