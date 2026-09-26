@@ -128,7 +128,6 @@
             <!-- 分类原来是左侧那一栏，改成表格顶上一条横 tab；选中态的色板沿用原来那颗，
                  只换排列轴，不换视觉语言 -->
             <div class="tabs">
-              <p class="tabs-cap">{{ section === 'docs' ? '文档分类' : section === 'materials' ? '素材分类' : '知识库' }}</p>
               <button v-for="g in sideGroups" :key="g" type="button" class="tab" :class="{ on: sideGroup === g }" @click="sideGroup = g">{{ g }}</button>
             </div>
             <div class="tbl-hd">
@@ -455,7 +454,6 @@ td em { margin-left: 7px; font-size: 11.5px; font-style: normal; color: var(--nb
 
 /* 分类条：从左侧那一栏搬到表格顶上。选中态的底色/字色用的是原来那同一组 token，只换排列轴 */
 .tabs { display: flex; align-items: center; gap: 6px; padding: 8px 12px; border-bottom: 1px solid var(--nb-line); }
-.tabs-cap { margin: 0 4px 0 0; font-size: 11.5px; color: var(--nb-dim); }
 .tab { flex: none; padding: 7px 9px; font: inherit; font-size: 12.5px; color: var(--nb-text); background: none; border: 0;
   border-radius: 8px; cursor: pointer; transition: background-color .12s ease, color .12s ease; }
 .tab:hover { background: var(--nb-bg-3); }
