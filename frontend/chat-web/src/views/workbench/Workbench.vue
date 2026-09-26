@@ -124,32 +124,32 @@
 
         <!-- 文档 / 素材 / 知识库：同一张列表骨架，换数据源 -->
         <section v-else-if="['docs', 'materials', 'knowledge'].includes(section)" class="sec">
-          <div class="split2">
-            <aside class="card side">
-              <p class="side-cap">{{ section === 'docs' ? '产品官网' : section === 'materials' ? '素材分类' : '知识库' }}</p>
-              <button v-for="g in sideGroups" :key="g" type="button" class="side-i" :class="{ on: sideGroup === g }" @click="sideGroup = g">{{ g }}</button>
-            </aside>
-            <div class="card tbl">
-              <div class="tbl-hd">
-                <input v-model="q" class="search" type="text" :placeholder="section === 'docs' ? '搜索文档名称或负责人' : '搜索名称'" />
-                <button type="button" class="btn" disabled :title="DEMO_NOTE">{{ section === 'docs' ? '新建文档' : '上传' }}</button>
-              </div>
-              <table>
-                <thead>
-                  <tr><th>名称</th><th class="c-st">{{ section === 'knowledge' ? '分类' : '类型' }}</th><th class="c-st">大小</th><th class="c-due">修改时间</th><th class="c-who">负责人</th></tr>
-                </thead>
-                <tbody>
-                  <tr v-for="r in shownRows" :key="r.name" @click="openDoc(r)">
-                    <td class="t-name">{{ r.name }}</td>
-                    <td>{{ r.type || r.tag }}</td>
-                    <td>{{ r.size || '—' }}</td>
-                    <td class="t-due">{{ r.at }}</td>
-                    <td>{{ r.owner }}</td>
-                  </tr>
-                </tbody>
-              </table>
-              <p v-if="!shownRows.length" class="empty">没有匹配项</p>
+          <div class="card tbl">
+            <!-- 分类原来是左侧那一栏，改成表格顶上一条横 tab；选中态的色板沿用原来那颗，
+                 只换排列轴，不换视觉语言 -->
+            <div class="tabs">
+              <p class="tabs-cap">{{ section === 'docs' ? '产品官网' : section === 'materials' ? '素材分类' : '知识库' }}</p>
+              <button v-for="g in sideGroups" :key="g" type="button" class="tab" :class="{ on: sideGroup === g }" @click="sideGroup = g">{{ g }}</button>
             </div>
+            <div class="tbl-hd">
+              <input v-model="q" class="search" type="text" :placeholder="section === 'docs' ? '搜索文档名称或负责人' : '搜索名称'" />
+              <button type="button" class="btn" disabled :title="DEMO_NOTE">{{ section === 'docs' ? '新建文档' : '上传' }}</button>
+            </div>
+            <table>
+              <thead>
+                <tr><th>名称</th><th class="c-st">{{ section === 'knowledge' ? '分类' : '类型' }}</th><th class="c-st">大小</th><th class="c-due">修改时间</th><th class="c-who">负责人</th></tr>
+              </thead>
+              <tbody>
+                <tr v-for="r in shownRows" :key="r.name" @click="openDoc(r)">
+                  <td class="t-name">{{ r.name }}</td>
+                  <td>{{ r.type || r.tag }}</td>
+                  <td>{{ r.size || '—' }}</td>
+                  <td class="t-due">{{ r.at }}</td>
+                  <td>{{ r.owner }}</td>
+                </tr>
+              </tbody>
+            </table>
+            <p v-if="!shownRows.length" class="empty">没有匹配项</p>
           </div>
         </section>
 
@@ -452,12 +452,13 @@ watch(section, () => { drawer.value = null; q.value = ''; sideGroup.value = '全
 td em { margin-left: 7px; font-size: 11.5px; font-style: normal; color: var(--nb-dim); }
 .empty { margin: 0; padding: 18px; font-size: 12.5px; color: var(--nb-dim); text-align: center; }
 
-.split2 { display: grid; grid-template-columns: 184px minmax(0, 1fr); gap: 12px; align-items: start; }
-.side { padding: 8px; }
-.side-cap { margin: 6px 8px; font-size: 11.5px; color: var(--nb-dim); }
-.side-i { display: block; width: 100%; padding: 7px 9px; font: inherit; font-size: 12.5px; text-align: left; color: var(--nb-text); background: none; border: 0; border-radius: 8px; cursor: pointer; }
-.side-i:hover { background: var(--nb-bg-3); }
-.side-i.on { background: var(--brand-soft); color: var(--brand-strong); font-weight: 600; }
+/* 分类条：从左侧那一栏搬到表格顶上。选中态的底色/字色用的是原来那同一组 token，只换排列轴 */
+.tabs { display: flex; align-items: center; gap: 6px; padding: 8px 12px; border-bottom: 1px solid var(--nb-line); }
+.tabs-cap { margin: 0 4px 0 0; font-size: 11.5px; color: var(--nb-dim); }
+.tab { flex: none; padding: 7px 9px; font: inherit; font-size: 12.5px; color: var(--nb-text); background: none; border: 0;
+  border-radius: 8px; cursor: pointer; transition: background-color .12s ease, color .12s ease; }
+.tab:hover { background: var(--nb-bg-3); }
+.tab.on { background: var(--brand-soft); color: var(--brand-strong); font-weight: 600; }
 .tbl-hd { display: flex; gap: 9px; align-items: center; padding: 10px 12px; border-bottom: 1px solid var(--nb-line); }
 .search { flex: 1; padding: 7px 10px; font: inherit; font-size: 12.5px; color: var(--nb-text); background: var(--nb-bg-2); border: 1px solid var(--nb-line); border-radius: 9px; outline: none; }
 .search:focus { border-color: var(--brand); }
