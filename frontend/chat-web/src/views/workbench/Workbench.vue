@@ -406,10 +406,19 @@ watch(section, () => { drawer.value = null; q.value = ''; sideGroup.value = '全
 <style scoped>
 .wb { display: grid; grid-template-columns: 208px minmax(0, 1fr); height: 100vh; background: var(--nb-bg-0); color: var(--nb-text);
   /* 顶部两条栏共用的高与共用那片渐变。--wb-bar = 页头条量出来的现值（内容 42 + 上下内距 28 + 下边框 1）；
-     渐变的竖向停靠点写成视口像素（36/92/107）是因为两层都挂 background-attachment: fixed，
+     渐变的竖向停靠点写成视口像素（36/58/92/107）是因为四层都挂 background-attachment: fixed，
      坐标原点在整个窗口上 —— 这样页头条和抽屉头是同一场光的两扇窗，不会在列边界处各起一次 */
   --wb-bar: 71px;
-  --wb-wash: linear-gradient(180deg, rgba(240, 244, 251, 0) 36px, rgba(240, 244, 251, .92) 92px, #f0f4fb 107px),
+  /* 四层，从上往下叠：① 顶边整条钉在他点名的 #e1e5ec，往下 22px 化开；
+     ② 三条发丝弧线（圆心放在视口下方 1400px 处，所以只有右半截落在这条栏里，是缓弧不是圆）。
+     弧线用品牌蓝低透明度而不是白：白线压在栏底浅色那头只有 Δ6，看不出是线；品牌蓝这头在深蓝端和浅白端
+     都能到 Δ14 上下，一条线的粗细感全程一致。
+     ③ 竖向白纱（顶透 → 底 #F0F4FB）；④ 横向蓝坡，最右端 #A9CDFA */
+  --wb-wash: linear-gradient(180deg, #e1e5ec 36px, rgba(225, 229, 236, 0) 58px),
+    radial-gradient(circle 1400px at 1000px 1400px, rgba(255, 255, 255, 0) 0 1316px, rgba(43, 107, 232, .17) 1316px 1318px,
+      rgba(255, 255, 255, 0) 1318px 1346px, rgba(43, 107, 232, .15) 1346px 1348px,
+      rgba(255, 255, 255, 0) 1348px 1376px, rgba(43, 107, 232, .12) 1376px 1378px, rgba(255, 255, 255, 0) 1378px),
+    linear-gradient(180deg, rgba(240, 244, 251, 0) 36px, rgba(240, 244, 251, .92) 92px, #f0f4fb 107px),
     linear-gradient(90deg, #eef4fb 0%, #dfeafb 20%, #a9cdfa 82%); }
 .wb:has(.dw) { grid-template-columns: 208px minmax(0, 1fr) 320px; }
 
