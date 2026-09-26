@@ -140,6 +140,73 @@ function placeFile(dir, name, buf) {
   }
 }
 
+// 没有默认应用时的兜底：这么小的文件交记事本，超了就不开（他给的分界是 200KB）
+const NOTEPAD_MAX = 200 * 1024
+function openWithNotepad(file) {
+  const exe = path.join(process.env.SystemRoot || 'C:\\Windows', 'System32', 'notepad.exe')
+  if (!fs.existsSync(exe)) return false
+  spawn(exe, [file], { detached: true, stdio: 'ignore' }).unref()
+  return true
+}
+
+// 落好盘之后统一走这一步：可执行不启动 → 有默认应用交系统 → 没默认应用按大小兜底
+async function deliver(target, dir, size) {
+  const ext = path.extname(target).slice(1).toLowerCase()
+  // 可执行/脚本类只落文件、不启动：那等于替别人在他机器上跑代码
+  if (EXEC_EXT.has(ext)) {
+    log(`refused to open ${target} (${ext})`)
+    return { ok: true, path: target, dir, size, opened: false, how: 'refused' }
+  }
+  if (hasDefaultHandler(target)) {
+    const err = await shell.openPath(target)
+    log(`open-file ${target} (${size} bytes) 有默认应用 → ${err || 'ok'}`)
+    return err
+      ? { ok: false, path: target, dir, size, opened: false, how: 'default', error: err }
+      : { ok: true, path: target, dir, size, opened: true, how: 'default' }
+  }
+  if (size <= NOTEPAD_MAX && openWithNotepad(target)) {
+    log(`open-file ${target} (${size} bytes) 无默认应用 → 记事本`)
+    return { ok: true, path: target, dir, size, opened: true, how: 'notepad' }
+  }
+  log(`open-file ${target} (${size} bytes) 无默认应用且过大 → 只落文件`)
+  return { ok: true, path: target, dir, size, opened: false, how: 'saved-only' }
+}
+
+// 「这条已经存过了吗」按 fileId 记一张索引，不按名字+大小猜：
+// 同名同大小但内容改过的那份会被猜成旧的，而 fileId 就是这条文件的身份。
+// 索引里那条还得在磁盘上真的在、大小也对得上，才算数（他可能自己把文件删了）。
+function recvIndexFile() { return path.join(app.getPath('userData'), 'recv-index.json') }
+function readRecvIndex() {
+  try {
+    const o = JSON.parse(fs.readFileSync(recvIndexFile(), 'utf8'))
+    return o && typeof o === 'object' ? o : {}
+  } catch (e) {
+    return {}
+  }
+}
+function savedPathFor(fileId, size) {
+  const rec = readRecvIndex()[String(fileId)]
+  if (!rec || !rec.path) return ''
+  try {
+    const st = fs.statSync(rec.path)
+    if (!st.isFile()) return ''
+    if (Number(size) > 0 && st.size !== Number(size)) return ''
+    return rec.path
+  } catch (e) {
+    return ''
+  }
+}
+function rememberSaved(fileId, size, p) {
+  if (!fileId) return
+  const idx = readRecvIndex()
+  idx[String(fileId)] = { path: p, size: Number(size) || 0, at: Date.now() }
+  try {
+    fs.writeFileSync(recvIndexFile(), JSON.stringify(idx))
+  } catch (e) {
+    log(`recv-index 写不下：${e.message}`)
+  }
+}
+
 // 没有现成图标文件，按 32x32 直接画一个：实心圆 + 一道斜环
 function makeIcon() {
   const size = 32
@@ -568,15 +635,6 @@ if (!app.requestSingleInstanceLock()) {
       }
     })
 
-    // 没有默认应用时的兜底：这么小的文件交记事本，超了就不开（他给的分界是 200KB）
-    const NOTEPAD_MAX = 200 * 1024
-    function openWithNotepad(file) {
-      const exe = path.join(process.env.SystemRoot || 'C:\\Windows', 'System32', 'notepad.exe')
-      if (!fs.existsSync(exe)) return false
-      spawn(exe, [file], { detached: true, stdio: 'ignore' }).unref()
-      return true
-    }
-
     // 「文档路径」这条：读、挑、存。挑目录的对话框只有主进程弹得出来
     ipcMain.handle('chat:paths', () => ({ ok: true, dir: recvDir(), def: defaultRecvDir() }))
     ipcMain.handle('chat:set-recv-dir', (event, dir) => setRecvDir(dir))
@@ -594,9 +652,17 @@ if (!app.requestSingleInstanceLock()) {
 
     // 「存到文档路径 + 用系统默认应用打开」：渲染端在沙箱里既拿不到那个目录，
     // 也没权限启动外部程序，所以字节送过来，主进程落盘再交给 shell.openPath。
-    ipcMain.handle('chat:open-file', async (event, { name, bytes }) => {
-      const buf = Buffer.from(bytes || new Uint8Array())
+    // 先不带字节问一次：这条 fileId 已经存过就直接开，省掉那趟下载；没存过回 { need: true }，
+    // 渲染端再去取字节发第二趟
+    ipcMain.handle('chat:open-file', async (event, { name, size, fileId, bytes }) => {
       const dir = recvDir()
+      const known = fileId ? savedPathFor(fileId, size) : ''
+      if (known) {
+        log(`open-file 复用已存的 ${known}（fileId ${fileId}）`)
+        return { ...(await deliver(known, dir, fs.statSync(known).size)), existed: true }
+      }
+      if (!bytes) return { ok: true, need: true, dir }
+      const buf = Buffer.from(bytes)
       let target
       try {
         target = placeFile(dir, safeName(name), buf)
@@ -604,24 +670,8 @@ if (!app.requestSingleInstanceLock()) {
         log(`open-file write failed: ${e.message}`)
         return { ok: false, error: String(e.message || e) }
       }
-      const ext = path.extname(target).slice(1).toLowerCase()
-      // 可执行/脚本类只落文件、不启动：那等于替别人在他机器上跑代码
-      if (EXEC_EXT.has(ext)) {
-        log(`refused to open ${target} (${ext})`)
-        return { ok: true, path: target, dir, size: buf.length, opened: false, how: 'refused' }
-      }
-      if (hasDefaultHandler(target)) {
-        const err = await shell.openPath(target)
-        log(`open-file ${target} (${buf.length} bytes) 有默认应用 → ${err || 'ok'}`)
-        if (!err) return { ok: true, path: target, dir, size: buf.length, opened: true, how: 'default' }
-        return { ok: false, path: target, dir, size: buf.length, opened: false, how: 'default', error: err }
-      }
-      if (buf.length <= NOTEPAD_MAX && openWithNotepad(target)) {
-        log(`open-file ${target} (${buf.length} bytes) 无默认应用 → 记事本`)
-        return { ok: true, path: target, dir, size: buf.length, opened: true, how: 'notepad' }
-      }
-      log(`open-file ${target} (${buf.length} bytes) 无默认应用且过大 → 只落文件`)
-      return { ok: true, path: target, dir, size: buf.length, opened: false, how: 'saved-only' }
+      rememberSaved(fileId, buf.length, target)
+      return { ...(await deliver(target, dir, buf.length)), existed: false }
     })
 
     // 截图：主窗口只能"发起"，抓屏/遮罩窗/剪贴板都在上面那几个函数里

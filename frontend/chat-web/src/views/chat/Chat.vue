@@ -298,6 +298,10 @@
             <span v-if="!connected" class="bar-warn">连接已断开，正在重连…</span>
             <span v-else-if="!currentConversation" class="bar-warn">选择一个会话后才能发送</span>
             <span v-else-if="pendingFiles.length" class="pend-n">{{ pendingFiles.length }} 个附件待发送</span>
+            <!-- 字数一直占着那条位子（隐藏不显示是 visibility，不是 v-if）：
+                 它一出现就把「发送」往左推的话，打字时按钮会跳 -->
+            <span class="bar-cnt" :class="{ show: !!inputMessage.length, over: inputMessage.length > TEXT_FILE_MIN }"
+                  aria-hidden="true">{{ inputMessage.length }} 字{{ inputMessage.length > TEXT_FILE_MIN ? ' · 将以 txt 发送' : '' }}</span>
             <button class="send" @click="sendMessage"
                     :disabled="!connected || !currentConversation || pendingSending || (!inputMessage.trim() && !pendingFiles.length)">
               {{ pendingSending ? '发送中…' : '发送' }}<span v-if="pendingFiles.length && !pendingSending" class="snd-n">（{{ (inputMessage.trim() ? 1 : 0) + pendingFiles.length }}）</span>
@@ -1604,12 +1608,36 @@ async function startChatWithGroup(group) {
 
 // 发送这一步现在做两件事：先发文字，再把暂存的图片/文件按挑的顺序逐个传上去发出去。
 // 回车和点按钮走同一条路，所以暂存的东西不会被"顺手"发出去——只有这一句会被触发。
-function sendMessage() {
+// 文字超过 1000 字不再当普通消息发，转成一张 txt 走文件那条路（他给的分界）。
+const TEXT_FILE_MIN = 1000
+async function sendMessage() {
   if (!currentConversation.value || !connected.value || pendingSending.value) return
-  const hasText = !!inputMessage.value.trim()
-  if (!hasText && !pendingFiles.value.length) return
-  if (hasText) sendTextMessage()
+  const text = inputMessage.value.trim()
+  if (!text && !pendingFiles.value.length) return
+  if (text && text.length > TEXT_FILE_MIN) {
+    // 先等这张 txt 发完再冲暂存附件：两件事抢同一个"发送中"标记会把按钮提前放开
+    pendingSending.value = true
+    await sendLongTextAsFile(text)
+    pendingSending.value = false
+  } else if (text) sendTextMessage()
   if (pendingFiles.value.length) flushPendingFiles()
+}
+
+function stampNow() {
+  const d = new Date()
+  const p = (n) => String(n).padStart(2, '0')
+  return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())} ${p(d.getHours())}${p(d.getMinutes())}`
+}
+
+// 长文本转成 txt 发出去：走的就是"上传→发 FILE 消息"那条现成的路，
+// 所以对方收到的、右键能另存的，都跟一张真文件片一模一样
+async function sendLongTextAsFile(text) {
+  const name = `长文本 ${stampNow()} (${text.length}字).txt`
+  inputMessage.value = ''
+  pendingQuote.value = null
+  closeMention()
+  const file = new File([text], name, { type: 'text/plain;charset=utf-8' })
+  if (await sendMediaFile(file, 'FILE')) toast(`超过 ${TEXT_FILE_MIN} 字，已发成 txt 文件`, 'success')
 }
 
 function sendTextMessage() {
@@ -3088,13 +3116,16 @@ async function refBytes(r) {
   const url = r.dataUrl || await fileObjectUrl(r.fileId)
   return new Uint8Array(await (await fetch(url)).arrayBuffer())
 }
-// 落到「下载」文件夹 + 交系统默认应用打开；写盘、查关联、兜底都在主进程，这边只报它做了什么
+// 落到「文档路径」那个目录 + 交系统默认应用打开；写盘、查关联、兜底都在主进程，这边只报它做了什么。
+// 第一趟不带字节：主进程按 fileId 认得出"这条已经存过了"，那就直接开，那趟下载整个省掉
 let openingFile = false
 async function openWithApp(r) {
   if (!r || openingFile) return
   openingFile = true
   try {
-    const res = await window.chatDesktop.openFile({ name: r.name || '文件', bytes: await refBytes(r) })
+    const ask = { name: r.name || '文件', size: Number(r.size) || 0, fileId: r.fileId || '' }
+    let res = await window.chatDesktop.openFile(ask)
+    if (res?.need) res = await window.chatDesktop.openFile({ ...ask, bytes: await refBytes(r) })
     if (!res?.ok) { toast('打开失败：' + (res?.error || '未知错误'), 'error'); return }
     const byHow = {
       default: '正在用默认应用打开',
@@ -3102,7 +3133,7 @@ async function openWithApp(r) {
       'saved-only': '没有默认应用且超过 200KB，没有打开',
       refused: '是可直接运行的文件，没有运行'
     }
-    toast(`${r.name} 已存到 ${res.dir}，${byHow[res.how] || '已打开'}`, 'success')
+    toast(`${r.name} ${res.existed ? `已在 ${res.dir}，` : `已存到 ${res.dir}，`}${byHow[res.how] || '已打开'}`, 'success')
   } catch (e) {
     toast('打开失败：' + (e?.message || e), 'error')
   } finally {
@@ -4420,6 +4451,11 @@ async function openWithApp(r) {
 .emoji-cell:hover { background: var(--brand-soft); }
 .emoji-hint { margin-top: 4px; padding-top: 6px; border-top: 1px solid var(--nb-line); font-size: 11px; color: var(--nb-dim); }
 .bar-right { display: flex; align-items: center; gap: 10px; }
+/* 字数槽常驻、只切 visibility，宽度按最长那一档（4 位数 + "· 将以 txt 发送"）量出来定死，
+   所以打字过程中「发送」那颗不会左右跳 */
+.bar-cnt { visibility: hidden; flex: none; min-width: 158px; text-align: right; font-size: 12px; color: var(--nb-dim); }
+.bar-cnt.show { visibility: visible }
+.bar-cnt.over { color: var(--warn) }
 .bar-warn { font-size: 12px; color: var(--warn); }
 .send {
   height: 30px; min-width: 78px; padding: 0 16px; border: 0; border-radius: 7px;
