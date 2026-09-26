@@ -4160,9 +4160,10 @@ async function openWithApp(r) {
   display: flex; flex-direction: column;
 }
 .side-head { display: flex; align-items: flex-start; padding: 14px 14px 10px; }
-.side-title { flex: 1; min-width: 0; }
+/* 标题和计数同一行、按基线对齐（16px 的标题和 12px 的计数顶对齐会显得计数往下掉） */
+.side-title { flex: 1; min-width: 0; display: flex; align-items: baseline; gap: 8px; }
 .side-title > span:first-child { font-size: 16px; font-weight: 600; color: var(--nb-text); }
-.side-meta { display: block; margin-top: 2px; font-size: 12px; color: var(--nb-dim); }
+.side-meta { margin-top: 0; font-size: 12px; color: var(--nb-dim); }
 .side-acts { display: flex; gap: 6px; }
 .side-act {
   width: 26px; height: 26px; border: 1px solid var(--nb-line); border-radius: 6px;
