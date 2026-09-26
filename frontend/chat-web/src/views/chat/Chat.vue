@@ -4105,7 +4105,7 @@ async function openWithApp(r) {
 /* 和标题栏、卡片外的缝隙同色：整条左栏就是"最底那一层"露出来的部分，不画边、不另起一块白 */
 .rail {
   width: var(--rail-w); flex: 0 0 var(--rail-w); background: var(--nb-bg-shell);
-  display: flex; flex-direction: column; align-items: center; padding: 12px 0 10px;
+  display: flex; flex-direction: column; align-items: center; padding: 0;
 }
 .rail-logo {
   width: 34px; height: 34px; border-radius: 10px; background: var(--brand); color: #fff;
