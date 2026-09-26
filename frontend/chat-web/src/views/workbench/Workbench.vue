@@ -404,7 +404,13 @@ watch(section, () => { drawer.value = null; q.value = ''; sideGroup.value = '全
 </script>
 
 <style scoped>
-.wb { display: grid; grid-template-columns: 208px minmax(0, 1fr); height: 100vh; background: var(--nb-bg-0); color: var(--nb-text); }
+.wb { display: grid; grid-template-columns: 208px minmax(0, 1fr); height: 100vh; background: var(--nb-bg-0); color: var(--nb-text);
+  /* 顶部两条栏共用的高与共用那片渐变。--wb-bar = 页头条量出来的现值（内容 42 + 上下内距 28 + 下边框 1）；
+     渐变的竖向停靠点写成视口像素（36/92/107）是因为两层都挂 background-attachment: fixed，
+     坐标原点在整个窗口上 —— 这样页头条和抽屉头是同一场光的两扇窗，不会在列边界处各起一次 */
+  --wb-bar: 71px;
+  --wb-wash: linear-gradient(180deg, rgba(240, 244, 251, 0) 36px, rgba(240, 244, 251, .92) 92px, #f0f4fb 107px),
+    linear-gradient(90deg, #eef4fb 0%, #dfeafb 20%, #a9cdfa 82%); }
 .wb:has(.dw) { grid-template-columns: 208px minmax(0, 1fr) 320px; }
 
 /* 渐变只给页头条：新稿子上逐点扫过 —— 左栏竖向是平的（x=0..150 从 y=40 到 y=1000 只差 Δ3）、
@@ -435,15 +441,11 @@ watch(section, () => { drawer.value = null; q.value = ''; sideGroup.value = '全
 .ri.quit { color: var(--nb-dim); }
 
 .main { display: flex; flex-direction: column; min-width: 0; }
-/* 页头条 = 整页唯一的渐变：右上角一团蓝，往左、往下散掉。
-   两层叠出来：下面一层横向蓝坡（0% #EEF4FB → 20% #DFEAFB → 82% #A9CDFA），
-   上面一层竖向"白纱"（顶边全透 → 底边实色 #F0F4FB）。
-   三个锚点是稿子按归一化位置扫出来的：顶边 u=0.10 → (236,243,250)、u=0.67 → (176,211,252)、
-   u=0.96 → (172,206,253)；同一条竖线走到条底 → (239,245,253)。
-   单用横向或单用竖向都对不上：稿子的蓝只贴在右上角，底边整条已经回到近白 */
-.mh { display: flex; align-items: center; gap: 10px; padding: 14px 20px; border-bottom: 1px solid var(--nb-line);
-  background: linear-gradient(180deg, rgba(240,244,251,0) 0%, rgba(240,244,251,.92) 78%, #f0f4fb 100%),
-    linear-gradient(90deg, #eef4fb 0%, #dfeafb 20%, #a9cdfa 82%); }
+/* 页头条 = 整页那片渐变的左半扇窗：右上角一团蓝往左、往下散，横向蓝坡打底 + 竖向白纱盖在上面。
+   锚点是稿子按归一化位置扫出来的：顶边 u=0.61 → (176,211,252)、u=0.95 → (172,206,253)，
+   同一条竖线走到条底 → (239,245,253) */
+.mh { display: flex; align-items: center; gap: 10px; min-height: var(--wb-bar); padding: 14px 20px; border-bottom: 1px solid var(--nb-line);
+  background: var(--wb-wash); background-attachment: fixed; }
 .mh-ic { display: grid; place-items: center; flex: none; width: 34px; height: 34px; border-radius: 10px;
   background: var(--brand); color: #fff; }
 .mh-ic svg { width: 19px; height: 19px; }
@@ -568,7 +570,9 @@ td em { margin-left: 7px; font-size: 11.5px; font-style: normal; color: var(--nb
 .ask { display: flex; gap: 8px; }
 
 .dw { background: var(--nb-bg-1); border-left: 1px solid var(--nb-line); display: flex; flex-direction: column; min-height: 0; }
-.dw-hd { display: flex; align-items: center; justify-content: space-between; padding: 14px 16px; border-bottom: 1px solid var(--nb-line); }
+/* 抽屉头和页头条同高、同一片渐变 —— 两条下边框落在同一条线上，顶上那一片读起来是一整块 */
+.dw-hd { display: flex; align-items: center; justify-content: space-between; min-height: var(--wb-bar); padding: 14px 16px; border-bottom: 1px solid var(--nb-line);
+  background: var(--wb-wash); background-attachment: fixed; }
 .dw-hd b { font-size: 13.5px; }
 .x { border: 0; background: none; color: var(--nb-dim); font-size: 13px; cursor: pointer; }
 .dw-bd { flex: 1; overflow-y: auto; padding: 14px 16px; }
