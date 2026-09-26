@@ -337,7 +337,7 @@ const rowsOfSection = computed(() => section.value === 'materials' ? materialRow
 const shownRows = computed(() => {
   const kw = q.value.trim().toLowerCase()
   return rowsOfSection.value.filter(r => (!kw || [r.name, r.owner, r.type, r.tag].some(v => String(v || '').toLowerCase().includes(kw)))
-    && (sideGroup.value === '全部' || String(r.name).includes(sideGroup.value) || String(r.tag || '') === sideGroup.value))
+    && (sideGroup.value === '全部' || String(r.name).includes(sideGroup.value) || String(r.type || r.tag || '') === sideGroup.value))
 })
 
 const gridItems = computed(() => section.value === 'favorites' ? favoriteRows
