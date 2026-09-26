@@ -209,9 +209,18 @@ function fadeClose(win) {
   }, 16)
 }
 
+/* 已经有一个截图/编辑窗开着：别只回一句"忙"。那个窗可能就在主窗口后面、他没看见，
+   于是每次点编辑都没反应——把它调到眼前，他才知道要处理的是哪一扇。 */
+function shotBusy() {
+  log('截图/编辑窗已开着，把它调到前面')
+  const w = shotWin
+  if (w && !w.isDestroyed()) { if (!w.isVisible()) w.show(); w.focus() }
+  return { ok: false, busy: true, error: '已经有一个截图/编辑窗开着，已把它调到最前面' }
+}
+
 async function startShot(sender) {
   // 每一条早退都要留一行日志：以前只有成功才 log，"点了没反应"那种情况在主进程这边查不到痕迹
-  if (shotWin && !shotWin.isDestroyed()) { log('shot 被挡住：已经有一个截图/编辑窗开着'); return { ok: false, busy: true, error: '已经有一个截图/编辑窗开着，先关掉那个' } }
+  if (shotWin && !shotWin.isDestroyed()) return shotBusy()
   let disp, dpr, cur
   try {
     cur = screen.getCursorScreenPoint()
@@ -295,7 +304,7 @@ function closeShot() {
    shot.js 里的映射是 bg.width / innerWidth，所以图比屏幕大、窗口等比缩过也不会导出糊的。 */
 async function startEdit(sender, dataUrl, editPin, size) {
   // 每条早退都留一行日志 + 一句人话：busy 以前只回 {ok:false}，前端显示"未知原因"，等于没报
-  if (shotWin && !shotWin.isDestroyed()) { log('edit 被挡住：已经有一个截图/编辑窗开着'); return { ok: false, busy: true, error: '已经有一个截图/编辑窗开着，先关掉那个' } }
+  if (shotWin && !shotWin.isDestroyed()) return shotBusy()
   const url = String(dataUrl || '')
   if (!url.startsWith('data:image/')) { log(`edit 被挡住：图不是 data:image（${url.slice(0, 24)}）`); return { ok: false, error: '这张图不是 data:image 开头的' } }
   const sw = Math.round(Number(size && size.width) || 0)
