@@ -4365,8 +4365,10 @@ watch(docView, v => {
   background: rgba(255, 255, 255, .14); color: #fff; font-size: 15px; display: grid; place-items: center; cursor: pointer;
 }
 .iv-x:hover { background: rgba(255, 255, 255, .26); }
-/* ---- 文档预览弹框：固定高、只有正文滚、外层永不滚（和全站弹框同一条规矩） ---- */
-.docv { width: min(880px, 92vw); height: 560px; }
+/* ---- 文档预览弹框：固定高、只有正文滚、外层永不滚（和全站弹框同一条规矩） ----
+   overflow 必须 hidden：正文是白底、一直铺到弹框底边，而 .modal 的圆角只裁它自己那层渐变底，
+   不裁子元素——所以顶部两个角是圆的、底下两个角被正文的直角盖成方的（像素图量的） */
+.docv { width: min(880px, 92vw); height: 560px; overflow: hidden; }
 .docv-hd { display: flex; align-items: center; gap: 10px; flex: none; padding: 11px 12px 11px 16px;
   border-bottom: 1px solid var(--nb-line); }
 .docv-ic { display: grid; place-items: center; width: 30px; height: 30px; flex: none;
