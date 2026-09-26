@@ -407,12 +407,10 @@ watch(section, () => { drawer.value = null; q.value = ''; sideGroup.value = '全
 .wb { display: grid; grid-template-columns: 208px minmax(0, 1fr); height: 100vh; background: var(--nb-bg-0); color: var(--nb-text); }
 .wb:has(.dw) { grid-template-columns: 208px minmax(0, 1fr) 320px; }
 
-/* 三列各一条竖向渐变，但**起点按各自本底压深 6%**（不是三列都从同一个色起）：
-   上一版三列顶端都写死 --nb-bg-shell，结果栏/画布/抽屉在顶上全并成一个色，
-   模块之间的深浅层次只剩 1px 边框 —— 稿子里这三块是靠各自那一档 tone 分层的。
-   压同一比例则每档之间的差在任意高度都还在（顶端 Δ 与底端 Δ 只差 6%），
-   且左栏顶端落回 rgb(226,228,233)，与菜单栏 rgb(225,229,236) 差 (1,1,3) = 仍然接得上 */
-.rail { display: flex; flex-direction: column; gap: 2px; min-height: 0; padding: 12px 10px; background: linear-gradient(180deg, color-mix(in srgb, var(--nb-bg-3) 94%, #000), var(--nb-bg-3)); border-right: 1px solid var(--nb-line); }
+/* 渐变只给页头条：新稿子上逐点扫过 —— 左栏竖向是平的（x=0..150 从 y=40 到 y=1000 只差 Δ3）、
+   画布也是平的（紧挨页头下 (245,249,254) → 底部 (247,249,253)），整页的渐变全部集中在页头那一块。
+   上一版给三列各铺一条，把模块之间的 tone 层次抹平了，这次退回实心 */
+.rail { display: flex; flex-direction: column; gap: 2px; min-height: 0; padding: 12px 10px; background: var(--nb-bg-3); border-right: 1px solid var(--nb-line); }
 .rail-logo { display: flex; align-items: center; gap: 9px; padding: 6px 8px 12px; cursor: pointer; }
 .lg-ic { display: grid; place-items: center; width: 28px; height: 28px; border-radius: 9px; background: var(--brand); color: #fff; }
 .lg-tx b { display: block; font-size: 13.5px; line-height: 1.2; }
@@ -437,11 +435,15 @@ watch(section, () => { drawer.value = null; q.value = ''; sideGroup.value = '全
 .ri.quit { color: var(--nb-dim); }
 
 .main { display: flex; flex-direction: column; min-width: 0; }
-/* 页头那条淡蓝：轴从横向（100deg）翻成向下（180deg），方向跟三列一致 = 顶上深、往下浅。
-   只留稿子那两个真端点：中间那个 #E3EFFD 和 #E4EDFE 只差 Δ(1,2,1)，横着它是"左中右"三段里的一段，
-   竖过来就变成上半截完全不动、全挤在下半截 —— 所以竖向用两端才匀 */
+/* 页头条 = 整页唯一的渐变：右上角一团蓝，往左、往下散掉。
+   两层叠出来：下面一层横向蓝坡（0% #EEF4FB → 20% #DFEAFB → 82% #A9CDFA），
+   上面一层竖向"白纱"（顶边全透 → 底边实色 #F0F4FB）。
+   三个锚点是稿子按归一化位置扫出来的：顶边 u=0.10 → (236,243,250)、u=0.67 → (176,211,252)、
+   u=0.96 → (172,206,253)；同一条竖线走到条底 → (239,245,253)。
+   单用横向或单用竖向都对不上：稿子的蓝只贴在右上角，底边整条已经回到近白 */
 .mh { display: flex; align-items: center; gap: 10px; padding: 14px 20px; border-bottom: 1px solid var(--nb-line);
-  background: linear-gradient(180deg, #e4edfe 0%, #f2f6fc 100%); }
+  background: linear-gradient(180deg, rgba(240,244,251,0) 0%, rgba(240,244,251,.92) 78%, #f0f4fb 100%),
+    linear-gradient(90deg, #eef4fb 0%, #dfeafb 20%, #a9cdfa 82%); }
 .mh-ic { display: grid; place-items: center; flex: none; width: 34px; height: 34px; border-radius: 10px;
   background: var(--brand); color: #fff; }
 .mh-ic svg { width: 19px; height: 19px; }
@@ -457,9 +459,7 @@ watch(section, () => { drawer.value = null; q.value = ''; sideGroup.value = '全
 .mh-acts .btn.pri:disabled { opacity: 1; cursor: not-allowed; }
 .pri-ic { display: grid; place-items: center; flex: none; width: 14px; }
 .pri-ic svg { width: 14px; height: 14px; }
-/* 画布这条挂在 .body 而不是整列：整列的话顶上 71px 被页头条盖住，
-   露出来的画布只剩渐变的最后 9%，等于没有。挂 .body 才是"这一块自己渐" */
-.body { flex: 1; overflow-y: auto; padding: 18px 20px 26px; background: linear-gradient(180deg, color-mix(in srgb, var(--nb-bg-0) 94%, #000), var(--nb-bg-0)); }
+.body { flex: 1; overflow-y: auto; padding: 18px 20px 26px; }
 
 .sec { display: flex; flex-direction: column; gap: 14px; }
 .hello h2 { margin: 0; font-size: 18px; }
@@ -567,7 +567,7 @@ td em { margin-left: 7px; font-size: 11.5px; font-style: normal; color: var(--nb
 .msg.me { align-self: flex-end; background: var(--brand); color: #fff; }
 .ask { display: flex; gap: 8px; }
 
-.dw { background: linear-gradient(180deg, color-mix(in srgb, var(--nb-bg-1) 94%, #000), var(--nb-bg-1)); border-left: 1px solid var(--nb-line); display: flex; flex-direction: column; min-height: 0; }
+.dw { background: var(--nb-bg-1); border-left: 1px solid var(--nb-line); display: flex; flex-direction: column; min-height: 0; }
 .dw-hd { display: flex; align-items: center; justify-content: space-between; padding: 14px 16px; border-bottom: 1px solid var(--nb-line); }
 .dw-hd b { font-size: 13.5px; }
 .x { border: 0; background: none; color: var(--nb-dim); font-size: 13px; cursor: pointer; }
