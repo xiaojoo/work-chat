@@ -541,16 +541,7 @@ if (!app.requestSingleInstanceLock()) {
 
     // 截图：主窗口只能"发起"，抓屏/遮罩窗/剪贴板都在上面那几个函数里
     ipcMain.handle('chat:shot', (event) => startShot(event.sender))
-    // 大图查看器的「编辑」：把这张图交给同一个标注器。字节原样送过来拼 dataURL，
-    // 不在任何一边重编码——JPEG 转 PNG 会让一条 IPC 消息涨十倍大
-    ipcMain.handle('chat:shot-edit', (event, p) => {
-      const buf = Buffer.from(p?.bytes || new Uint8Array())
-      if (!buf.length) return { ok: false, error: '这张图是空的' }
-      const mime = /^image\//.test(String(p.mime || '')) ? String(p.mime) : 'image/png'
-      return startEdit(event.sender, `data:${mime};base64,${buf.toString('base64')}`, null,
-        { width: p.width, height: p.height })
-    })
-    // 钉图右键的「编辑」：改完是换回这张钉图，不是再钉一张
+    // 大图查看器的「编辑」不再走这条路（改成查看器里就地标注），钉图的「编辑」还在
     ipcMain.handle('pin:edit', (event) => {
       const win = BrowserWindow.fromWebContents(event.sender)
       const info = win && pinInfo.get(win)

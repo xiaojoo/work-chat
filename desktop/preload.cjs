@@ -11,8 +11,6 @@ contextBridge.exposeInMainWorld('chatDesktop', {
   save: (payload) => ipcRenderer.invoke('chat:save', payload),
   // 截图：抓屏和遮罩窗都在主进程，这边只发起 + 收结果
   shot: () => ipcRenderer.invoke('chat:shot'),
-  // 大图查看器的「编辑」：把这张图的原始字节送过去，主进程开同一个标注器（不重编码）
-  editImage: (payload) => ipcRenderer.invoke('chat:shot-edit', payload),
   onShotResult: (cb) => {
     const handler = (_e, r) => cb(r)
     ipcRenderer.on('chat:shot-result', handler)

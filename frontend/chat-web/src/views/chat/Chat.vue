@@ -637,19 +637,43 @@
       </div>
     </div>
 
-    <!-- 图片查看器：页内弹框，滚轮/±按钮缩放，放大后能拖着看，ESC 或点空白处关 -->
-    <div v-if="imgView" class="img-view" @click.self="closeImageView" @wheel.prevent="onImgWheel">
-      <img ref="ivImg" class="iv-img" :src="imgView" alt="" draggable="false"
+    <!-- 图片查看器：页内弹框，滚轮/±按钮缩放，放大后能拖着看，ESC 或点空白处关。
+         「编辑」是查看器自己的就地标注（底图 + 一层透明画布），不走桌面壳那套截图遮罩：
+         那套是给"冻住的整屏"用的（框选、放大镜、取色），编辑一张已有的图只要画几笔 -->
+    <div v-if="imgView" ref="ivRoot" class="img-view"
+         @click.self="ivEdit || closeImageView()" @wheel.prevent="!ivEdit && onImgWheel($event)">
+      <img v-if="!ivEdit" ref="ivImg" class="iv-img" :src="imgView" alt="" draggable="false"
            :style="{ transform: `translate(${imgPan.x}px, ${imgPan.y}px) scale(${imgZoom})` }"
            @pointerdown="imgDown" @pointermove="imgMove" @pointerup="imgUp" @pointercancel="imgUp"
            @dblclick="zoomReset" />
+      <div v-else class="iv-stage" :style="{ width: ivBox.w + 'px', height: ivBox.h + 'px' }">
+        <img class="iv-base" :src="imgView" alt="" draggable="false" />
+        <canvas ref="ivCv" class="iv-cv" :class="{ draw: !!ivTool }" :width="ivNat.w" :height="ivNat.h"
+                @mousedown.prevent @pointerdown="ivDown" @pointermove="ivMove" @pointerup="ivUp" @pointercancel="ivUp"></canvas>
+        <input v-if="ivTyping" ref="ivTxt" v-model="ivText" class="iv-txt"
+               :style="{ left: ivTyping.x + 'px', top: ivTyping.y + 'px' }" placeholder="输入文字，回车确认"
+               @keydown.enter.prevent="ivCommitText" @keydown.esc.stop.prevent="ivCancelText" @blur="ivCommitText" />
+      </div>
       <div class="iv-bar" @wheel.stop @click.stop>
-        <button class="iv-btn" type="button" title="缩小" :disabled="imgZoom <= 0.2" @click="zoomBy(1 / 1.25)">－</button>
-        <span class="iv-pct">{{ Math.round(imgZoom * 100) }}%</span>
-        <button class="iv-btn" type="button" title="放大" :disabled="imgZoom >= 6" @click="zoomBy(1.25)">＋</button>
-        <button class="iv-btn wide" type="button" title="回到适应窗口" @click="zoomReset">复原</button>
-        <!-- 编辑走桌面壳那套标注器：抓屏之外它还会画框/箭头/文字，网页端没这条路，所以照截图那颗一起藏 -->
-        <button v-if="canShot" class="iv-btn wide" type="button" title="用截图工具编辑这张图" @click="editViewingImage">编辑</button>
+        <template v-if="!ivEdit">
+          <button class="iv-btn" type="button" title="缩小" :disabled="imgZoom <= 0.2" @click="zoomBy(1 / 1.25)">－</button>
+          <span class="iv-pct">{{ Math.round(imgZoom * 100) }}%</span>
+          <button class="iv-btn" type="button" title="放大" :disabled="imgZoom >= 6" @click="zoomBy(1.25)">＋</button>
+          <button class="iv-btn wide" type="button" title="回到适应窗口" @click="zoomReset">复原</button>
+          <button class="iv-btn wide" type="button" title="在查看器里标注这张图" @click="enterIvEdit">编辑</button>
+        </template>
+        <template v-else>
+          <button v-for="t in IV_TOOLS" :key="t.k" class="iv-btn" :class="{ on: ivTool === t.k }" type="button"
+                  :title="t.name" :aria-label="t.name" :aria-pressed="ivTool === t.k" @click="pickIvTool(t.k)">{{ t.i }}</button>
+          <span class="iv-sp"></span>
+          <button v-for="c in IV_COLORS" :key="c" class="iv-dot" :class="{ on: ivColor === c }" type="button"
+                  :style="{ background: c }" :aria-label="'颜色 ' + c" @click="ivColor = c"></button>
+          <span class="iv-sp"></span>
+          <button class="iv-btn" type="button" title="撤销上一笔" aria-label="撤销" :disabled="!ivOps.length" @click="ivUndo">↶</button>
+          <span class="iv-sp"></span>
+          <button class="iv-btn wide" type="button" title="把标注后的整张图写进剪贴板" @click="ivCopy">复制</button>
+          <button class="iv-btn wide" type="button" title="回到看图" @click="exitIvEdit">退出编辑</button>
+        </template>
       </div>
       <button class="iv-x" type="button" title="关闭" @click="closeImageView">✕</button>
     </div>
@@ -2851,7 +2875,7 @@ function previewImage(url) {
   imgZoom.value = 1
   imgPan.value = { x: 0, y: 0 }
 }
-function closeImageView() { imgView.value = '' }
+function closeImageView() { imgView.value = ''; exitIvEdit() }
 function zoomBy(f) {
   const z = Math.min(ZOOM_MAX, Math.max(ZOOM_MIN, imgZoom.value * f))
   imgZoom.value = Math.round(z * 1000) / 1000
@@ -2871,34 +2895,178 @@ function imgMove(e) {
   imgPan.value = { x: e.clientX - imgDrag.x, y: e.clientY - imgDrag.y }
 }
 function imgUp() { imgDrag = null }
-// 「编辑」：把这张图交给桌面壳那套截图标注器（和截图共用一个编辑器，不另画一套）。
-// 走 fetch 拿原图字节而不是 canvas 重画：重画会把 JPEG 烘成 PNG，一条 IPC 消息大十倍
-async function editViewingImage() {
+/* ---- 查看器里的就地标注 ----
+   不走桌面壳那套截图遮罩：那套是给"冻住的整屏"用的（框选、放大镜、取色），
+   编辑一张已经存在的图只要画几笔。底图 + 一层透明画布，画布后备像素 = 图片原始尺寸，
+   所以坐标直接用图片像素、导出就是两张叠一块，不经过任何缩放映射。 */
+const ivRoot = ref(null)
+const ivCv = ref(null)
+const ivTxt = ref(null)
+const ivEdit = ref(false)
+const ivOps = ref([])
+const ivTool = ref(null)
+const ivColor = ref('#ff3b30')
+const ivNat = ref({ w: 0, h: 0 })
+const ivBox = ref({ w: 0, h: 0 })
+const ivTyping = ref(null)
+const ivText = ref('')
+const IV_COLORS = ['#ff3b30', '#ffb300', '#2b6be8']
+const IV_TOOLS = [{ k: 'rect', i: '▢', name: '方框' }, { k: 'arrow', i: '↗', name: '箭头' },
+  { k: 'text', i: 'T', name: '文字' }, { k: 'pen', i: '✎', name: '涂鸦' }]
+let ivSrc = null
+let ivLive = null
+
+// 描边和字号按「图片像素 / 屏幕上看到的像素」放大：4K 的图缩到 800 宽来看，3px 的线细得看不见
+function ivScale() { return ivBox.value.w > 0 && ivNat.value.w > 0 ? ivNat.value.w / ivBox.value.w : 1 }
+function ivFontPx() { return Math.max(14, Math.round(16 * ivScale())) }
+async function enterIvEdit() {
   const el = ivImg.value
-  if (!el || !window.chatDesktop?.editImage) return
-  try {
-    const blob = await (await fetch(el.src)).blob()
-    const r = await window.chatDesktop.editImage({
-      bytes: new Uint8Array(await blob.arrayBuffer()),
-      mime: blob.type || 'image/png',
-      width: el.naturalWidth,
-      height: el.naturalHeight
-    })
-    // 编辑窗开起来了就把查看器关掉：两层图叠着看，改完都不知道自己在改哪一份
-    if (r?.ok) closeImageView()
-    else if (r?.busy) toast(r.error || '已经有一个截图/编辑窗开着，先关掉那个', 'warning')
-    else toast('编辑没打开：' + (r?.error || '未知原因'), 'error')
-  } catch (e) {
-    toast('编辑没打开：' + (e?.message || e), 'error')
+  if (!el) return
+  const im = new Image()
+  im.src = el.src
+  try { await im.decode() } catch (e) { toast('这张图解码不了，编辑没打开', 'error'); return }
+  ivSrc = im
+  ivNat.value = { w: im.naturalWidth, h: im.naturalHeight }
+  ivOps.value = []; ivTool.value = null; ivTyping.value = null; ivLive = null
+  zoomReset()
+  ivEdit.value = true
+  await nextTick()
+  ivFit()
+  ivDraw()
+}
+function exitIvEdit() {
+  ivEdit.value = false
+  ivOps.value = []; ivTool.value = null; ivTyping.value = null; ivLive = null
+}
+// 装得下就用原尺寸，装不下等比缩；四周要留给工具条和边让出余量
+function ivFit() {
+  const root = ivRoot.value
+  if (!root || !ivNat.value.w) return
+  const k = Math.min(1, (root.clientWidth - 96) / ivNat.value.w, (root.clientHeight - 150) / ivNat.value.h)
+  ivBox.value = { w: Math.max(80, Math.round(ivNat.value.w * k)), h: Math.max(60, Math.round(ivNat.value.h * k)) }
+}
+function ivDraw() {
+  const cv = ivCv.value
+  if (!cv || !ivSrc) return
+  const g = cv.getContext('2d')
+  g.clearRect(0, 0, cv.width, cv.height)
+  g.lineCap = 'round'
+  g.lineJoin = 'round'
+  ivOps.value.forEach(o => ivDrawOp(g, o))
+}
+function ivDrawOp(g, o) {
+  g.strokeStyle = o.color
+  g.fillStyle = o.color
+  g.lineWidth = o.w
+  if (o.t === 'rect') {
+    g.strokeRect(Math.min(o.x0, o.x1), Math.min(o.y0, o.y1), Math.abs(o.x1 - o.x0), Math.abs(o.y1 - o.y0))
+  } else if (o.t === 'arrow') {
+    const a = Math.atan2(o.y1 - o.y0, o.x1 - o.x0)
+    const L = Math.max(o.w * 3, Math.hypot(o.x1 - o.x0, o.y1 - o.y0) * 0.16)
+    g.beginPath(); g.moveTo(o.x0, o.y0); g.lineTo(o.x1, o.y1); g.stroke()
+    g.beginPath(); g.moveTo(o.x1, o.y1)
+    g.lineTo(o.x1 - L * Math.cos(a - 0.42), o.y1 - L * Math.sin(a - 0.42))
+    g.lineTo(o.x1 - L * Math.cos(a + 0.42), o.y1 - L * Math.sin(a + 0.42))
+    g.closePath(); g.fill()
+  } else if (o.t === 'pen') {
+    g.beginPath()
+    o.pts.forEach((p, i) => i ? g.lineTo(p.x, p.y) : g.moveTo(p.x, p.y))
+    g.stroke()
+  } else if (o.t === 'text') {
+    g.font = o.size + 'px "Microsoft YaHei", system-ui, sans-serif'
+    g.textBaseline = 'top'
+    g.fillText(o.text, o.x, o.y)
   }
 }
-// ESC 关查看器：只在开着的时候挂这个监听，不留全局按键钩子。
+function pickIvTool(k) {
+  if (ivTyping.value) ivCommitText()
+  ivTool.value = ivTool.value === k ? null : k
+}
+function ivPt(e) {
+  const cv = ivCv.value
+  const r = cv.getBoundingClientRect()
+  const k = r.width ? cv.width / r.width : 1
+  return { x: (e.clientX - r.left) * k, y: (e.clientY - r.top) * k }
+}
+function ivDown(e) {
+  if (e.button !== 0 || !ivTool.value) return
+  // 必须挡下 mousedown 的默认动作：它会把焦点抢回 body，刚 focus 的文字输入框立刻 blur，
+  // 空提交一次就等于输入框一闪就没（量出来的：点文字 → 输入框在:false）
+  e.preventDefault()
+  const cv = ivCv.value
+  if (ivTool.value === 'text') {
+    const r = cv.getBoundingClientRect(), p = ivPt(e)
+    ivTyping.value = { x: e.clientX - r.left, y: e.clientY - r.top, px: p.x, py: p.y }
+    ivText.value = ''
+    nextTick(() => ivTxt.value && ivTxt.value.focus())
+    return
+  }
+  const p = ivPt(e), w = Math.max(2, Math.round(3 * ivScale()))
+  ivLive = ivTool.value === 'pen'
+    ? { t: 'pen', pts: [p], w, color: ivColor.value }
+    : { t: ivTool.value, x0: p.x, y0: p.y, x1: p.x, y1: p.y, w, color: ivColor.value }
+  ivOps.value.push(ivLive)
+}
+function ivMove(e) {
+  if (!ivLive) return
+  const p = ivPt(e)
+  if (ivLive.t === 'pen') ivLive.pts.push(p)
+  else { ivLive.x1 = p.x; ivLive.y1 = p.y }
+  ivDraw()
+}
+function ivUp() { ivLive = null }
+function ivCommitText() {
+  const t = ivTyping.value
+  const v = ivText.value.trim()
+  ivTyping.value = null
+  if (!t || !v) return
+  ivOps.value.push({ t: 'text', x: t.px, y: t.py, text: v, size: ivFontPx(), color: ivColor.value })
+  ivDraw()
+}
+function ivCancelText() { ivText.value = ''; ivTyping.value = null }
+function ivUndo() { ivOps.value.pop(); ivDraw() }
+// 复制 = 底图和标注两张画到一块再写剪贴板。只到剪贴板，不替你发进会话
+async function ivCopy() {
+  const cv = ivCv.value
+  if (!cv || !ivSrc) return
+  const out = document.createElement('canvas')
+  out.width = cv.width
+  out.height = cv.height
+  const g = out.getContext('2d')
+  g.drawImage(ivSrc, 0, 0)
+  g.drawImage(cv, 0, 0)
+  try {
+    const blob = await new Promise(res => out.toBlob(res, 'image/png'))
+    if (!blob) throw new Error('画布导出失败')
+    await navigator.clipboard.write([new ClipboardItem({ 'image/png': blob })])
+    toast('已复制到剪贴板，去输入框 Ctrl+V 贴上，点发送才发出去', 'success')
+  } catch (e) {
+    toast('复制失败：' + (e?.message || e), 'error')
+  }
+}
+// 编辑态里窗口变了要重新算适配尺寸（画布后备像素不变，所以已画的标注不会糊）
+let ivOnResize = null
+watch(ivEdit, v => {
+  if (v) {
+    ivOnResize = () => { ivFit(); ivDraw() }
+    window.addEventListener('resize', ivOnResize)
+  } else if (ivOnResize) {
+    window.removeEventListener('resize', ivOnResize)
+    ivOnResize = null
+  }
+})
+// ESC：编辑态里先退编辑（一下把整层关掉太狠，画的那几笔还在），看图态里才关窗口。
+// 监听跟着 imgView 的开/关挂和摘——原来只在按 ESC 那条路径上摘，点 ✕ 关就留一个钩子在外面。
 // 顺带收掉右键菜单——菜单 z-index 9999 会浮到查看器上面（那段统一的弹框 watcher 在 imgView 之前，够不着）
+function ivEsc(e) {
+  if (e.key !== 'Escape') return
+  if (ivEdit.value) { exitIvEdit(); return }
+  closeImageView()
+}
 watch(imgView, v => {
-  if (!v) return
+  if (!v) { document.removeEventListener('keydown', ivEsc); return }
   closeAllMenus()
-  const off = e => { if (e.key === 'Escape') { closeImageView(); document.removeEventListener('keydown', off) } }
-  document.addEventListener('keydown', off)
+  document.addEventListener('keydown', ivEsc)
 })
 </script>
 
@@ -4084,6 +4252,19 @@ watch(imgView, v => {
 .iv-btn:hover:not(:disabled) { background: var(--nb-bg-3); }
 .iv-btn:disabled { color: var(--nb-dim-2); cursor: default; }
 .iv-pct { min-width: 46px; text-align: center; font-size: 12px; color: var(--nb-dim); }
+/* 编辑态：底图和一层透明画布叠成一块。画布后备像素 = 图片原始尺寸，
+   所以标注坐标就是图片像素，导出是两张叠一块，不经过缩放映射 */
+.iv-stage { position: relative; }
+.iv-base { display: block; width: 100%; height: 100%; border-radius: 10px; user-select: none; }
+.iv-cv { position: absolute; inset: 0; width: 100%; height: 100%; border-radius: 10px; touch-action: none; cursor: default; }
+.iv-cv.draw { cursor: crosshair; }
+.iv-txt { position: absolute; min-width: 120px; padding: 2px 6px; border: 1px solid var(--brand);
+  border-radius: 5px; background: rgba(255, 255, 255, .96); color: #111; font-size: 16px; outline: none; }
+.iv-sp { width: 1px; height: 20px; margin: 0 4px; background: var(--nb-line); }
+.iv-dot { width: 18px; height: 18px; padding: 0; border: 2px solid transparent; border-radius: 50%; cursor: pointer; }
+.iv-dot.on { border-color: var(--nb-text); }
+.iv-btn.on { background: var(--brand); color: #fff; }
+.iv-btn.on:hover:not(:disabled) { background: var(--brand-strong); }
 .iv-x {
   position: absolute; top: 14px; right: 16px; width: 30px; height: 30px; border: 0; border-radius: 8px;
   background: rgba(255, 255, 255, .14); color: #fff; font-size: 15px; display: grid; place-items: center; cursor: pointer;
