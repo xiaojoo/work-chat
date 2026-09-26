@@ -9,8 +9,12 @@ contextBridge.exposeInMainWorld('chatDesktop', {
   notify: (payload) => ipcRenderer.send('chat:notify', payload),
   // 「另存为」：字节在渲染端取好送过来，主进程弹系统对话框再写盘
   save: (payload) => ipcRenderer.invoke('chat:save', payload),
-  // 「下载到默认目录并用系统默认应用打开」：pdf / office 这一类走这条路
+  // 文件点开：落到「文档路径」那个目录，再交系统默认应用打开
   openFile: (payload) => ipcRenderer.invoke('chat:open-file', payload),
+  // 设置 → 文档路径：读当前值、弹系统选目录框、存新值（都只存这台设备）
+  paths: () => ipcRenderer.invoke('chat:paths'),
+  pickRecvDir: () => ipcRenderer.invoke('chat:pick-recv-dir'),
+  setRecvDir: (dir) => ipcRenderer.invoke('chat:set-recv-dir', dir),
   // 截图：抓屏和遮罩窗都在主进程，这边只发起 + 收结果
   shot: () => ipcRenderer.invoke('chat:shot'),
   onShotResult: (cb) => {

@@ -3067,7 +3067,7 @@ watch(imgView, v => {
 })
 
 /* ===== 文件气泡点开：一律交给本地，不再自绘预览弹框 =====
-   软件 / 压缩包 → 直接弹系统那个「另存为」；其余 → 落「下载」文件夹后用系统默认应用打开；
+   软件 / 压缩包 → 直接弹系统那个「另存为」；其余 → 落到「设置 → 文档路径」那个目录后用系统默认应用打开；
    没有默认应用时由主进程兜底（200KB 以内交记事本，超出只落文件、不开）。
    网页端没有本地应用这条路，点开就是浏览器下载。 */
 const canOpenApp = !!window.chatDesktop?.openFile
@@ -3097,12 +3097,12 @@ async function openWithApp(r) {
     const res = await window.chatDesktop.openFile({ name: r.name || '文件', bytes: await refBytes(r) })
     if (!res?.ok) { toast('打开失败：' + (res?.error || '未知错误'), 'error'); return }
     const byHow = {
-      default: '已存进「下载」文件夹，正在用默认应用打开',
-      notepad: `没有默认应用，已存进「下载」文件夹并用记事本打开`,
-      'saved-only': `没有默认应用且超过 200KB，只存进「下载」文件夹，没有打开`,
-      refused: `是可直接运行的文件，只存进「下载」文件夹，没有运行`
+      default: '正在用默认应用打开',
+      notepad: '没有默认应用，已用记事本打开',
+      'saved-only': '没有默认应用且超过 200KB，没有打开',
+      refused: '是可直接运行的文件，没有运行'
     }
-    toast(`${r.name} ${byHow[res.how] || '已存进「下载」文件夹'}`, 'success')
+    toast(`${r.name} 已存到 ${res.dir}，${byHow[res.how] || '已打开'}`, 'success')
   } catch (e) {
     toast('打开失败：' + (e?.message || e), 'error')
   } finally {

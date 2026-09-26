@@ -78,6 +78,21 @@
             <p class="hint">密码至少 8 位。改成功后当前登录仍然有效，下次登录用新密码。</p>
           </template>
 
+          <!-- 文档路径：只存在这台设备的桌面客户端里，网页端没有这条路（落点归浏览器） -->
+          <template v-else-if="section === 'path'">
+            <div class="fr"><label for="st-path">保存目录</label>
+              <input id="st-path" v-model.trim="recv.dir" class="ipt" type="text" :disabled="!canPaths"
+                     :placeholder="recv.def || '只有桌面客户端能设'" /></div>
+            <div class="btn-row">
+              <button class="btn" type="button" :disabled="!canPaths" @click="browseDir">浏览…</button>
+              <button class="btn" type="button" :disabled="!canPaths || recv.dir === recv.def" @click="recv.dir = recv.def">恢复默认</button>
+            </div>
+            <p class="hint">默认是程序根目录下的「{{ RECV_DIR_NAME }}」，第一次用到自动建出来。改完点「保存」。</p>
+            <p class="hint">点开的文件、图片都先落到这个目录，再交给本地应用；「另存为」对话框也默认开在这里。
+              这个地址只存在这台设备，不跟账号走，换机器要重设。</p>
+            <p v-if="!canPaths" class="hint">网页端没有这个设置：文件落点是浏览器自己的下载设置，页面管不着。</p>
+          </template>
+
           <!-- 外观设置：真的生效，只存在这台设备 -->
           <template v-else>
             <div class="ac-grid">
@@ -126,7 +141,8 @@ const Ic = {
   account: mk(['M4 7.5h16v10H4z', 'M4 11h16', 'M14.5 14.5h3.5']),
   bell: mk(['M12 4a4.6 4.6 0 0 0-4.6 4.6c0 3.6-1.4 4.9-1.4 4.9h12s-1.4-1.3-1.4-4.9A4.6 4.6 0 0 0 12 4z', 'M10.2 16.6a2 2 0 0 0 3.6 0']),
   shield: mk(['M12 4l6.5 2.4v5.1c0 4-2.8 6.6-6.5 8-3.7-1.4-6.5-4-6.5-8V6.4z', 'M9.4 12l1.9 1.9 3.6-3.7']),
-  look: mk(['M4 12.5h9', 'M4 8h13', 'M4 17h6', 'M16.5 14.5l3.5 3.5-4.6 1.1 1.1-4.6z'])
+  look: mk(['M4 12.5h9', 'M4 8h13', 'M4 17h6', 'M16.5 14.5l3.5 3.5-4.6 1.1 1.1-4.6z']),
+  folder: mk(['M4 6.6A1.6 1.6 0 0 1 5.6 5h3.3l1.8 2.2h7.7A1.6 1.6 0 0 1 20 8.8v8.6A1.6 1.6 0 0 1 18.4 19H5.6A1.6 1.6 0 0 1 4 17.4z'])
 }
 
 const SECTIONS = [
@@ -134,7 +150,8 @@ const SECTIONS = [
   { key: 'account', name: '账号设置', icon: Ic.account, lead: '登录用的账号与联系方式' },
   { key: 'notify', name: '通知设置', icon: Ic.bell, lead: '设置你希望接收的消息通知方式。', demo: true },
   { key: 'security', name: '安全设置', icon: Ic.shield, lead: '修改登录密码' },
-  { key: 'appearance', name: '外观设置', icon: Ic.look, lead: '选一个主题色，立刻生效' }
+  { key: 'appearance', name: '外观设置', icon: Ic.look, lead: '选一个主题色，立刻生效' },
+  { key: 'path', name: '文档路径', icon: Ic.folder, lead: '收到的文件、图片存到这台设备的哪个文件夹' }
 ]
 
 const section = ref('profile')
@@ -144,6 +161,29 @@ const pwd = reactive({ oldPassword: '', newPassword: '', confirm: '' })
 const saving = ref(false)
 const status = reactive({ text: '', kind: 'ok' })
 const accent = ref(currentAccent())
+
+// 文档路径：值存在桌面壳自己的 userData 里（不跟账号走），所以读写都过主进程
+const RECV_DIR_NAME = '接收文件'
+const canPaths = !!window.chatDesktop?.paths
+const recv = reactive({ dir: '', def: '', saved: '' })
+
+async function loadPaths() {
+  if (!canPaths) return
+  try {
+    const p = await window.chatDesktop.paths()
+    recv.dir = p?.dir || ''
+    recv.def = p?.def || ''
+    recv.saved = recv.dir
+  } catch (e) { say('读不到保存目录：' + (e?.message || e), 'bad') }
+}
+
+// 浏览只负责把挑中的路径填进输入框，写盘留给「保存」——两处都写会打架
+async function browseDir() {
+  try {
+    const r = await window.chatDesktop.pickRecvDir()
+    if (r?.ok) recv.dir = r.dir
+  } catch (e) { say('选目录失败：' + (e?.message || e), 'bad') }
+}
 
 const NOTICES = reactive([
   { key: 'msg', name: '新消息提醒', on: true },
@@ -176,6 +216,7 @@ watch(() => props.open, async (v) => {
   status.text = ''
   pwd.oldPassword = pwd.newPassword = pwd.confirm = ''
   try { fill(await getMe()) } catch (e) { say('资料读取失败：' + msgOf(e), 'bad') }
+  loadPaths()
 })
 
 function say(text, kind = 'ok') { status.text = text; status.kind = kind }
@@ -188,6 +229,7 @@ const canSave = computed(() => {
   if (section.value === 'account') return true
   if (section.value === 'notify') return false
   if (section.value === 'security') return !!pwd.oldPassword && !!pwd.newPassword && pwd.newPassword === pwd.confirm
+  if (section.value === 'path') return canPaths && !!recv.dir && recv.dir !== recv.saved
   return false
 })
 
@@ -198,7 +240,11 @@ async function save() {
   saving.value = true
   say('')
   try {
-    if (section.value === 'security') {
+    if (section.value === 'path') {
+      const r = await window.chatDesktop.setRecvDir(recv.dir)
+      if (!r?.ok) say(r?.error || '设置失败', 'bad')
+      else { recv.dir = r.dir; recv.saved = r.dir; say('保存目录已设为 ' + r.dir) }
+    } else if (section.value === 'security') {
       await changePassword(pwd.oldPassword, pwd.newPassword)
       pwd.oldPassword = pwd.newPassword = pwd.confirm = ''
       say('密码已修改')
@@ -256,6 +302,7 @@ async function save() {
 .ta { resize: none; min-height: 62px; line-height: 1.55; padding-bottom: 20px; }
 .cnt { position: absolute; right: 10px; bottom: 7px; font-size: 11px; color: var(--nb-dim); pointer-events: none; }
 .hint { margin: 0; font-size: 11.5px; line-height: 1.5; color: var(--nb-dim); }
+.btn-row { display: flex; gap: 9px; }
 
 .sw-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 7px 0; font-size: 13px; }
 .sw { position: relative; flex: 0 0 38px; width: 38px; height: 21px; padding: 0; border: 0; border-radius: 999px; background: var(--nb-bg-3); cursor: pointer; transition: background .16s; }

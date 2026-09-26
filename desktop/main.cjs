@@ -31,8 +31,56 @@ function readInstallId() {
   }
 }
 
+// 接收目录（设置 → 文档路径）：存在本机 userData 里，不跟账号走。
+// 默认是"安装程序根目录下新建的那个文件夹"——开发跑 electron . 时根目录就是 desktop/，
+// 打包后是 exe 所在目录；直接拿 dirname(exe) 在开发态会量到 electron 自己的 dist 里，所以分开取。
+const RECV_DIR_NAME = '接收文件'
+function defaultRecvDir() {
+  const root = app.isPackaged ? path.dirname(app.getPath('exe')) : app.getAppPath()
+  return path.join(root, RECV_DIR_NAME)
+}
+function settingsFile() { return path.join(app.getPath('userData'), 'settings.json') }
+function readSettings() {
+  try {
+    const o = JSON.parse(fs.readFileSync(settingsFile(), 'utf8'))
+    return o && typeof o === 'object' ? o : {}
+  } catch (e) {
+    return {}
+  }
+}
+function recvDir() {
+  const d = String(readSettings().recvDir || '')
+  return d || defaultRecvDir()
+}
+// 目录是用户自己挑/自己打的，但仍要能建能写，否则点开会以一句系统错误收场
+function ensureWritable(dir) {
+  try {
+    fs.mkdirSync(dir, { recursive: true })
+    fs.accessSync(dir, fs.constants.W_OK)
+    return ''
+  } catch (e) {
+    return String(e.message || e)
+  }
+}
+function setRecvDir(dir) {
+  const s = String(dir || '').trim()
+  if (!s) return { ok: false, error: '目录不能留空，留空就点「恢复默认」' }
+  const d = path.resolve(s)
+  const err = ensureWritable(d)
+  if (err) return { ok: false, error: `这个目录建不了或不能写：${err}` }
+  const st = readSettings()
+  st.recvDir = d
+  try {
+    fs.writeFileSync(settingsFile(), JSON.stringify(st, null, 2))
+  } catch (e) {
+    return { ok: false, error: `存不下来：${String(e.message || e)}` }
+  }
+  log(`recv dir = ${d}`)
+  return { ok: true, dir: d, def: defaultRecvDir() }
+}
+
 // 文件名是别的用户传上来的：可能带 "../x"、Windows 非法字符、或 CON/NUL 这类保留名，
-// 洗干净才敢拼进下载目录
+// 洗干净才敢拼进接收目录
 function safeName(name) {
   let s = path.basename(String(name || ''))
     .replace(/[<>:"/\\|?*]/g, '_')
@@ -499,12 +547,14 @@ if (!app.requestSingleInstanceLock()) {
       n.show()
     })
     // 「另存为」：渲染端在沙箱里，既弹不出系统保存对话框也不知道用户选了哪儿，
-    // 所以字节由渲染端取好送过来，主进程弹框 + 写盘
+    // 所以字节由渲染端取好送过来，主进程弹框 + 写盘。对话框默认开在「文档路径」那个目录
     ipcMain.handle('chat:save', async (event, { name, bytes }) => {
       const win = BrowserWindow.fromWebContents(event.sender)
       const buf = Buffer.from(bytes || new Uint8Array())
+      const at = path.join(recvDir(), safeName(name))
+      log(`save dialog 默认开在 ${at}`)
       const { canceled, filePath } = await dialog.showSaveDialog(win, {
-        defaultPath: path.basename(String(name || '文件')),
+        defaultPath: at,
         filters: [{ name: '所有文件', extensions: ['*'] }]
       })
       if (canceled || !filePath) return { ok: false, canceled: true }
@@ -527,16 +577,26 @@ if (!app.requestSingleInstanceLock()) {
       return true
     }
 
-    // 「下载到默认目录 + 用系统默认应用打开」：渲染端在沙箱里既拿不到下载目录，
+    // 「文档路径」这条：读、挑、存。挑目录的对话框只有主进程弹得出来
+    ipcMain.handle('chat:paths', () => ({ ok: true, dir: recvDir(), def: defaultRecvDir() }))
+    ipcMain.handle('chat:set-recv-dir', (event, dir) => setRecvDir(dir))
+    ipcMain.handle('chat:pick-recv-dir', async (event) => {
+      const win = BrowserWindow.fromWebContents(event.sender)
+      const { canceled, filePaths } = await dialog.showOpenDialog(win, {
+        title: '选择接收文件的目录',
+        defaultPath: recvDir(),
+        properties: ['openDirectory', 'createDirectory']
+      })
+      if (canceled || !filePaths || !filePaths[0]) return { ok: false, canceled: true }
+      // 只把挑中的路径交回去，不在这一步写盘：界面上还有"保存"那颗，两处都写会打架
+      return { ok: true, dir: filePaths[0], def: defaultRecvDir() }
+    })
+
+    // 「存到文档路径 + 用系统默认应用打开」：渲染端在沙箱里既拿不到那个目录，
     // 也没权限启动外部程序，所以字节送过来，主进程落盘再交给 shell.openPath。
     ipcMain.handle('chat:open-file', async (event, { name, bytes }) => {
       const buf = Buffer.from(bytes || new Uint8Array())
-      let dir
-      try {
-        dir = app.getPath('downloads')
-      } catch (e) {
-        dir = app.getPath('home')
-      }
+      const dir = recvDir()
       let target
       try {
         target = placeFile(dir, safeName(name), buf)
