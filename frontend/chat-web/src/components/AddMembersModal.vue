@@ -231,9 +231,12 @@ function submit() {
 .side.two { grid-template-rows: minmax(0, 1fr) minmax(0, 1fr) auto auto; }
 .lnk { border: 0; background: none; padding: 0; font: inherit; font-size: 12.5px; color: var(--brand); cursor: pointer; }
 
-/* 候选成员：横向卡片流，一行放得下几张就放几张，放不下自动换行，超出只在面板内滚 */
+/* 候选成员：横向卡片流，一行放得下几张就放几张，超出只在面板内滚。
+   列宽和上面「已选择」那块（PickPanel .pp-body 的 126px）取同一个值：原来写 158px，
+   同一弹框里同一款卡片，上面一行三张、这里只放两张，看着像两套东西。
+   名字/职位超出就省略号（.mcol b / small 本来就带 ellipsis） */
 .list { flex: 1; min-height: 0; overflow-y: auto; padding: 6px; display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(158px, 1fr)); grid-auto-rows: max-content; gap: 6px; align-content: start; }
+  grid-template-columns: repeat(auto-fill, minmax(126px, 1fr)); grid-auto-rows: max-content; gap: 6px; align-content: start; }
 /* 面板外壳和 MemberTree / PickPanel 同一套：边框、圆角、表头 */
 .pane { display: flex; flex-direction: column; min-height: 0; border: 1px solid var(--nb-line); border-radius: 10px; background: var(--nb-bg-2); }
 .pane-hd { padding: 8px 9px; font-size: 12.5px; color: var(--nb-text); border-bottom: 1px solid var(--nb-line); }
