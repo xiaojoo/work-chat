@@ -18,9 +18,9 @@
         </button>
       </div>
       <div class="rail-group wb-group">
-        <button v-for="w in WB_LINKS" :key="w.key" class="rail-btn wb-btn" :title="'工作台 · ' + w.name"
+        <button v-for="w in WB_LINKS" :key="w.key" class="rail-btn" :title="'工作台 · ' + w.name"
                 :aria-label="w.name" @click="router.push('/workbench/' + w.key)">
-          {{ w.short }}
+          <component :is="w.icon" theme="outline" size="20" />
         </button>
       </div>
       <div class="rail-foot">
@@ -702,17 +702,17 @@ import AddMembersModal from '../../components/AddMembersModal.vue'
 import SettingsModal from '../../components/SettingsModal.vue'
 import AlphaList from '../../components/AlphaList.vue'
 import { toast, confirmBox } from '../../utils/ui'
-import { Minus, PictureOne, FolderUpload, MessageEmoji, Scissors, Mail, MicrophoneOne, People, History, Down, Pin, MessageUnread, Mute, Windows, PreviewClose, Delete, Copy, Clipboard, Undo, Redo, FullSelection, ZoomIn, Translate, Search, Share, Star, Selected, AlarmClock, Quote, Save, Refresh, Clear, PreviewOpen, CameraOne } from '@icon-park/vue-next'
+import { Minus, PictureOne, FolderUpload, MessageEmoji, Scissors, Mail, MicrophoneOne, People, History, Down, Pin, MessageUnread, Mute, Windows, PreviewClose, Delete, Copy, Clipboard, Undo, Redo, FullSelection, ZoomIn, Translate, Search, Share, Star, Selected, AlarmClock, Quote, Save, Refresh, Clear, PreviewOpen, CameraOne, Home, Checklist, FileText, Robot } from '@icon-park/vue-next'
 import { docDetail, docTasks, docScores, docRelated } from '../../mock/workbench'
 
 const router = useRouter()
 
 // 工作台入口（静态壳分区，数据未接后端，界面里带"演示"标）
 const WB_LINKS = [
-  { key: 'home', name: '首页看板', short: '首' },
-  { key: 'tasks', name: '我的任务', short: '任' },
-  { key: 'docs', name: '项目文档', short: '文' },
-  { key: 'ai', name: 'AI 助手', short: 'AI' }
+  { key: 'home', name: '首页看板', icon: Home },
+  { key: 'tasks', name: '我的任务', icon: Checklist },
+  { key: 'docs', name: '项目文档', icon: FileText },
+  { key: 'ai', name: 'AI 助手', icon: Robot }
 ]
 const userStore = useUserStore()
 const { connected, connect, disconnect, send, sendWhenConnected, onMessage } = useWebSocket()
@@ -4096,7 +4096,6 @@ async function openWithApp(r) {
 }
 .rail-btn:hover, .rail-btn.open { background: var(--nb-bg-3); color: var(--nb-text); }
 .rail-group.wb-group { margin-top: 6px; padding-top: 8px; border-top: 1px solid var(--nb-line); }
-.rail-btn.wb-btn { font-size: 11.5px; font-weight: 600; }
 .rail-btn.active { background: var(--brand-soft); color: var(--brand); }
 .rail-badge {
   position: absolute; top: 2px; right: 0; min-width: 16px; height: 16px; padding: 0 4px;
