@@ -224,7 +224,7 @@
         </div>
       </div>
 
-      <footer v-if="currentConversation" class="m-input" :class="{ rzging: rzOn }" @dragover.prevent="isDragging = true" @dragleave.prevent="isDragging = false" @drop.prevent="handleDrop">
+      <footer v-if="currentConversation" class="m-input" :class="{ rzging: rzOn }" @dragover.prevent="isDragging = true" @dragleave.prevent="leaveDrag" @drop.prevent="handleDrop">
         <div v-if="isDragging" class="drop-mask"><div class="drop-ico">📎</div><div>松开鼠标上传文件</div></div>
         <!-- 待发送附件：选完/粘完/拖进来先落在这条上，点「发送」才真的发出去。
              文件名不给省略号，让它折行——截断了等于这张卡片没做完 -->
@@ -1722,6 +1722,15 @@ function handleImageUpload(e) {
 function handleDrop(e) {
   isDragging.value = false
   stageFiles(e.dataTransfer?.files)
+}
+
+/* 指针从输入区移进它自己的子元素（输入框、工具条那排）时，容器也会收到一次 dragleave，
+   照原来那样直接置 false，就和紧跟着冒泡上来的 dragover 来回翻。
+   只有"要去的地方已经不在输入区里"才算真的离开 */
+function leaveDrag(e) {
+  const box = e.currentTarget
+  if (e.relatedTarget && box && box.contains(e.relatedTarget)) return
+  isDragging.value = false
 }
 
 // 粘贴：剪贴板里有文件（截图、复制的图片、复制的文件）就走附件条；纯文字照旧进输入框
@@ -4393,6 +4402,10 @@ async function openWithApp(r) {
 .drop-mask {
   position: absolute; inset: 0; z-index: 2; display: grid; place-content: center; justify-items: center; gap: 6px;
   background: rgba(43, 107, 232, .08); border: 1px dashed var(--brand-line); color: var(--brand);
+  /* 纯提示层，不能接事件：它一盖住指针，指针下面就从输入区变成这张遮罩，
+     容器收到一次 dragleave → 遮罩撤掉 → 指针又落回输入区 → dragover → 遮罩盖上……
+     按住不放时这个环每帧转一次，就是他说的一直闪 */
+  pointer-events: none;
 }
 .area {
   width: 100%; min-height: 56px; max-height: 320px; border: 0; outline: none; resize: none;
