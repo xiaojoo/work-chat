@@ -407,10 +407,12 @@ watch(section, () => { drawer.value = null; q.value = ''; sideGroup.value = '全
 .wb { display: grid; grid-template-columns: 208px minmax(0, 1fr); height: 100vh; background: var(--nb-bg-0); color: var(--nb-text); }
 .wb:has(.dw) { grid-template-columns: 208px minmax(0, 1fr) 320px; }
 
-/* 三列各自一条竖向渐变：顶端 = 窗口标题栏/菜单栏那层 --nb-bg-shell，往下渐到本来的底色。
-   左栏终点用 --nb-bg-3（稿子实测 #F1F5FA，与它差 5）；画布终点 #f4f6fa；抽屉终点纯白 ——
-   抽屉自己本来就没有更浅的空间了，靠这条起点才有落差 */
-.rail { display: flex; flex-direction: column; gap: 2px; min-height: 0; padding: 12px 10px; background: linear-gradient(180deg, var(--nb-bg-shell), var(--nb-bg-3)); border-right: 1px solid var(--nb-line); }
+/* 三列各一条竖向渐变，但**起点按各自本底压深 6%**（不是三列都从同一个色起）：
+   上一版三列顶端都写死 --nb-bg-shell，结果栏/画布/抽屉在顶上全并成一个色，
+   模块之间的深浅层次只剩 1px 边框 —— 稿子里这三块是靠各自那一档 tone 分层的。
+   压同一比例则每档之间的差在任意高度都还在（顶端 Δ 与底端 Δ 只差 6%），
+   且左栏顶端落回 rgb(226,228,233)，与菜单栏 rgb(225,229,236) 差 (1,1,3) = 仍然接得上 */
+.rail { display: flex; flex-direction: column; gap: 2px; min-height: 0; padding: 12px 10px; background: linear-gradient(180deg, color-mix(in srgb, var(--nb-bg-3) 94%, #000), var(--nb-bg-3)); border-right: 1px solid var(--nb-line); }
 .rail-logo { display: flex; align-items: center; gap: 9px; padding: 6px 8px 12px; cursor: pointer; }
 .lg-ic { display: grid; place-items: center; width: 28px; height: 28px; border-radius: 9px; background: var(--brand); color: #fff; }
 .lg-tx b { display: block; font-size: 13.5px; line-height: 1.2; }
@@ -434,7 +436,7 @@ watch(section, () => { drawer.value = null; q.value = ''; sideGroup.value = '全
 /* margin-top 那 6px 是原来跟「企业版」卡片之间的缝，卡片删了就跟着删 */
 .ri.quit { color: var(--nb-dim); }
 
-.main { display: flex; flex-direction: column; min-width: 0; background: linear-gradient(180deg, var(--nb-bg-shell), var(--nb-bg-0)); }
+.main { display: flex; flex-direction: column; min-width: 0; }
 /* 页头那条淡蓝渐变：三个停靠点是沿稿子同一行扫出来的实测值（左 #F2F6FC / 中 #E3EFFD / 右 #E4EDFE） */
 .mh { display: flex; align-items: center; gap: 10px; padding: 14px 20px; border-bottom: 1px solid var(--nb-line);
   background: linear-gradient(100deg, #f2f6fc 0%, #e3effd 50%, #e4edfe 100%); }
@@ -453,7 +455,9 @@ watch(section, () => { drawer.value = null; q.value = ''; sideGroup.value = '全
 .mh-acts .btn.pri:disabled { opacity: 1; cursor: not-allowed; }
 .pri-ic { display: grid; place-items: center; flex: none; width: 14px; }
 .pri-ic svg { width: 14px; height: 14px; }
-.body { flex: 1; overflow-y: auto; padding: 18px 20px 26px; }
+/* 画布这条挂在 .body 而不是整列：整列的话顶上 71px 被页头条盖住，
+   露出来的画布只剩渐变的最后 9%，等于没有。挂 .body 才是"这一块自己渐" */
+.body { flex: 1; overflow-y: auto; padding: 18px 20px 26px; background: linear-gradient(180deg, color-mix(in srgb, var(--nb-bg-0) 94%, #000), var(--nb-bg-0)); }
 
 .sec { display: flex; flex-direction: column; gap: 14px; }
 .hello h2 { margin: 0; font-size: 18px; }
@@ -561,7 +565,7 @@ td em { margin-left: 7px; font-size: 11.5px; font-style: normal; color: var(--nb
 .msg.me { align-self: flex-end; background: var(--brand); color: #fff; }
 .ask { display: flex; gap: 8px; }
 
-.dw { background: linear-gradient(180deg, var(--nb-bg-shell), var(--nb-bg-1)); border-left: 1px solid var(--nb-line); display: flex; flex-direction: column; min-height: 0; }
+.dw { background: linear-gradient(180deg, color-mix(in srgb, var(--nb-bg-1) 94%, #000), var(--nb-bg-1)); border-left: 1px solid var(--nb-line); display: flex; flex-direction: column; min-height: 0; }
 .dw-hd { display: flex; align-items: center; justify-content: space-between; padding: 14px 16px; border-bottom: 1px solid var(--nb-line); }
 .dw-hd b { font-size: 13.5px; }
 .x { border: 0; background: none; color: var(--nb-dim); font-size: 13px; cursor: pointer; }
