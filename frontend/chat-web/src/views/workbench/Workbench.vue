@@ -594,7 +594,7 @@ td em { margin-left: 7px; font-size: 11.5px; font-style: normal; color: var(--nb
    两道竖边框是他说撤的（它们横穿顶部那片光，把 1/2/3 号切成三截） */
 .dw { background: var(--nb-bg-0); display: flex; flex-direction: column; min-height: 0; }
 /* 抽屉头和页头条同高、同一片渐变 —— 两条下边框落在同一条线上，顶上那一片读起来是一整块 */
-.dw-hd { display: flex; align-items: center; justify-content: space-between; min-height: var(--wb-bar); padding: 14px 16px;
+.dw-hd { display: flex; align-items: center; justify-content: space-between; min-height: var(--wb-bar); padding: 14px 16px 14px 0;
   background: var(--wb-wash); background-attachment: fixed; }
 .dw-hd b { font-size: 13.5px; }
 .x { border: 0; background: none; color: var(--nb-dim); font-size: 13px; cursor: pointer; }
