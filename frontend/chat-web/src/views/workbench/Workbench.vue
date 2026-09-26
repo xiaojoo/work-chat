@@ -407,8 +407,10 @@ watch(section, () => { drawer.value = null; q.value = ''; sideGroup.value = '全
 .wb { display: grid; grid-template-columns: 208px minmax(0, 1fr); height: 100vh; background: var(--nb-bg-0); color: var(--nb-text); }
 .wb:has(.dw) { grid-template-columns: 208px minmax(0, 1fr) 320px; }
 
-/* 稿子的菜单栏不是纯白：实测 #F1F5FA，和 --nb-bg-3(#f0f3f8) 差 5，所以指回那个 token */
-.rail { display: flex; flex-direction: column; gap: 2px; min-height: 0; padding: 12px 10px; background: var(--nb-bg-3); border-right: 1px solid var(--nb-line); }
+/* 三列各自一条竖向渐变：顶端 = 窗口标题栏/菜单栏那层 --nb-bg-shell，往下渐到本来的底色。
+   左栏终点用 --nb-bg-3（稿子实测 #F1F5FA，与它差 5）；画布终点 #f4f6fa；抽屉终点纯白 ——
+   抽屉自己本来就没有更浅的空间了，靠这条起点才有落差 */
+.rail { display: flex; flex-direction: column; gap: 2px; min-height: 0; padding: 12px 10px; background: linear-gradient(180deg, var(--nb-bg-shell), var(--nb-bg-3)); border-right: 1px solid var(--nb-line); }
 .rail-logo { display: flex; align-items: center; gap: 9px; padding: 6px 8px 12px; cursor: pointer; }
 .lg-ic { display: grid; place-items: center; width: 28px; height: 28px; border-radius: 9px; background: var(--brand); color: #fff; }
 .lg-tx b { display: block; font-size: 13.5px; line-height: 1.2; }
@@ -432,7 +434,7 @@ watch(section, () => { drawer.value = null; q.value = ''; sideGroup.value = '全
 /* margin-top 那 6px 是原来跟「企业版」卡片之间的缝，卡片删了就跟着删 */
 .ri.quit { color: var(--nb-dim); }
 
-.main { display: flex; flex-direction: column; min-width: 0; }
+.main { display: flex; flex-direction: column; min-width: 0; background: linear-gradient(180deg, var(--nb-bg-shell), var(--nb-bg-0)); }
 /* 页头那条淡蓝渐变：三个停靠点是沿稿子同一行扫出来的实测值（左 #F2F6FC / 中 #E3EFFD / 右 #E4EDFE） */
 .mh { display: flex; align-items: center; gap: 10px; padding: 14px 20px; border-bottom: 1px solid var(--nb-line);
   background: linear-gradient(100deg, #f2f6fc 0%, #e3effd 50%, #e4edfe 100%); }
@@ -559,7 +561,7 @@ td em { margin-left: 7px; font-size: 11.5px; font-style: normal; color: var(--nb
 .msg.me { align-self: flex-end; background: var(--brand); color: #fff; }
 .ask { display: flex; gap: 8px; }
 
-.dw { background: var(--nb-bg-1); border-left: 1px solid var(--nb-line); display: flex; flex-direction: column; min-height: 0; }
+.dw { background: linear-gradient(180deg, var(--nb-bg-shell), var(--nb-bg-1)); border-left: 1px solid var(--nb-line); display: flex; flex-direction: column; min-height: 0; }
 .dw-hd { display: flex; align-items: center; justify-content: space-between; padding: 14px 16px; border-bottom: 1px solid var(--nb-line); }
 .dw-hd b { font-size: 13.5px; }
 .x { border: 0; background: none; color: var(--nb-dim); font-size: 13px; cursor: pointer; }
