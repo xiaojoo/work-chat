@@ -2682,43 +2682,32 @@ async function handleInputCopy() {
 }
 
 async function handleInputPaste() {
-  try {
-    const text = await navigator.clipboard.readText()
-    if (text) {
-      const textarea = inputEl()
-      if (textarea) {
-        const start = textarea.selectionStart
-        const end = textarea.selectionEnd
-        inputMessage.value = inputMessage.value.substring(0, start) + text + inputMessage.value.substring(end)
-        nextTick(() => {
-          textarea.selectionStart = textarea.selectionEnd = start + text.length
-          textarea.focus()
-        })
-      }
-    }
-  } catch (e) {
-    toast('无法访问剪贴板', 'error')
-  }
+  const textarea = inputEl()
   inputMenuVisible.value = false
+  if (!textarea) return
+  let text = ''
+  try { text = await navigator.clipboard.readText() } catch (e) { toast('无法访问剪贴板', 'error'); return }
+  if (!text) return
+  // 必须走编辑接口，不能自己拼 inputMessage.value：程序改 value 不进 Chromium 的原生撤销栈，
+  // 粘贴完按 Ctrl+Z 就什么也撤不回来（他报的就是这个）。insertText 既进撤销栈，
+  // 也会触发 input 事件，v-model 和 @input 那条（字数、@ 名单）都跟着走
+  textarea.focus()
+  document.execCommand('insertText', false, text)
 }
 
 async function handleInputCut() {
   const textarea = inputEl()
-  if (textarea) {
-    const selected = textarea.value.substring(textarea.selectionStart, textarea.selectionEnd)
-    if (selected) {
-      await navigator.clipboard.writeText(selected)
-      const start = textarea.selectionStart
-      const end = textarea.selectionEnd
-      inputMessage.value = inputMessage.value.substring(0, start) + inputMessage.value.substring(end)
-      nextTick(() => {
-        textarea.selectionStart = textarea.selectionEnd = start
-        textarea.focus()
-      })
-      toast('已剪切', 'success')
-    }
-  }
   inputMenuVisible.value = false
+  if (!textarea) return
+  const start = textarea.selectionStart
+  const end = textarea.selectionEnd
+  if (start === end) return
+  const selected = textarea.value.substring(start, end)
+  try { await navigator.clipboard.writeText(selected) } catch (e) { toast('无法写入剪贴板', 'error'); return }
+  // 同上：删这一步交给原生 delete 命令，撤销栈里有这一笔，Ctrl+Z 能把那段字找回来
+  textarea.focus()
+  document.execCommand('delete')
+  toast('已剪切', 'success')
 }
 
 // 会话列表：获取最后消息显示文本
