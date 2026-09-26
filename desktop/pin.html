@@ -16,7 +16,13 @@
   #x { position: absolute; top: 4px; right: 4px; width: 22px; height: 22px; border: 0; border-radius: 5px;
        background: rgba(28, 33, 44, .8); color: #fff; font-size: 12px; display: grid; place-items: center;
        cursor: pointer; -webkit-app-region: no-drag; opacity: 0; transition: opacity .12s; z-index: 3 }
-  #wrap:hover #x { opacity: 1 }
+  /* 标注入口：和 ✕ 并排悬停才出（原来藏在右键菜单第一项，得先右键再找）；
+     编辑态它亮着，再点一下等于「完成」——把这一轮画回图上 */
+  #pen { position: absolute; top: 4px; right: 30px; width: 22px; height: 22px; border: 0; border-radius: 5px;
+         background: rgba(28, 33, 44, .8); color: #fff; font-size: 12px; display: grid; place-items: center;
+         cursor: pointer; -webkit-app-region: no-drag; opacity: 0; transition: opacity .12s; z-index: 8 }
+  #wrap:hover #x, #wrap:hover #pen, body.editing #pen { opacity: 1 }
+  #pen.on { background: #2b6be8 }
   #note { position: absolute; left: 50%; bottom: 10px; transform: translateX(-50%); padding: 4px 10px;
           border-radius: 6px; background: rgba(28, 33, 44, .88); color: #fff; font-size: 12px;
           opacity: 0; transition: opacity .15s; pointer-events: none; z-index: 4 }
@@ -36,6 +42,9 @@
            display: flex; flex-wrap: wrap; justify-content: center; align-items: center; gap: 2px;
            max-width: calc(100% - 12px); padding: 4px; border-radius: 8px;
            background: rgba(28, 33, 44, .95); box-shadow: 0 4px 18px rgba(0, 0, 0, .35) }
+  /* 必须显式写这一条：#tools 自己声明了 display:flex，特异性盖过 UA 的 [hidden]{display:none}，
+     于是 hidden=true 也照样挂在图上（截图里量出来的，探针读 .hidden 属性是假绿） */
+  #tools[hidden] { display: none }
   .tb { width: 24px; height: 24px; border: 0; border-radius: 5px; background: transparent; color: #e8ecf4;
         font-size: 13px; display: grid; place-items: center; cursor: pointer; transition: background .12s }
   .tb:hover:not(:disabled) { background: rgba(255, 255, 255, .14) }
@@ -81,12 +90,12 @@
       <button class="tb" type="button" id="undo" title="撤销上一笔" aria-label="撤销" disabled>↶</button>
       <button class="tb wide" type="button" id="done" title="把标注画回这张钉图">完成</button>
     </div>
+    <button id="pen" type="button" title="标注这张图" aria-label="标注">✎</button>
     <button id="x" title="关闭">✕</button>
     <span id="note"></span>
   </div>
   <div id="menu" class="pin-menu" hidden>
     <div class="pin-menu-list">
-      <div class="pin-menu-item" data-a="edit"><span class="i-icon"><svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"><path d="M11.3 2.4 13.6 4.7 5.6 12.7 2.3 13.7l1-3.3z"/><path d="M10 3.7 12.3 6"/></svg></span><span>编辑</span></div>
       <div class="pin-menu-item" data-a="copy"><span class="i-icon"><svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.3"><rect x="5.5" y="5.5" width="8" height="8" rx="1.6"/><path d="M10.5 3.5V3a1.5 1.5 0 0 0-1.5-1.5H4A1.5 1.5 0 0 0 2.5 3v5A1.5 1.5 0 0 0 4 9.5h.5"/></svg></span><span>复制</span></div>
       <div class="pin-menu-item off" data-a="fav"><span class="i-icon"><svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linejoin="round"><path d="M8 1.8l1.9 3.9 4.3.6-3.1 3 .7 4.3L8 11.6l-3.8 2 .7-4.3-3.1-3 4.3-.6z"/></svg></span><span>收藏</span></div>
       <div class="pin-menu-item" data-a="save"><span class="i-icon"><svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"><path d="M8 1.8v8"/><path d="M4.6 6.6 8 10l3.4-3.4"/><path d="M2 12.4v1.2a.6.6 0 0 0 .6.6h10.8a.6.6 0 0 0 .6-.6v-1.2"/></svg></span><span>另存为</span></div>

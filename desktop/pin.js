@@ -81,6 +81,7 @@ function enterEdit() {
   editing = true
   document.body.classList.add('editing')
   tools.hidden = false
+  document.getElementById('pen').classList.add('on')
   syncTools()
   showNote('画几笔，点「完成」画回这张图')
 }
@@ -102,6 +103,7 @@ function exitEdit(apply) {
   editing = false
   tool = null; live = null; ops = []
   document.body.classList.remove('editing')
+  document.getElementById('pen').classList.remove('on')
   tools.hidden = true
   txtIn.style.display = 'none'
   g2.clearRect(0, 0, cv.width, cv.height)
@@ -152,6 +154,9 @@ cv.addEventListener('pointermove', e => {
 })
 addEventListener('pointerup', () => { live = null })
 
+document.getElementById('pen').addEventListener('click', () => {
+  if (editing) exitEdit(true); else enterEdit()
+})
 tools.addEventListener('click', e => {
   const b = e.target.closest('.tb[data-t]')
   if (b) { tool = tool === b.dataset.t ? null : b.dataset.t; syncTools(); return }
@@ -212,8 +217,7 @@ menu.addEventListener('click', e => {
   if (!it || it.classList.contains('off')) return
   const a = it.dataset.a
   hideMenu()
-  if (a === 'edit') enterEdit()
-  else if (a === 'copy') window.pin.copy()
+  if (a === 'copy') window.pin.copy()
   else if (a === 'save') window.pin.save()
   else if (a === 'reset') window.pin.reset()
   else if (a === 'quit') window.pin.close()
@@ -226,7 +230,7 @@ let last = { dx: 0, dy: 0 }
 document.addEventListener('pointerdown', e => {
   // 编辑态里选了工具，按住图就是"画"，不是"搬窗口"；工具条和文字框上也不该起拖
   if (e.button !== 0 || e.target.closest('#menu') || e.target.closest('#x')) return
-  if (e.target.closest('#tools') || e.target.closest('#txt')) return
+  if (e.target.closest('#tools') || e.target.closest('#txt') || e.target.closest('#pen')) return
   if (editing && tool) return
   drag = { px: e.screenX, py: e.screenY }
   last = { dx: 0, dy: 0 }
