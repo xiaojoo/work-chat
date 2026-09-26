@@ -2,6 +2,7 @@ const { app, BrowserWindow, Tray, Menu, Notification, shell, ipcMain, protocol, 
 const path = require('path')
 const fs = require('fs')
 const crypto = require('crypto')
+const { execFileSync, spawn } = require('child_process')
 const { pathToFileURL } = require('url')
 
 const DIST = path.join(__dirname, '..', 'frontend', 'chat-web', 'dist')
@@ -46,6 +47,35 @@ function safeName(name) {
 // 可执行 / 脚本类不自动"打开"——那等于替别人在他机器上跑代码，只落文件
 const EXEC_EXT = new Set(['exe', 'bat', 'cmd', 'com', 'msi', 'msp', 'ps1', 'psm1', 'vbs', 'vbe',
   'js', 'jse', 'wsf', 'wsh', 'scr', 'cpl', 'hta', 'jar', 'reg', 'lnk', 'sh'])
+
+// 有没有默认应用要自己查，不能拿 shell.openPath 的返回值当判据：实测没关联的扩展名
+// （.qqzz、以及无扩展名的文件）它照样返回空串，而屏幕上是 Windows 自己弹的
+// "你要如何打开此文件"（窗口类 Open With Dummy Window Class For Interim Dialog）。
+// 判据 = UserChoice 或 HKCR 里那个 ProgID 到底有没有 shell\open\command。
+function regRun(args) {
+  try {
+    return execFileSync('reg', args, { encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] })
+  } catch (e) {
+    return null
+  }
+}
+function regValue(out) {
+  const m = String(out || '').match(/REG_(?:EXPAND_SZ|SZ)[ \t]+([\x20-\x7E]+)/)
+  return m ? m[1].trim() : ''
+}
+function hasDefaultHandler(file) {
+  const ext = path.extname(file).toLowerCase()
+  if (!ext) return false
+  // ProgId 在 FileExts\<扩展名>\UserChoice 那个子键里，不在 FileExts\<扩展名> 本身；
+  // 没有 UserChoice 才退回 HKCR\<扩展名> 的默认值（.txt 那条就是 txtfilelegacy）
+  const uc = regValue(regRun(['query',
+    `HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\Explorer\\FileExts\\${ext}\\UserChoice`, '/v', 'ProgId']))
+  const progId = uc || regValue(regRun(['query', `HKCR\\${ext}`, '/ve']))
+  if (!progId) return false
+  // 只问这个 ProgID 的打开命令键在不在，不读它的内容：命令路径里带中文时，按控制台代码页
+  // 读回来是乱码，会被判成"没有默认应用"
+  return regRun(['query', `HKCR\\${progId}\\shell\\open\\command`]) !== null
+}
 
 // 落盘并返回真实路径：同名且内容一样（sha256）就复用那一份，不重不堆副本；
 // 同名不同内容往后加 " (2)"，绝不覆盖已有文件
@@ -488,6 +518,15 @@ if (!app.requestSingleInstanceLock()) {
       }
     })
 
+    // 没有默认应用时的兜底：这么小的文件交记事本，超了就不开（他给的分界是 200KB）
+    const NOTEPAD_MAX = 200 * 1024
+    function openWithNotepad(file) {
+      const exe = path.join(process.env.SystemRoot || 'C:\\Windows', 'System32', 'notepad.exe')
+      if (!fs.existsSync(exe)) return false
+      spawn(exe, [file], { detached: true, stdio: 'ignore' }).unref()
+      return true
+    }
+
     // 「下载到默认目录 + 用系统默认应用打开」：渲染端在沙箱里既拿不到下载目录，
     // 也没权限启动外部程序，所以字节送过来，主进程落盘再交给 shell.openPath。
     ipcMain.handle('chat:open-file', async (event, { name, bytes }) => {
@@ -509,13 +548,20 @@ if (!app.requestSingleInstanceLock()) {
       // 可执行/脚本类只落文件、不启动：那等于替别人在他机器上跑代码
       if (EXEC_EXT.has(ext)) {
         log(`refused to open ${target} (${ext})`)
-        return { ok: true, path: target, dir, size: buf.length, opened: false, refused: true }
+        return { ok: true, path: target, dir, size: buf.length, opened: false, how: 'refused' }
       }
-      const err = await shell.openPath(target)
-      log(`open-file ${target} (${buf.length} bytes) → ${err || 'ok'}`)
-      return err
-        ? { ok: false, path: target, dir, size: buf.length, error: err }
-        : { ok: true, path: target, dir, size: buf.length, opened: true }
+      if (hasDefaultHandler(target)) {
+        const err = await shell.openPath(target)
+        log(`open-file ${target} (${buf.length} bytes) 有默认应用 → ${err || 'ok'}`)
+        if (!err) return { ok: true, path: target, dir, size: buf.length, opened: true, how: 'default' }
+        return { ok: false, path: target, dir, size: buf.length, opened: false, how: 'default', error: err }
+      }
+      if (buf.length <= NOTEPAD_MAX && openWithNotepad(target)) {
+        log(`open-file ${target} (${buf.length} bytes) 无默认应用 → 记事本`)
+        return { ok: true, path: target, dir, size: buf.length, opened: true, how: 'notepad' }
+      }
+      log(`open-file ${target} (${buf.length} bytes) 无默认应用且过大 → 只落文件`)
+      return { ok: true, path: target, dir, size: buf.length, opened: false, how: 'saved-only' }
     })
 
     // 截图：主窗口只能"发起"，抓屏/遮罩窗/剪贴板都在上面那几个函数里

@@ -164,7 +164,7 @@
                       <img v-if="mediaSrc(msg)" :src="mediaSrc(msg)" class="b-img" @click="previewImage(mediaSrc(msg))" />
                       <span v-else class="b-wait">{{ mediaState(msg) === 'err' ? '图片加载失败' : '图片加载中…' }}</span>
                     </template>
-                    <a v-else-if="msg.messageType === 'FILE'" class="b-file" @click="openDocView(fileRefOf(msg))">
+                    <a v-else-if="msg.messageType === 'FILE'" class="b-file" @click="openFileRef(fileRefOf(msg))">
                       <span class="b-file-nm">{{ (fileRefOf(msg) || {}).name || '文件' }}</span>
                       <span class="b-file-sz">{{ sizeLabel((fileRefOf(msg) || {}).size) }}</span>
                     </a>
@@ -174,7 +174,7 @@
                 </div>
                 <!-- 引用是气泡下面那一行灰字＋左竖线（照参考图），不再把 "> 谁：" 混在气泡正文里。
                      引用的是图片/文件时按类型渲染：图片出缩略图（点开走大图查看器），
-                     文件出和内容里一样的那张文件片（点开下载），不再只写 [图片] 三个字 -->
+                     文件出和内容里一样的那张文件片（点开和本地默认应用走同一条路），不再只写 [图片] 三个字 -->
                 <div v-if="quoteOf(msg)" class="msg-quote" :class="{ 'q-media': quoteOf(msg).ref }"
                      @contextmenu.prevent.stop="openMsgMenu($event, msg)">
                   <span class="mq-name">{{ quoteOf(msg).name }}:</span>
@@ -183,7 +183,7 @@
                          @click.stop="previewImage(srcOfRef(quoteOf(msg).ref))" />
                     <span v-else class="mq-wait">{{ stateOfRef(quoteOf(msg).ref) === 'err' ? '图片加载失败' : '图片加载中…' }}</span>
                   </template>
-                  <a v-else-if="quoteOf(msg).ref" class="b-file mq-file" @click.stop="openDocView(quoteOf(msg).ref)">
+                  <a v-else-if="quoteOf(msg).ref" class="b-file mq-file" @click.stop="openFileRef(quoteOf(msg).ref)">
                     <span class="b-file-nm">{{ quoteOf(msg).ref.name }}</span>
                     <span class="b-file-sz">{{ sizeLabel(quoteOf(msg).ref.size) }}</span>
                   </a>
@@ -678,29 +678,6 @@
       <button class="iv-x" type="button" title="关闭" @click="closeImageView">✕</button>
     </div>
 
-    <!-- 文档预览：文本类文件点开就在本页弹框里看，下载 / 另存为收在顶上那条。
-         不能预览的类型不装死——弹框里写明是哪一类，照样给下载 -->
-    <div v-if="docView" class="modal-overlay" @click.self="closeDocView">
-      <div class="modal docv" role="dialog" aria-modal="true" :aria-label="'预览 ' + docView.name">
-        <div class="docv-hd">
-          <span class="docv-ic" aria-hidden="true">
-            <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.7">
-              <path d="M14 3v5h5" /><path d="M6 3h8l5 5v13H6z" />
-            </svg>
-          </span>
-          <span class="docv-nm">{{ docView.name }}</span>
-          <span class="docv-meta">{{ sizeLabel(docView.size) }} · {{ docView.ct || '未知类型' }}</span>
-          <span class="docv-fill"></span>
-          <button class="btn btn-ghost docv-btn" type="button" @click="downloadRef(docView)">下载</button>
-          <button v-if="canSave" class="btn btn-ghost docv-btn" type="button" @click="saveAsRef(docView)">另存为</button>
-          <button class="docv-x" type="button" aria-label="关闭" @click="closeDocView">✕</button>
-        </div>
-        <pre v-if="docView.text !== null" class="docv-body">{{ docView.text }}<span v-if="docView.truncated" class="docv-cut">
-—— 只读了前 200KB，后面约 {{ sizeLabel(docView.rest) }} 没显示，完整内容请下载 ——</span></pre>
-        <p v-else-if="docView.err" class="docv-note">{{ docView.err }}</p>
-        <p v-else class="docv-note">读取中…</p>
-      </div>
-    </div>
   </div>
 </template>
 
@@ -1989,7 +1966,7 @@ function quoteMessage() {
 
 // 另存为：桌面壳走主进程弹系统对话框（渲染端在沙箱里弹不出、也拿不到用户选的路径），
 // 网页端没有这条路，退回浏览器的 <a download>，落点是浏览器自己的设置。
-// 参数是一个"文件引用"（消息里的、引用行里的、预览弹框里的都是同一种形状）
+// 参数是一个"文件引用"（消息里的、引用行里的都是同一种形状）
 async function saveAsRef(r) {
   if (!r) { toast('这条消息里没有可保存的文件', 'error'); return }
   try {
@@ -3089,102 +3066,49 @@ watch(imgView, v => {
   document.addEventListener('keydown', ivEsc)
 })
 
-/* ===== 文档预览（文本类）+ PDF/Office 交给系统默认应用 =====
-   文本：库里现在就是 json / txt 这一类，零依赖、两端一致，点开在本页弹框里看。
-   PDF / Office：桌面壳先落到系统的「下载」文件夹，再用默认应用打开（点击即开，不再只给下载）。
-     网页端没这条路，仍然是弹框 + 下载。
-   Office 的"在线预览"仍然没做——那要服务端转格式，是另一件事。 */
-const docView = ref(null)
-const canSave = !!window.chatDesktop?.save
+/* ===== 文件气泡点开：一律交给本地，不再自绘预览弹框 =====
+   软件 / 压缩包 → 直接弹系统那个「另存为」；其余 → 落「下载」文件夹后用系统默认应用打开；
+   没有默认应用时由主进程兜底（200KB 以内交记事本，超出只落文件、不开）。
+   网页端没有本地应用这条路，点开就是浏览器下载。 */
 const canOpenApp = !!window.chatDesktop?.openFile
-// 只有"文档"这一类才自动打开：压缩包、视频等点开仍旧是弹框，不替他把外部程序拉起来
-const OPEN_EXT = new Set(['pdf', 'doc', 'docx', 'xls', 'xlsx', 'ppt', 'pptx', 'wps', 'et', 'dps'])
-const DOC_PREVIEW_MAX = 200 * 1024
-const TEXT_EXT = new Set(['txt', 'md', 'markdown', 'json', 'jsonl', 'ndjson', 'csv', 'tsv', 'log', 'yml', 'yaml',
-  'xml', 'ini', 'conf', 'properties', 'env', 'toml', 'svg', 'html', 'htm', 'css', 'scss', 'less',
-  'js', 'mjs', 'cjs', 'ts', 'tsx', 'jsx', 'vue', 'java', 'py', 'go', 'rs', 'c', 'h', 'cpp', 'hpp',
-  'cs', 'rb', 'php', 'sh', 'bash', 'ps1', 'bat', 'sql', 'dockerfile', 'makefile', 'gitignore'])
+// 判"有没有默认应用"在主进程查注册表，不拿 shell.openPath 的返回值当判据（它没关联也返回空串）
+const SAVE_EXT = new Set(['zip', 'rar', '7z', 'tar', 'gz', 'tgz', 'bz2', 'xz', 'iso',
+  'exe', 'msi', 'apk', 'ipa', 'deb', 'rpm', 'appx', 'msix', 'jar', 'bat', 'cmd', 'sh'])
+function extOf(r) { return String(r?.name || '').split('.').pop().toLowerCase() }
 
-function docKindOf(r) {
-  const ct = String(r?.contentType || '').toLowerCase()
-  const ext = String(r?.name || '').split('.').pop().toLowerCase()
-  // 先按大类挡掉：图片有自己的查看器，音视频/字体更不是文本
-  if (/^(image|video|audio|font|model)\//.test(ct)) return ''
-  // 再看精确的文本 MIME。不能用松散的 /xml/ 去匹配：
-  // docx/xlsx/pptx 的 MIME 是 application/vnd.openxmlformats-…，里面正好含 "xml"，
-  // 端到端试过，那样会把 Office 文件判成文本、顶上还标成「XML」
-  if (ct.startsWith('text/')) return 'text'
-  if (/^application\/(json|xml|xhtml\+xml|yaml|x-yaml|ld\+json|graphql|javascript|x-javascript|ecmascript|typescript|x-sh|x-httpd-php)$/.test(ct)) return 'text'
-  if (/\+(json|xml|yaml)$/.test(ct)) return 'text'
-  // 没有可靠 MIME 时按扩展名兜底（后端没有类型白名单，什么都能传上来）
-  return TEXT_EXT.has(ext) ? 'text' : ''
-}
-function docLabel(ct, name) {
-  const s = String(ct || '').toLowerCase()
-  if (s.startsWith('text/')) return s.slice(5)
-  if (/^application\/(vnd\.api\+)?json/.test(s) || /\+json$/.test(s)) return 'JSON'
-  if (s === 'application/xml' || s === 'application/xhtml+xml' || /\+xml$/.test(s)) return 'XML'
-  if (/yaml/.test(s)) return 'YAML'
-  // 认不出来的（Office、压缩包…）用扩展名当短标签：整条 MIME 有七十多个字符，
-  // 塞在表头那条里会把右边的按钮挤出弹框
-  const ext = String(name || '').split('.').pop().toUpperCase()
-  return ext && ext.length <= 8 ? ext : ''
-}
-async function openDocView(r) {
+async function openFileRef(r) {
   if (!r) return
   closeAllMenus()
-  const kind = docKindOf(r)
-  const label = docLabel(r.contentType, r.name)
-  const ext = String(r.name || '').split('.').pop().toLowerCase()
-  if (kind !== 'text' && canOpenApp && OPEN_EXT.has(ext)) { openWithApp(r); return }
-  docView.value = { name: r.name || '文件', size: r.size || 0, contentType: r.contentType, ct: label,
-    fileId: r.fileId, dataUrl: r.dataUrl, kind, text: null, truncated: false, rest: 0, err: '' }
-  if (kind !== 'text') {
-    docView.value.err = '这种类型（' + (label || '未知') + '）暂不预览，请下载后用本地应用打开'
-    return
-  }
-  try {
-    const buf = await refBytes(r)
-    const cut = buf.byteLength > DOC_PREVIEW_MAX
-    let text = new TextDecoder('utf-8', { fatal: false }).decode(new Uint8Array(buf, 0, Math.min(buf.byteLength, DOC_PREVIEW_MAX)))
-    let rest = 0
-    if (cut) {
-      const nl = text.lastIndexOf('\n')
-      if (nl > 0) { rest = buf.byteLength - nl; text = text.slice(0, nl) } else rest = buf.byteLength - DOC_PREVIEW_MAX
-    }
-    if (docView.value) Object.assign(docView.value, { text, truncated: cut, rest })
-  } catch (e) {
-    if (docView.value) docView.value.err = '读不出来：' + (e?.message || e)
-  }
+  if (SAVE_EXT.has(extOf(r))) { saveAsRef(r); return }
+  if (!canOpenApp) { downloadRef(r); toast('已交给浏览器下载', 'success'); return }
+  openWithApp(r)
 }
 // 字节两头都从同一个地方取：消息里带的 dataUrl，否则按 fileId 换 objectURL
 async function refBytes(r) {
   const url = r.dataUrl || await fileObjectUrl(r.fileId)
   return new Uint8Array(await (await fetch(url)).arrayBuffer())
 }
-// 落到「下载」文件夹 + 用系统默认应用打开，实际写盘和 shell.openPath 都在主进程
-let openingDoc = false
+// 落到「下载」文件夹 + 交系统默认应用打开；写盘、查关联、兜底都在主进程，这边只报它做了什么
+let openingFile = false
 async function openWithApp(r) {
-  if (!r || openingDoc) return
-  openingDoc = true
+  if (!r || openingFile) return
+  openingFile = true
   try {
     const res = await window.chatDesktop.openFile({ name: r.name || '文件', bytes: await refBytes(r) })
     if (!res?.ok) { toast('打开失败：' + (res?.error || '未知错误'), 'error'); return }
-    toast(res.opened
-      ? `${r.name} 已存进「下载」文件夹，正在用默认应用打开`
-      : `${r.name} 已存进「下载」文件夹，这类文件不会自动打开`, 'success')
+    const byHow = {
+      default: '已存进「下载」文件夹，正在用默认应用打开',
+      notepad: `没有默认应用，已存进「下载」文件夹并用记事本打开`,
+      'saved-only': `没有默认应用且超过 200KB，只存进「下载」文件夹，没有打开`,
+      refused: `是可直接运行的文件，只存进「下载」文件夹，没有运行`
+    }
+    toast(`${r.name} ${byHow[res.how] || '已存进「下载」文件夹'}`, 'success')
   } catch (e) {
     toast('打开失败：' + (e?.message || e), 'error')
   } finally {
-    openingDoc = false
+    openingFile = false
   }
 }
-function closeDocView() { docView.value = null }
-function docEsc(e) { if (e.key === 'Escape') { e.stopPropagation(); closeDocView() } }
-watch(docView, v => {
-  if (v) document.addEventListener('keydown', docEsc, true)
-  else document.removeEventListener('keydown', docEsc, true)
-})
 </script>
 
 <style scoped>
@@ -4390,30 +4314,6 @@ watch(docView, v => {
   background: rgba(255, 255, 255, .14); color: #fff; font-size: 15px; display: grid; place-items: center; cursor: pointer;
 }
 .iv-x:hover { background: rgba(255, 255, 255, .26); }
-/* ---- 文档预览弹框：固定高、只有正文滚、外层永不滚（和全站弹框同一条规矩） ----
-   overflow 必须 hidden：正文是白底、一直铺到弹框底边，而 .modal 的圆角只裁它自己那层渐变底，
-   不裁子元素——所以顶部两个角是圆的、底下两个角被正文的直角盖成方的（像素图量的） */
-.docv { width: min(880px, 92vw); height: 560px; overflow: hidden; }
-.docv-hd { display: flex; align-items: center; gap: 10px; flex: none; padding: 11px 12px 11px 16px;
-  border-bottom: 1px solid var(--nb-line); }
-.docv-ic { display: grid; place-items: center; width: 30px; height: 30px; flex: none;
-  border-radius: 8px; background: var(--brand-soft); color: var(--brand); }
-.docv-nm { flex: 0 1 auto; min-width: 0; font-size: 14px; font-weight: 600; color: var(--nb-text); word-break: break-all; }
-.docv-meta { flex: none; font-size: 12px; color: var(--nb-dim); }
-.docv-fill { flex: 1 1 auto; min-width: 10px }
-.docv-btn { height: 28px; padding: 0 12px; font-size: 12.5px; }
-.docv-x { width: 26px; height: 26px; flex: none; border: 0; border-radius: 7px; background: none;
-  color: var(--nb-dim); font-size: 13px; cursor: pointer; transition: background .12s, color .12s }
-.docv-x:hover { background: var(--nb-bg-3); color: var(--danger) }
-/* pre-wrap：长行折起来，不在正文里再开一条横向滚动条 */
-.docv-body { flex: 1; min-height: 0; margin: 0; padding: 14px 16px 18px; overflow-y: auto;
-  background: var(--nb-bg-1); color: var(--nb-text);
-  font: 12.5px/1.65 Consolas, "Cascadia Mono", "Microsoft YaHei", monospace;
-  white-space: pre-wrap; word-break: break-word; tab-size: 4 }
-.docv-cut { display: block; margin-top: 12px; padding-top: 10px; border-top: 1px dashed var(--nb-line);
-  color: var(--nb-dim); font-family: "Microsoft YaHei", system-ui, sans-serif; font-size: 12px }
-.docv-note { display: flex; flex: 1; align-items: center; justify-content: center; margin: 0; padding: 24px;
-  text-align: center; font-size: 13px; color: var(--nb-dim) }
 .b-wait { display: inline-block; min-width: 96px; font-size: 12px; color: var(--nb-dim); }
 /* 气泡已经是灰底了，里面这颗文件片得反过来用白底才分得开（原来是灰片在白气泡上）。
    文字颜色必须写死：片子底永远是白的，跟着气泡 inherit 的话自己发的那条就是白字落白底
