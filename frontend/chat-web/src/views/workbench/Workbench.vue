@@ -415,17 +415,16 @@ watch(section, () => { drawer.value = null; q.value = ''; sideGroup.value = '全
 .lg-tx small { display: block; font-size: 11px; color: var(--nb-dim); }
 .rail-scroll { flex: 1; min-height: 0; overflow-y: auto; }
 .rail-cap { margin: 12px 8px 4px; font-size: 11px; color: var(--nb-dim); letter-spacing: .04em; }
-.ri { position: relative; display: flex; align-items: center; gap: 9px; width: 100%; padding: 8px 9px; font: inherit; font-size: 13px; color: var(--nb-text); background: none; border: 0; border-radius: 9px; cursor: pointer; text-align: left; }
+.ri { display: flex; align-items: center; gap: 9px; width: 100%; padding: 8px 9px; font: inherit; font-size: 13px; color: var(--nb-text); background: none; border: 0; border-radius: 9px; cursor: pointer; text-align: left; }
 /* 项与项之间 4px：和「内容 / AI」这两个小标题下面那 4px 同一档，也是项内上下内边距 8px 的一半。
    只写 .ri + .ri，小标题自己那 12/4 的节奏不动 */
 .ri + .ri { margin-top: 4px; }
-/* 稿子里选中项左边那根蓝竖条。不能往 item 外面顶（left 负值）：
-   .rail-scroll 有 overflow-y:auto，overflow-x 会跟着算成 auto，负值那段直接被裁掉 */
-.ri.on::before { content: ''; position: absolute; left: 0; top: 50%; transform: translateY(-50%);
-  width: 3px; height: 18px; border-radius: 0 3px 3px 0; background: var(--brand); }
-/* 菜单栏现在是 #f0f3f8，hover 那档同色等于没反馈，提到 --nb-line(#e2e7f0)：距底 43 */
+/* 菜单栏现在是 #f0f3f8，hover 那档同色等于没反馈，提到 --nb-line(#e2e7f0)：距栏底 Δ(14,12,8) */
 .ri:hover { background: var(--nb-line); }
-.ri.on { background: var(--brand-soft); color: var(--brand-strong); font-weight: 600; }
+/* 选中底色：--brand-soft 是品牌蓝 10% 混白，按「深一点 = 混色翻倍」提到 20%。
+   只改这一处，不动全局 --brand-soft（聊天页、页签、状态胶囊都在用）。
+   顺带把深浅关系摆正：原来选中(234,241,255)比 hover(226,231,240)还浅，hover 别的项反而更重 */
+.ri.on { background: color-mix(in srgb, var(--brand) 20%, #fff); color: var(--brand-strong); font-weight: 600; }
 .ri-ic { display: grid; place-items: center; width: 18px; color: inherit; }
 .ri-tx { flex: 1; }
 .ri-n { font-size: 11px; padding: 1px 6px; border-radius: 999px; background: var(--brand); color: #fff; }
