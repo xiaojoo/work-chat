@@ -578,7 +578,8 @@ td em { margin-left: 7px; font-size: 11.5px; font-style: normal; color: var(--nb
 .msg.me { align-self: flex-end; background: var(--brand); color: #fff; }
 .ask { display: flex; gap: 8px; }
 
-.dw { background: var(--nb-bg-1); border-left: 1px solid var(--nb-line); display: flex; flex-direction: column; min-height: 0; }
+/* 抽屉正文换成左边菜单那一档淡蓝 --nb-bg-3(#f0f3f8)。抽屉头自己盖着 --wb-wash（不透明），不受这条影响 */
+.dw { background: var(--nb-bg-3); border-left: 1px solid var(--nb-line); display: flex; flex-direction: column; min-height: 0; }
 /* 抽屉头和页头条同高、同一片渐变 —— 两条下边框落在同一条线上，顶上那一片读起来是一整块 */
 .dw-hd { display: flex; align-items: center; justify-content: space-between; min-height: var(--wb-bar); padding: 14px 16px; border-bottom: 1px solid var(--nb-line);
   background: var(--wb-wash); background-attachment: fixed; }
