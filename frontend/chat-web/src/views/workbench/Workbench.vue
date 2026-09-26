@@ -36,23 +36,26 @@
 
       <div class="rail-foot">
         <div class="plan">
-          <b>企业版</b>
-          <small>专业的内容协作平台</small>
+          <span class="plan-tx"><b>企业版</b><small>专业的内容协作平台</small></span>
+          <span class="plan-go" aria-hidden="true">›</span>
         </div>
-        <button type="button" class="ri quit" @click="handleLogout">退出登录</button>
+        <button type="button" class="ri quit" @click="handleLogout"><span class="ri-ic" aria-hidden="true"><IcGear /></span><span class="ri-tx">退出登录</span></button>
       </div>
     </nav>
 
     <!-- ② 主区 -->
     <main class="main">
       <header class="mh">
+        <span class="mh-ic" :aria-hidden="true"><component :is="PAGE_IC[section]" /></span>
         <div class="mh-t">
           <h1>{{ TITLE[section].name }}</h1>
           <p>{{ TITLE[section].sub }}</p>
         </div>
         <span class="demo" :title="DEMO_NOTE">演示</span>
         <div class="mh-acts">
-          <button v-for="a in TITLE[section].acts" :key="a" type="button" class="btn" disabled :title="DEMO_NOTE">{{ a }}</button>
+          <button v-for="a in TITLE[section].acts" :key="a" type="button" class="btn pri" disabled :title="DEMO_NOTE">
+            <span class="pri-ic" aria-hidden="true"><IcPlus /></span><span>{{ a }}</span>
+          </button>
         </div>
       </header>
 
@@ -133,7 +136,10 @@
               <div class="gtabs">
                 <button v-for="g in sideGroups" :key="g" type="button" class="gtab" :class="{ on: sideGroup === g }" @click="sideGroup = g">{{ g }}</button>
               </div>
-              <input v-model="q" class="search" type="text" :placeholder="section === 'docs' ? '搜索文档名称或负责人' : '搜索名称'" />
+              <label class="sbox">
+                <span class="sbox-ic" aria-hidden="true"><IcSearch /></span>
+                <input v-model="q" class="search" type="text" :placeholder="section === 'docs' ? '搜索文档名称或负责人' : '搜索名称'" />
+              </label>
             </div>
             <table>
               <thead>
@@ -141,8 +147,11 @@
               </thead>
               <tbody>
                 <tr v-for="r in shownRows" :key="r.name" @click="openDoc(r)">
-                  <td class="t-name">{{ r.name }}</td>
-                  <td>{{ r.type || r.tag }}</td>
+                  <td class="t-name">
+                    <span class="tile" :style="{ background: tintOf(r), color: inkOf(r) }">
+                      <component :is="glyphOf(r)" theme="outline" size="14" />
+                    </span>{{ r.name }}</td>
+                  <td><span class="pill" :style="{ background: tintOf(r), color: inkOf(r) }">{{ r.type || r.tag }}</span></td>
                   <td>{{ r.size || '—' }}</td>
                   <td class="t-due">{{ r.at }}</td>
                   <td>{{ r.owner }}</td>
@@ -283,7 +292,14 @@ const Ic = {
   book: mk(['M5 5.5h6v13H5z', 'M13 5.5h6v13h-6z']),
   spark: mk(['M12 4l1.6 4.4L18 10l-4.4 1.6L12 16l-1.6-4.4L6 10l4.4-1.6z']),
   pen: mk(['M5 19h4l9-9-4-4-9 9z', 'M14 6l4 4']),
-  chart: mk(['M5 19V9M11 19V5M17 19v-7M21 19H3'])
+  chart: mk(['M5 19V9M11 19V5M17 19v-7M21 19H3']),
+  layers: mk(['M12 4l8 4-8 4-8-4z', 'M4 12l8 4 8-4', 'M4 16.5l8 4 8-4']),
+  image: mk(['M4 5.5h16v13H4z', 'M4 15l4.5-4.5 3.5 3.5 3-3L20 15']),
+  play: mk(['M4 5.5h16v13H4z', 'M10 9l6 3-6 3z']),
+  plus: mk(['M12 5v14M5 12h14']),
+  search: mk(['M11 18a7 7 0 1 1 0-14 7 7 0 0 1 0 14z', 'M16.2 16.2L21 21']),
+  gear: mk(['M12 9.2a2.8 2.8 0 1 0 0 5.6 2.8 2.8 0 0 0 0-5.6z',
+    'M12 3.5v2.4M12 18.1v2.4M3.5 12h2.4M18.1 12h2.4M6 6l1.7 1.7M16.3 16.3L18 18M18 6l-1.7 1.7M7.7 16.3L6 18'])
 }
 
 const NAV_MAIN = [
@@ -334,6 +350,25 @@ const sideGroups = computed(() => section.value === 'docs' ? ['全部', '产品�
   : section.value === 'materials' ? ['全部', '图片', '矢量', '视频'] : ['全部', '流程', '品牌', '研发'])
 const rowsOfSection = computed(() => section.value === 'materials' ? materialRows
   : section.value === 'knowledge' ? knowledgeRows : docRows)
+
+// 行图标块和分类胶囊的三色是从稿子上量的（取的是图标中心那个像素）：蓝 #3268FD、绿 #06CE83、紫 #8717F5。
+// 底色不另编：同一个色按 14% 落白，实测离稿子的 #DDE8FE 差 7。
+const IcPlus = Ic.plus()
+const IcSearch = Ic.search()
+const IcGear = Ic.gear()
+const TILE_INK = ['#3268fd', '#06ce83', '#8717f5']
+const PAGE_IC = { home: Ic.home, tasks: Ic.task, contents: Ic.inbox, favorites: Ic.star, projects: Ic.folder,
+  docs: Ic.doc, materials: Ic.image, knowledge: Ic.layers, ai: Ic.spark, generate: Ic.pen, analysis: Ic.chart }
+const catOf = (r) => String(r.group || r.tag || r.type || '')
+const inkOf = (r) => {
+  const i = sideGroups.value.indexOf(catOf(r))
+  return TILE_INK[(i > 0 ? i - 1 : catOf(r).length) % TILE_INK.length]
+}
+const tintOf = (r) => `color-mix(in srgb, ${inkOf(r)} 14%, #fff)`
+const glyphOf = (r) => {
+  const s = catOf(r) + ' ' + String(r.type || '')
+  return /图|片|矢量|svg|png|image/i.test(s) ? Ic.image : /视频|mp4|mov|video/i.test(s) ? Ic.play : Ic.doc
+}
 const shownRows = computed(() => {
   const kw = q.value.trim().toLowerCase()
   // 分组字段三页各叫各的：文档 group、素材 type、知识库 tag
@@ -376,38 +411,54 @@ watch(section, () => { drawer.value = null; q.value = ''; sideGroup.value = '全
 .wb { display: grid; grid-template-columns: 208px minmax(0, 1fr); height: 100vh; background: var(--nb-bg-0); color: var(--nb-text); }
 .wb:has(.dw) { grid-template-columns: 208px minmax(0, 1fr) 320px; }
 
-/* 菜单栏底色并到"最底那层"——和窗口标题栏 .winbar 同一个 token（--nb-bg-shell），
-   两条白带与标题栏合成一层；与内容画布(#f4f6fa)之间靠色差分层，不靠线 */
-.rail { display: flex; flex-direction: column; gap: 2px; min-height: 0; padding: 12px 10px; background: var(--nb-bg-shell); border-right: 1px solid var(--nb-line); }
+/* 稿子的菜单栏不是纯白：实测 #F1F5FA，和 --nb-bg-3(#f0f3f8) 差 5，所以指回那个 token */
+.rail { display: flex; flex-direction: column; gap: 2px; min-height: 0; padding: 12px 10px; background: var(--nb-bg-3); border-right: 1px solid var(--nb-line); }
 .rail-logo { display: flex; align-items: center; gap: 9px; padding: 6px 8px 12px; cursor: pointer; }
 .lg-ic { display: grid; place-items: center; width: 28px; height: 28px; border-radius: 9px; background: var(--brand); color: #fff; }
 .lg-tx b { display: block; font-size: 13.5px; line-height: 1.2; }
 .lg-tx small { display: block; font-size: 11px; color: var(--nb-dim); }
 .rail-scroll { flex: 1; min-height: 0; overflow-y: auto; }
 .rail-cap { margin: 12px 8px 4px; font-size: 11px; color: var(--nb-dim); letter-spacing: .04em; }
-.ri { display: flex; align-items: center; gap: 9px; width: 100%; padding: 8px 9px; font: inherit; font-size: 13px; color: var(--nb-text); background: none; border: 0; border-radius: 9px; cursor: pointer; text-align: left; }
-/* hover 回到 --nb-bg-3：菜单栏并入 --nb-bg-shell 之后它差 41，而上一版用的 --nb-line 只差 7
-   （换底要逐条重做反差表面，这次是往回退一步） */
-.ri:hover { background: var(--nb-bg-3); }
+.ri { position: relative; display: flex; align-items: center; gap: 9px; width: 100%; padding: 8px 9px; font: inherit; font-size: 13px; color: var(--nb-text); background: none; border: 0; border-radius: 9px; cursor: pointer; text-align: left; }
+/* 稿子里选中项左边那根蓝竖条。不能往 item 外面顶（left 负值）：
+   .rail-scroll 有 overflow-y:auto，overflow-x 会跟着算成 auto，负值那段直接被裁掉 */
+.ri.on::before { content: ''; position: absolute; left: 0; top: 50%; transform: translateY(-50%);
+  width: 3px; height: 18px; border-radius: 0 3px 3px 0; background: var(--brand); }
+/* 菜单栏现在是 #f0f3f8，hover 那档同色等于没反馈，提到 --nb-line(#e2e7f0)：距底 43 */
+.ri:hover { background: var(--nb-line); }
 .ri.on { background: var(--brand-soft); color: var(--brand-strong); font-weight: 600; }
 .ri-ic { display: grid; place-items: center; width: 18px; color: inherit; }
 .ri-tx { flex: 1; }
 .ri-n { font-size: 11px; padding: 1px 6px; border-radius: 999px; background: var(--brand); color: #fff; }
 .rail-foot { padding-top: 10px; border-top: 1px solid var(--nb-line); }
-.plan { padding: 8px 9px; border-radius: 10px; background: var(--nb-bg-3); }
+/* 稿子里这张卡是白的 + 一条描边 + 右边一个 ›；菜单栏变浅之后它的底色也得跟着翻白，不然糊成一片 */
+.plan { display: flex; align-items: center; gap: 8px; padding: 8px 9px; border-radius: 10px;
+  background: var(--nb-bg-1); border: 1px solid var(--nb-line); }
+.plan-tx { flex: 1; min-width: 0; }
+.plan-go { flex: none; font-size: 15px; line-height: 1; color: var(--nb-dim); }
 .plan b { display: block; font-size: 12.5px; }
 .plan small { display: block; font-size: 11px; color: var(--nb-dim); }
 .ri.quit { margin-top: 6px; color: var(--nb-dim); }
 
 .main { display: flex; flex-direction: column; min-width: 0; }
-/* 页头条并到内容画布那一档（--nb-bg-0 = #f4f6fa）：它和画布同色之后，
-   靠下面那条 border-bottom 分界（#e2e7f0 距 #f4f6fa 实测 43） */
-.mh { display: flex; align-items: center; gap: 10px; padding: 14px 20px; border-bottom: 1px solid var(--nb-line); background: var(--nb-bg-0); }
+/* 页头那条淡蓝渐变：三个停靠点是沿稿子同一行扫出来的实测值（左 #F2F6FC / 中 #E3EFFD / 右 #E4EDFE） */
+.mh { display: flex; align-items: center; gap: 10px; padding: 14px 20px; border-bottom: 1px solid var(--nb-line);
+  background: linear-gradient(100deg, #f2f6fc 0%, #e3effd 50%, #e4edfe 100%); }
+.mh-ic { display: grid; place-items: center; flex: none; width: 34px; height: 34px; border-radius: 10px;
+  background: var(--brand); color: #fff; }
+.mh-ic svg { width: 19px; height: 19px; }
 .mh-t { flex: 1; min-width: 0; }
 .mh-t h1 { margin: 0; font-size: 16px; font-weight: 600; }
 .mh-t p { margin: 2px 0 0; font-size: 12px; color: var(--nb-dim); }
 .demo { padding: 2px 8px; font-size: 11px; color: var(--nb-dim); background: var(--nb-bg-3); border: 1px dashed var(--nb-line); border-radius: 999px; cursor: help; }
 .mh-acts { display: flex; gap: 8px; }
+/* 稿子右上那颗是实心蓝底白字 + 一个加号。它背后没有接口，仍然是 disabled（点了不响应），
+   但别用 opacity 把它洗成灰色——那样和稿子对不上；口径交给 cursor 和旁边那颗「演示」 */
+.mh-acts .btn.pri { display: inline-flex; align-items: center; gap: 6px; background: var(--brand);
+  border-color: var(--brand); color: #fff; font-weight: 600; }
+.mh-acts .btn.pri:disabled { opacity: 1; cursor: not-allowed; }
+.pri-ic { display: grid; place-items: center; flex: none; width: 14px; }
+.pri-ic svg { width: 14px; height: 14px; }
 .body { flex: 1; overflow-y: auto; padding: 18px 20px 26px; }
 
 .sec { display: flex; flex-direction: column; gap: 14px; }
@@ -447,7 +498,11 @@ watch(section, () => { drawer.value = null; q.value = ''; sideGroup.value = '全
 .tbl tbody tr { cursor: pointer; }
 .tbl tbody tr:hover { background: var(--nb-bg-3); }
 .tbl .c-st { width: 88px; } .tbl .c-who { width: 78px; } .tbl .c-due { width: 92px; } .tbl .c-pr { width: 132px; }
-.t-name { font-weight: 500; }
+.t-name { display: flex; align-items: center; font-weight: 500; }
+/* 行名字前的图标色块 + 分类列的彩色胶囊：墨色是稿子上量的三个值，底色按同色 14% 落白 */
+.tile { display: grid; place-items: center; flex: none; width: 26px; height: 26px; margin-right: 9px; border-radius: 8px; }
+.tile svg { width: 14px; height: 14px; }
+.pill { display: inline-block; padding: 2px 8px; border-radius: 999px; font-size: 11.5px; font-weight: 600; }
 .t-name small { display: block; margin-left: 0; font-size: 11px; font-weight: 400; color: var(--nb-dim); }
 .t-due { color: var(--nb-dim); }
 .pill { display: inline-block; padding: 2px 8px; font-size: 11.5px; border-radius: 999px; border: 1px solid var(--nb-line); color: var(--nb-dim); background: var(--nb-bg-2); }
@@ -460,14 +515,18 @@ td em { margin-left: 7px; font-size: 11.5px; font-style: normal; color: var(--nb
 .empty { margin: 0; padding: 18px; font-size: 12.5px; color: var(--nb-dim); text-align: center; }
 
 /* 一行：分组靠左不吃宽度，搜索框固定 260 贴右。
-   .search 这个类还有两处在用（AI 提问框、评论框），宽度只在这条里限定 */
+   .search 这个类还有两处在用（AI 提问框、评论框），宽度和放大镜都只在这条里限定 */
 .gbar { display: flex; align-items: center; gap: 9px; padding: 8px 12px; border-bottom: 1px solid var(--nb-line); }
-.gbar .search { flex: none; width: 260px; min-width: 0; margin-left: auto; }
-.gtabs { display: flex; align-items: center; gap: 6px; flex: none }
-.gtab { padding: 7px 9px; font: inherit; font-size: 12.5px; color: var(--nb-text); background: none; border: 0;
-  border-radius: 8px; cursor: pointer; transition: background-color .12s ease, color .12s ease; }
-.gtab:hover { background: var(--nb-bg-3); }
-.gtab.on { background: var(--brand-soft); color: var(--brand-strong); font-weight: 600; }
+.sbox { position: relative; display: flex; align-items: center; flex: none; width: 260px; margin-left: auto; }
+.sbox .search { width: 100%; padding-left: 30px; }
+.sbox-ic { position: absolute; left: 10px; display: grid; place-items: center; width: 14px; color: var(--nb-dim); pointer-events: none; }
+.sbox-ic svg { width: 14px; height: 14px; }
+/* 稿子的分组条是一条浅灰轨道 + 里面实心蓝胶囊（轨道实测 #EAF0F9，与 --nb-bg-3 差 10） */
+.gtabs { display: flex; align-items: center; gap: 2px; flex: none; padding: 3px; border-radius: 10px; background: var(--nb-bg-3) }
+.gtab { padding: 6px 12px; font: inherit; font-size: 12.5px; color: var(--nb-text); background: none; border: 0;
+  border-radius: 7px; cursor: pointer; transition: background-color .12s ease, color .12s ease; }
+.gtab:hover { background: var(--nb-line); }
+.gtab.on { background: var(--brand); color: #fff; font-weight: 600; }
 .search { flex: 1; min-width: 120px; padding: 7px 10px; font: inherit; font-size: 12.5px; color: var(--nb-text); background: var(--nb-bg-2); border: 1px solid var(--nb-line); border-radius: 9px; outline: none; }
 .search:focus { border-color: var(--brand); }
 .btn { padding: 7px 13px; font: inherit; font-size: 12.5px; border-radius: 9px; border: 1px solid var(--nb-line); background: var(--nb-bg-1); color: var(--nb-text); cursor: pointer; }
