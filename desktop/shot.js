@@ -83,6 +83,8 @@ window.shot.onData(async p => {
     // 编辑态没有"先框一刀"这一步：整张图就是选区，四个角还在，要裁就拖角
     // 光标也不再是十字准星：那是"等着框选"的意思，这里已经选好了
     document.body.classList.add('editing')
+    // 钉图这颗在编辑态没意义：改的就是那张钉图，再点一次"钉图"只会让人以为又钉了一张
+    document.getElementById('pin').style.display = 'none'
     tip.style.display = 'none'
     R = { x: OX, y: OY, w: IW, h: IH }
     paintSel()
@@ -107,8 +109,9 @@ function paintSel() {
   sel.style.left = R.x + 'px'; sel.style.top = R.y + 'px'
   sel.style.width = R.w + 'px'; sel.style.height = R.h + 'px'
   sel.classList.toggle('tool-none', !tool)
-  // 挑了画笔之后按住选区里头是"画"，不是"搬"，光标得跟着换
-  sel.style.cursor = tool ? 'crosshair' : 'move'
+  // 挑了画笔之后按住选区里头是"画"，不是"搬"，光标得跟着换。
+  // 编辑态选区就是整张图、搬不动，所以不摆 move 手型（那是"这里能拖"的假承诺）
+  sel.style.cursor = tool ? 'crosshair' : (editing ? 'default' : 'move')
   cv.classList.add('on')
   placeBar()
 }
@@ -308,7 +311,9 @@ function colorAt(px, py) {
 
 function showLoupe(e) {
   // 挑好画笔就收起来：那时候要看的是准星和已经画上去的东西，不是像素格
-  if (!ready || tool) { loupe.classList.remove('on'); return }
+  // 编辑态整个不出：放大镜是"冻住的屏幕"才要的取色/对像素工具，
+  // 编辑一张已有的图时它挡视线，那三行色值/坐标读数对图片也没有意义
+  if (!ready || tool || editing) { loupe.classList.remove('on'); return }
   const px = clamp(Math.round((e.clientX - OX) * sx), 0, bg.width - 1)
   const py = clamp(Math.round((e.clientY - OY) * sy), 0, bg.height - 1)
   const x0 = clamp(px - Math.floor(LP_SRC / 2), 0, Math.max(0, bg.width - LP_SRC))
