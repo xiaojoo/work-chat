@@ -426,7 +426,7 @@ watch(section, () => { drawer.value = null; q.value = ''; sideGroup.value = '全
   --wb-lines-l: radial-gradient(circle 1400px at 280px 1400px, rgba(255, 255, 255, 0) 0 1316px, rgba(43, 107, 232, .17) 1316px 1318px,
       rgba(255, 255, 255, 0) 1318px 1346px, rgba(43, 107, 232, .15) 1346px 1348px,
       rgba(255, 255, 255, 0) 1348px 1376px, rgba(43, 107, 232, .12) 1376px 1378px, rgba(255, 255, 255, 0) 1378px); }
-.wb:has(.dw) { grid-template-columns: 208px minmax(0, 1fr) 320px; }
+.wb:has(.dw) { grid-template-columns: 208px minmax(0, 1fr) 260px; }
 
 /* 渐变只给页头条：新稿子上逐点扫过 —— 左栏竖向是平的（x=0..150 从 y=40 到 y=1000 只差 Δ3）、
    画布也是平的（紧挨页头下 (245,249,254) → 底部 (247,249,253)），整页的渐变全部集中在页头那一块。
@@ -589,15 +589,16 @@ td em { margin-left: 7px; font-size: 11.5px; font-style: normal; color: var(--nb
 .ask { display: flex; gap: 8px; }
 
 /* 抽屉正文换成左边菜单那一档淡蓝 --nb-bg-3(#f0f3f8)。抽屉头自己盖着 --wb-wash（不透明），不受这条影响 */
-/* 两道竖边框按他要求撤了（左栏的右边框、抽屉的左边框）—— 它们原本会横穿顶部那一片光，
-   把 1 号 2 号 3 号切成三截。撤了之后两块之间只剩 tone 差：栏/抽屉 (240,243,248) vs 画布 (244,246,250) = Δ(4,3,2) */
-.dw { background: var(--nb-bg-3); display: flex; flex-direction: column; min-height: 0; }
+/* 抽屉底色按他要求改成 --nb-bg-0(#f4f6fa)。注意：画布本来就是这一档，而中间那道竖边框上一轮
+   已经撤了 → 抽屉正文和画布之间不再有 Δ(4,3,2) 的 tone 差，只剩顶栏那片光的收尾。
+   两道竖边框是他说撤的（它们横穿顶部那片光，把 1/2/3 号切成三截） */
+.dw { background: var(--nb-bg-0); display: flex; flex-direction: column; min-height: 0; }
 /* 抽屉头和页头条同高、同一片渐变 —— 两条下边框落在同一条线上，顶上那一片读起来是一整块 */
 .dw-hd { display: flex; align-items: center; justify-content: space-between; min-height: var(--wb-bar); padding: 14px 16px;
   background: var(--wb-wash); background-attachment: fixed; }
 .dw-hd b { font-size: 13.5px; }
 .x { border: 0; background: none; color: var(--nb-dim); font-size: 13px; cursor: pointer; }
-.dw-bd { flex: 1; overflow-y: auto; padding: 14px 16px; }
+.dw-bd { flex: 1; overflow-y: auto; padding: 14px 16px 14px 0; }
 .dw-bd h2 { margin: 0; font-size: 15px; }
 .dw-meta { display: flex; align-items: center; gap: 9px; margin-top: 8px; font-size: 12px; color: var(--nb-dim); }
 .prog { position: relative; height: 6px; margin: 12px 0 20px; border-radius: 999px; background: var(--nb-bg-3); }
