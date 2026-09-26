@@ -376,9 +376,9 @@ watch(section, () => { drawer.value = null; q.value = ''; sideGroup.value = '全
 .wb { display: grid; grid-template-columns: 208px minmax(0, 1fr); height: 100vh; background: var(--nb-bg-0); color: var(--nb-text); }
 .wb:has(.dw) { grid-template-columns: 208px minmax(0, 1fr) 320px; }
 
-/* 菜单栏底色并到内容底同一档（--nb-bg-0 就是 #f4f6fa），两条白带和画布合成一层；
-   分界靠原有的 border-right / border-bottom，不靠色差 */
-.rail { display: flex; flex-direction: column; gap: 2px; min-height: 0; padding: 12px 10px; background: var(--nb-bg-0); border-right: 1px solid var(--nb-line); }
+/* 菜单栏底色并到"最底那层"——和窗口标题栏 .winbar 同一个 token（--nb-bg-shell），
+   两条白带与标题栏合成一层；与内容画布(#f4f6fa)之间靠色差分层，不靠线 */
+.rail { display: flex; flex-direction: column; gap: 2px; min-height: 0; padding: 12px 10px; background: var(--nb-bg-shell); border-right: 1px solid var(--nb-line); }
 .rail-logo { display: flex; align-items: center; gap: 9px; padding: 6px 8px 12px; cursor: pointer; }
 .lg-ic { display: grid; place-items: center; width: 28px; height: 28px; border-radius: 9px; background: var(--brand); color: #fff; }
 .lg-tx b { display: block; font-size: 13.5px; line-height: 1.2; }
@@ -386,21 +386,21 @@ watch(section, () => { drawer.value = null; q.value = ''; sideGroup.value = '全
 .rail-scroll { flex: 1; min-height: 0; overflow-y: auto; }
 .rail-cap { margin: 12px 8px 4px; font-size: 11px; color: var(--nb-dim); letter-spacing: .04em; }
 .ri { display: flex; align-items: center; gap: 9px; width: 100%; padding: 8px 9px; font: inherit; font-size: 13px; color: var(--nb-text); background: none; border: 0; border-radius: 9px; cursor: pointer; text-align: left; }
-/* 底色并到 --nb-bg-0 之后，原来那档 hover（--nb-bg-3）只差 9，等于没有反馈；
-   提到分界线那一档 #e2e7f0，和新底差 43 */
-.ri:hover { background: var(--nb-line); }
+/* hover 回到 --nb-bg-3：菜单栏并入 --nb-bg-shell 之后它差 41，而上一版用的 --nb-line 只差 7
+   （换底要逐条重做反差表面，这次是往回退一步） */
+.ri:hover { background: var(--nb-bg-3); }
 .ri.on { background: var(--brand-soft); color: var(--brand-strong); font-weight: 600; }
 .ri-ic { display: grid; place-items: center; width: 18px; color: inherit; }
 .ri-tx { flex: 1; }
 .ri-n { font-size: 11px; padding: 1px 6px; border-radius: 999px; background: var(--brand); color: #fff; }
 .rail-foot { padding-top: 10px; border-top: 1px solid var(--nb-line); }
-.plan { padding: 8px 9px; border-radius: 10px; background: var(--nb-bg-3); border: 1px solid var(--nb-line); }
+.plan { padding: 8px 9px; border-radius: 10px; background: var(--nb-bg-3); }
 .plan b { display: block; font-size: 12.5px; }
 .plan small { display: block; font-size: 11px; color: var(--nb-dim); }
 .ri.quit { margin-top: 6px; color: var(--nb-dim); }
 
 .main { display: flex; flex-direction: column; min-width: 0; }
-.mh { display: flex; align-items: center; gap: 10px; padding: 14px 20px; border-bottom: 1px solid var(--nb-line); background: var(--nb-bg-0); }
+.mh { display: flex; align-items: center; gap: 10px; padding: 14px 20px; border-bottom: 1px solid var(--nb-line); background: var(--nb-bg-shell); }
 .mh-t { flex: 1; min-width: 0; }
 .mh-t h1 { margin: 0; font-size: 16px; font-weight: 600; }
 .mh-t p { margin: 2px 0 0; font-size: 12px; color: var(--nb-dim); }
