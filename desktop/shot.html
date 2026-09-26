@@ -8,8 +8,6 @@
   html, body { width: 100%; height: 100%; overflow: hidden; background: #000; }
   /* 一进来就是十字准星（微信截图那条），只有拖选区/改大小时才换成 move / 角标箭头 */
   body { font-family: "Segoe UI", "Microsoft YaHei", system-ui, sans-serif; user-select: none; cursor: crosshair; }
-  /* 编辑态（从钉图/大图查看器进来）：选区已经框好了，准星就没意义了，换回普通箭头 */
-  body.editing { cursor: default; }
   #bg { position: fixed; inset: 0; width: 100%; height: 100%; display: block; }
   /* 遮罩用选区自己那圈超大的 box-shadow 挖洞，比四块遮罩板省事也不会漏缝 */
   #sel { position: fixed; display: none; box-shadow: 0 0 0 100000px rgba(8, 12, 22, .45);

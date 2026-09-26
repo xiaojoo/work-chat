@@ -18,8 +18,8 @@ contextBridge.exposeInMainWorld('pin', {
   save: () => ipcRenderer.invoke('pin:save'),
   zoom: dir => ipcRenderer.send('pin:zoom', dir),
   reset: () => ipcRenderer.send('pin:reset'),
-  // 编辑：把这张钉图交给截图那套标注器，改完「钉图」是换回本窗（主进程认得来源）
-  edit: () => ipcRenderer.invoke('pin:edit'),
+  // 就地标注「完成」：把改过的图交回主进程，右键的复制/另存为要用的是这一份
+  setImage: dataUrl => ipcRenderer.send('pin:set-image', dataUrl),
   grow: n => ipcRenderer.send('pin:grow', n),
   shrink: () => ipcRenderer.send('pin:shrink'),
   dragStart: () => ipcRenderer.send('pin:drag-start'),

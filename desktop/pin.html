@@ -21,6 +21,29 @@
           border-radius: 6px; background: rgba(28, 33, 44, .88); color: #fff; font-size: 12px;
           opacity: 0; transition: opacity .15s; pointer-events: none; z-index: 4 }
   #note.on { opacity: 1 }
+  /* ---- 就地标注：底图上面盖一层和图等大的画布（后备像素=图片原始尺寸，
+     所以坐标就是图片像素、导出就是两张叠一块，不经过缩放映射，也不另开一扇窗） ---- */
+  #cv { position: absolute; inset: 0; width: 100%; height: 100%; display: none; touch-action: none; z-index: 5 }
+  body.editing #cv { display: block }
+  body.editing #cv.draw { cursor: crosshair }
+  body.editing #note { bottom: 46px }
+  #txt { position: absolute; display: none; min-width: 90px; padding: 2px 5px; border: 1px solid #2b6be8;
+         border-radius: 4px; background: rgba(255, 255, 255, .96); color: #111; font-size: 16px; outline: none; z-index: 7 }
+  /* 工具条：深色胶囊和截图那条同款；小钉图放不下就自己折行（不去长窗口，
+     长了会在图边上留白，1:1 就破了） */
+  #tools { position: absolute; left: 50%; bottom: 8px; transform: translateX(-50%); z-index: 6;
+           display: flex; flex-wrap: wrap; justify-content: center; align-items: center; gap: 2px;
+           max-width: calc(100% - 12px); padding: 4px; border-radius: 8px;
+           background: rgba(28, 33, 44, .95); box-shadow: 0 4px 18px rgba(0, 0, 0, .35) }
+  .tb { width: 24px; height: 24px; border: 0; border-radius: 5px; background: transparent; color: #e8ecf4;
+        font-size: 13px; display: grid; place-items: center; cursor: pointer; transition: background .12s }
+  .tb:hover:not(:disabled) { background: rgba(255, 255, 255, .14) }
+  .tb.on { background: #2b6be8; color: #fff }
+  .tb.wide { width: auto; padding: 0 8px; font-size: 12px }
+  .tb:disabled { color: #5d6678; cursor: default; background: transparent }
+  .td { width: 14px; height: 14px; padding: 0; border: 2px solid transparent; border-radius: 50%; cursor: pointer }
+  .td.on { border-color: #fff }
+  .tsp { width: 1px; height: 16px; margin: 0 3px; background: rgba(255, 255, 255, .18) }
   /* ---- 右键菜单：抄内容区那一条规则（无描边 + 同一个阴影 + 12px 圆角 + 9x16 的行） ---- */
   .pin-menu { position: fixed; z-index: 9999; min-width: 200px; overflow: hidden; border-radius: 12px;
               background: rgba(255, 255, 255, 0.97); border: 0;
@@ -42,6 +65,21 @@
 <body>
   <div id="wrap">
     <img id="im" alt="" draggable="false" />
+    <canvas id="cv"></canvas>
+    <input id="txt" type="text" placeholder="输入文字，回车确认" />
+    <div id="tools" hidden>
+      <button class="tb" type="button" data-t="rect" title="方框">▢</button>
+      <button class="tb" type="button" data-t="arrow" title="箭头">↗</button>
+      <button class="tb" type="button" data-t="text" title="文字">T</button>
+      <button class="tb" type="button" data-t="pen" title="涂鸦">✎</button>
+      <i class="tsp"></i>
+      <button class="td on" type="button" data-c="#ff3b30" style="background:#ff3b30" title="红" aria-label="红色"></button>
+      <button class="td" type="button" data-c="#ffb300" style="background:#ffb300" title="黄" aria-label="黄色"></button>
+      <button class="td" type="button" data-c="#2b6be8" style="background:#2b6be8" title="蓝" aria-label="蓝色"></button>
+      <i class="tsp"></i>
+      <button class="tb" type="button" id="undo" title="撤销上一笔" aria-label="撤销" disabled>↶</button>
+      <button class="tb wide" type="button" id="done" title="把标注画回这张钉图">完成</button>
+    </div>
     <button id="x" title="关闭">✕</button>
     <span id="note"></span>
   </div>

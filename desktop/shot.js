@@ -17,13 +17,6 @@ let color = '#ff3b30'
 let ops = []
 let R = null
 let act = null
-// 编辑态（钉图/大图查看器点「编辑」进来）：底图是这张图本身，不是刚抓的屏幕，
-// 所以不用框选那一步——整张图先当选中区，改完再复制/钉回去
-let editing = false
-/* 图在窗口里的位置和大小（DIP）。编辑态小图时窗口会比图大一圈（工具条实测 355x38，
-   比图宽就得让工具条有地方待，否则右边那三颗按钮出窗、点不着），所以坐标不能直接拿
-   clientX 当图内坐标，一律先减 OX/OY、再乘 sx/sy。抓屏态这三个就是整窗。 */
-let OX = 0, OY = 0, IW = 0, IH = 0
 
 function sizeCanvas() {
   cv.width = Math.round(innerWidth * dpr)
@@ -33,74 +26,38 @@ function sizeCanvas() {
   g2.lineJoin = 'round'
 }
 
-// 图在窗口里摆哪儿：抓屏态就是整窗；编辑态小图时四周留一圈（工具条要有地方待）
-function placeImg() {
-  if (!editing) {
-    OX = 0; OY = 0; IW = innerWidth; IH = innerHeight
-    bg.style.left = bg.style.top = bg.style.width = bg.style.height = ''
-    return
-  }
-  bg.style.left = OX + 'px'; bg.style.top = OY + 'px'
-  bg.style.width = IW + 'px'; bg.style.height = IH + 'px'
-}
-
-window.shot.onData(async p => {
+window.shot.onData(p => {
   dpr = p.dpr || 1
-  editing = !!p.edit
   // 主进程送过来的是原始 RGBA 位图（4K 上 33MB，但 toBitmap 只 4ms；换成 toPNG 要 490ms，
   // 而且是同步跑在主进程上的——那半秒整个客户端都停着）。所以底图在这里自己拼。
   bg.width = p.w
   bg.height = p.h
-  const bg2 = bg.getContext('2d')
-  if (editing) {
-    // 底图就是这张图（dataURL），解码直接画，不用过位图；图在窗口里摆哪儿由主进程算好送过来
-    OX = p.img.x; OY = p.img.y; IW = p.img.w; IH = p.img.h
-    const im = new Image()
-    im.src = p.url
-    try { await im.decode() } catch (e) { window.shot.cancel(); return }
-    bg2.drawImage(im, 0, 0, bg.width, bg.height)
-  } else {
-    // Windows 上 toBitmap 给的是 **BGRA**，而 ImageData 要 RGBA：不换手整张底图就是蓝橙对调
-    // （实测黄色文件夹图标在底图里变蓝、品牌蓝 #2b6be8 变 #e86b2b，就是他说的"黄色主调色"）。
-    // 这道手必须放在渲染端换：主进程多干一遍 8.3M 像素的同步活，就又把它卡住了
-    const u8 = new Uint8ClampedArray(p.bmp)
-    if (p.bgra) {
-      for (let i = 0; i < u8.length; i += 4) {
-        const t = u8[i]; u8[i] = u8[i + 2]; u8[i + 2] = t
-      }
+  // Windows 上 toBitmap 给的是 **BGRA**，而 ImageData 要 RGBA：不换手整张底图就是蓝橙对调
+  // （实测黄色文件夹图标在底图里变蓝、品牌蓝 #2b6be8 变 #e86b2b，就是他说的"黄色主调色"）。
+  // 这道手必须放在渲染端换：主进程多干一遍 8.3M 像素的同步活，就又把它卡住了
+  const u8 = new Uint8ClampedArray(p.bmp)
+  if (p.bgra) {
+    for (let i = 0; i < u8.length; i += 4) {
+      const t = u8[i]; u8[i] = u8[i + 2]; u8[i + 2] = t
     }
-    bg2.putImageData(new ImageData(u8, p.w, p.h), 0, 0)
   }
-  // 抓到的图是物理像素、窗口是 DIP（编辑态还要再减掉图在窗口里的那圈留白），
-  // 用两者之比当映射系数：比直接信 devicePixelRatio 实在——窗口尺寸被任务栏吃掉过一次
-  // （2160 的屏只给 2112），那时 dpr 没错但映射是错的
-  placeImg()
-  sx = bg.width / IW
-  sy = bg.height / IH
+  bg.getContext('2d').putImageData(new ImageData(u8, p.w, p.h), 0, 0)
+  // 抓到的图是物理像素、窗口是 DIP，用两者之比当映射系数：比直接信 devicePixelRatio 实在——
+  // 窗口尺寸被任务栏吃掉过一次（2160 的屏只给 2112），那时 dpr 没错但映射是错的
+  sx = bg.width / innerWidth
+  sy = bg.height / innerHeight
   sizeCanvas()
   ready = true
-  if (editing) {
-    // 编辑态没有"先框一刀"这一步：整张图就是选区，四个角还在，要裁就拖角
-    // 光标也不再是十字准星：那是"等着框选"的意思，这里已经选好了
-    document.body.classList.add('editing')
-    // 钉图这颗在编辑态没意义：改的就是那张钉图，再点一次"钉图"只会让人以为又钉了一张
-    document.getElementById('pin').style.display = 'none'
-    tip.style.display = 'none'
-    R = { x: OX, y: OY, w: IW, h: IH }
-    paintSel()
-  } else {
-    tip.style.display = 'block'
-    // 鼠标进来之前不动就没有放大镜，所以按主进程给的初始光标位置先摆一次
-    if (p.cursor) showLoupe({ clientX: p.cursor.x, clientY: p.cursor.y })
-  }
+  tip.style.display = 'block'
+  // 鼠标进来之前不动就没有放大镜，所以按主进程给的初始光标位置先摆一次
+  if (p.cursor) showLoupe({ clientX: p.cursor.x, clientY: p.cursor.y })
   // 下一帧再报给主进程露窗：这时候图已经真的在屏上了，不会先闪一层黑
   requestAnimationFrame(() => window.shot.painted())
 })
 addEventListener('resize', () => { sizeCanvas(); redraw() })
 
 const clamp = (v, a, b) => Math.min(b, Math.max(a, v))
-// 光标位置一律夹到"图"那块矩形里（编辑态图四周有留白，不能把选区拖到留白上去）
-const pt = e => ({ x: clamp(e.clientX, OX, OX + IW), y: clamp(e.clientY, OY, OY + IH) })
+const pt = e => ({ x: clamp(e.clientX, 0, innerWidth), y: clamp(e.clientY, 0, innerHeight) })
 const inR = p => !!R && p.x >= R.x && p.x <= R.x + R.w && p.y >= R.y && p.y <= R.y + R.h
 
 function paintSel() {
@@ -109,9 +66,8 @@ function paintSel() {
   sel.style.left = R.x + 'px'; sel.style.top = R.y + 'px'
   sel.style.width = R.w + 'px'; sel.style.height = R.h + 'px'
   sel.classList.toggle('tool-none', !tool)
-  // 挑了画笔之后按住选区里头是"画"，不是"搬"，光标得跟着换。
-  // 编辑态选区就是整张图、搬不动，所以不摆 move 手型（那是"这里能拖"的假承诺）
-  sel.style.cursor = tool ? 'crosshair' : (editing ? 'default' : 'move')
+  // 挑了画笔之后按住选区里头是"画"，不是"搬"，光标得跟着换
+  sel.style.cursor = tool ? 'crosshair' : 'move'
   cv.classList.add('on')
   placeBar()
 }
@@ -165,8 +121,7 @@ function exportPng() {
   out.width = Math.max(1, Math.round(R.w * sx))
   out.height = Math.max(1, Math.round(R.h * sy))
   const c = out.getContext('2d')
-  // 底图那块要减掉图在窗口里的偏移；标注画布 cv 是整窗的，所以它按窗口坐标取
-  c.drawImage(bg, Math.round((R.x - OX) * sx), Math.round((R.y - OY) * sy), out.width, out.height, 0, 0, out.width, out.height)
+  c.drawImage(bg, Math.round(R.x * sx), Math.round(R.y * sy), out.width, out.height, 0, 0, out.width, out.height)
   c.drawImage(cv, Math.round(R.x * dpr), Math.round(R.y * dpr), Math.round(R.w * dpr), Math.round(R.h * dpr),
     0, 0, out.width, out.height)
   return out.toDataURL('image/png')
@@ -206,16 +161,16 @@ document.addEventListener('pointermove', e => {
     R = { x: Math.min(act.s.x, p.x), y: Math.min(act.s.y, p.y), w: Math.abs(p.x - act.s.x), h: Math.abs(p.y - act.s.y) }
     if (R.w > 3 && R.h > 3) paintSel()
   } else if (act.k === 'move') {
-    R.x = clamp(act.r.x + (p.x - act.s.x), OX, OX + IW - act.r.w)
-    R.y = clamp(act.r.y + (p.y - act.s.y), OY, OY + IH - act.r.h)
+    R.x = clamp(act.r.x + (p.x - act.s.x), 0, innerWidth - act.r.w)
+    R.y = clamp(act.r.y + (p.y - act.s.y), 0, innerHeight - act.r.h)
     paintSel()
   } else if (act.k === 'resize') {
     const r = act.r, x2 = r.x + r.w, y2 = r.y + r.h
     let nx = r.x, ny = r.y, nw = r.w, nh = r.h
-    if (act.h.includes('w')) { nx = clamp(p.x, OX, x2 - 8); nw = x2 - nx }
-    if (act.h.includes('e')) { nw = clamp(p.x, r.x + 8, OX + IW) - r.x }
-    if (act.h.includes('n')) { ny = clamp(p.y, OY, y2 - 8); nh = y2 - ny }
-    if (act.h.includes('s')) { nh = clamp(p.y, r.y + 8, OY + IH) - r.y }
+    if (act.h.includes('w')) { nx = clamp(p.x, 0, x2 - 8); nw = x2 - nx }
+    if (act.h.includes('e')) { nw = clamp(p.x, r.x + 8, innerWidth) - r.x }
+    if (act.h.includes('n')) { ny = clamp(p.y, 0, y2 - 8); nh = y2 - ny }
+    if (act.h.includes('s')) { nh = clamp(p.y, r.y + 8, innerHeight) - r.y }
     R = { x: nx, y: ny, w: nw, h: nh }
     paintSel()
   } else if (act.k === 'draw') {
@@ -311,11 +266,9 @@ function colorAt(px, py) {
 
 function showLoupe(e) {
   // 挑好画笔就收起来：那时候要看的是准星和已经画上去的东西，不是像素格
-  // 编辑态整个不出：放大镜是"冻住的屏幕"才要的取色/对像素工具，
-  // 编辑一张已有的图时它挡视线，那三行色值/坐标读数对图片也没有意义
-  if (!ready || tool || editing) { loupe.classList.remove('on'); return }
-  const px = clamp(Math.round((e.clientX - OX) * sx), 0, bg.width - 1)
-  const py = clamp(Math.round((e.clientY - OY) * sy), 0, bg.height - 1)
+  if (!ready || tool) { loupe.classList.remove('on'); return }
+  const px = clamp(Math.round(e.clientX * sx), 0, bg.width - 1)
+  const py = clamp(Math.round(e.clientY * sy), 0, bg.height - 1)
   const x0 = clamp(px - Math.floor(LP_SRC / 2), 0, Math.max(0, bg.width - LP_SRC))
   const y0 = clamp(py - Math.floor(LP_SRC / 2), 0, Math.max(0, bg.height - LP_SRC))
   const z = LP_BOX / LP_SRC
