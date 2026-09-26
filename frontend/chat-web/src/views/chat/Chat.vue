@@ -54,12 +54,16 @@
         <span v-if="listSearch" class="ss-clear" @click="listSearch = ''">✕</span>
       </div>
 
-      <div class="side-body">
+      <!-- 列表区外框：让索引条按"列表区"居中，而不是按整条侧栏居中（联系人页那条就是按列表区居中的）。
+           索引条不能放进 .side-body —— 放进滚动容器里会跟着内容一起滚走 -->
+      <div class="side-list">
+      <!-- 消息 tab 上右侧要留一条 A-Z 索引的位置（.has-rail 多留 17px），滚动条藏掉但照常能滚 -->
+      <div ref="sideBody" class="side-body" :class="{ 'has-rail': activeTab === 'chat' && filteredConversations.length }">
         <!-- 真实会话：项目频道=群，最近联系人=单聊，都来自后端会话列表，不再摆演示数据 -->
         <template v-if="activeTab === 'chat'">
           <template v-for="sec in convSections" :key="sec.title">
             <div v-if="sec.list.length" class="sec"><span>{{ sec.title }}</span></div>
-            <div v-for="conv in sec.list" :key="conv.id" class="row"
+            <div v-for="conv in sec.list" :key="conv.id" class="row" :data-al="convInitial(conv)"
                  :class="{ active: currentConversation?.id === conv.id }"
                  @click="selectConversation(conv)" @contextmenu.prevent.stop="openConvMenu($event, conv)">
               <div class="ava" :class="{ group: conv.type === 2 }">
@@ -118,6 +122,12 @@
           </AlphaList>
           <div v-else class="list-empty">暂无群组</div>
         </template>
+      </div>
+
+      <!-- 消息列表的 A-Z 跳转条：列表顺序不动（分组小标题 + 时间序照旧），点某个字母滚到
+           当前顺序里第一个名字以它开头的会话。放在 .side-body 外面 —— 放进去会跟着内容滚走 -->
+      <AlphaRail v-if="activeTab === 'chat' && filteredConversations.length"
+                 :items="filteredConversations" :name-of="c => c.name || ''" @jump="jumpConv" />
       </div>
     </aside>
 
@@ -701,6 +711,8 @@ import CreateGroupModal from '../../components/CreateGroupModal.vue'
 import AddMembersModal from '../../components/AddMembersModal.vue'
 import SettingsModal from '../../components/SettingsModal.vue'
 import AlphaList from '../../components/AlphaList.vue'
+import AlphaRail from '../../components/AlphaRail.vue'
+import { pinyinInitial } from '../../utils/pinyin'
 import { toast, confirmBox } from '../../utils/ui'
 import { Minus, PictureOne, FolderUpload, MessageEmoji, Scissors, Mail, MicrophoneOne, People, History, Down, Pin, MessageUnread, Mute, Windows, PreviewClose, Delete, Copy, Clipboard, Undo, Redo, FullSelection, ZoomIn, Translate, Search, Share, Star, Selected, AlarmClock, Quote, Save, Refresh, Clear, PreviewOpen, CameraOne, Home, Checklist, FileText, Robot } from '@icon-park/vue-next'
 import { docDetail, docTasks, docScores, docRelated } from '../../mock/workbench'
@@ -987,6 +999,17 @@ const convSections = computed(() => [
   { title: '项目频道', list: filteredConversations.value.filter(c => c.type === 2) },
   { title: '最近联系人', list: filteredConversations.value.filter(c => c.type !== 2) },
 ])
+/* 右侧 A-Z 条只负责跳转：行的 data-al 和索引的 has[] 都走同一个 pinyinInitial，
+   点某个字母滚到"当前顺序里"第一个以它开头的会话（顺序仍是后端的时间序，没重排） */
+const sideBody = ref(null)
+const convInitial = c => pinyinInitial(c?.name || '')
+function jumpConv(l) {
+  const box = sideBody.value
+  if (!box) return
+  const el = box.querySelector(`[data-al="${l}"]`)
+  if (!el) return
+  box.scrollTo({ top: el.offsetTop, behavior: 'smooth' })
+}
 /* 头部叠放头像：取真实群成员前 3 个，超过 3 个才出现 +N（原来那三个假头像和写死的 +8 已删） */
 const memberStackReal = computed(() => {
   if (currentConversation.value?.type !== 2) return []
@@ -4154,7 +4177,13 @@ async function openWithApp(r) {
 .ss-ico { color: var(--nb-dim); font-size: 14px; }
 .ss-input { flex: 1; min-width: 0; border: 0; outline: none; background: transparent; color: var(--nb-text); font: inherit; font-size: 13px; }
 .ss-clear { color: var(--nb-dim); cursor: pointer; font-size: 12px; }
-.side-body { flex: 1; overflow-y: auto; padding: 0 8px 10px; }
+.side-list { flex: 1; min-height: 0; position: relative; display: flex; flex-direction: column; }
+.side-body { flex: 1; min-height: 0; overflow-y: auto; padding: 0 8px 10px; position: relative; }
+/* 消息 tab 上给右侧索引条留 17px（和 AlphaList 里 .al-body 那档一样），行里的时间/未读跟着往左挪 */
+.side-body.has-rail { padding-right: 25px; }
+/* 这条列表不画滚动条，但照常能滚：overflow 不动，只是不占那 6px、也不显示滑块，位置感交给右侧字母索引。
+   别顺手写 scrollbar-width —— 一旦设成非 auto，整组 ::-webkit-scrollbar 规则会被静默废掉 */
+.side-body::-webkit-scrollbar { width: 0; height: 0; }
 .sec {
   display: flex; align-items: center; gap: 6px; padding: 12px 8px 6px;
   font-size: 11px; color: var(--nb-dim-2); letter-spacing: .4px;
