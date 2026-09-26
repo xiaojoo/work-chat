@@ -4159,7 +4159,9 @@ async function openWithApp(r) {
   --row-hover: color-mix(in srgb, var(--nb-dim-2) 16%, var(--nb-bg-3));
   display: flex; flex-direction: column;
 }
-.side-head { display: flex; align-items: flex-start; padding: 14px 14px 10px; }
+/* min-height 50 = 通讯录/项目群组两页量出来的现值（上内距 14 + 那颗 ＋ 26 + 下内距 10）。
+   消息页没有那颗 ＋，标题行只有 23px 高，整栏会比另外两页矮 3px —— 换页签时下面的搜索框会跳 */
+.side-head { display: flex; align-items: flex-start; padding: 14px 14px 10px; min-height: 50px; }
 /* 标题和计数同一行、按基线对齐（16px 的标题和 12px 的计数顶对齐会显得计数往下掉） */
 .side-title { flex: 1; min-width: 0; display: flex; align-items: baseline; gap: 8px; }
 .side-title > span:first-child { font-size: 16px; font-weight: 600; color: var(--nb-text); }
