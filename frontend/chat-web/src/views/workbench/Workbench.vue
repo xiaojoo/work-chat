@@ -437,9 +437,11 @@ watch(section, () => { drawer.value = null; q.value = ''; sideGroup.value = '全
 .ri.quit { color: var(--nb-dim); }
 
 .main { display: flex; flex-direction: column; min-width: 0; }
-/* 页头那条淡蓝渐变：三个停靠点是沿稿子同一行扫出来的实测值（左 #F2F6FC / 中 #E3EFFD / 右 #E4EDFE） */
+/* 页头那条淡蓝：轴从横向（100deg）翻成向下（180deg），方向跟三列一致 = 顶上深、往下浅。
+   只留稿子那两个真端点：中间那个 #E3EFFD 和 #E4EDFE 只差 Δ(1,2,1)，横着它是"左中右"三段里的一段，
+   竖过来就变成上半截完全不动、全挤在下半截 —— 所以竖向用两端才匀 */
 .mh { display: flex; align-items: center; gap: 10px; padding: 14px 20px; border-bottom: 1px solid var(--nb-line);
-  background: linear-gradient(100deg, #f2f6fc 0%, #e3effd 50%, #e4edfe 100%); }
+  background: linear-gradient(180deg, #e4edfe 0%, #f2f6fc 100%); }
 .mh-ic { display: grid; place-items: center; flex: none; width: 34px; height: 34px; border-radius: 10px;
   background: var(--brand); color: #fff; }
 .mh-ic svg { width: 19px; height: 19px; }
