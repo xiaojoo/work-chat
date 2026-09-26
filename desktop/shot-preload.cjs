@@ -6,7 +6,8 @@ contextBridge.exposeInMainWorld('shot', {
   // 图画上屏了才让主进程露窗（早露一下就是整屏黑闪）
   painted: () => ipcRenderer.send('shot:painted'),
   copy: dataUrl => ipcRenderer.send('shot:copy', dataUrl),
-  pin: dataUrl => ipcRenderer.send('shot:pin', dataUrl),
+  // 带选区左上角一起送：钉图要留在截的那一块的位置，不能被摆到屏幕正中
+  pin: payload => ipcRenderer.send('shot:pin', payload),
   cancel: () => ipcRenderer.send('shot:cancel')
 })
 

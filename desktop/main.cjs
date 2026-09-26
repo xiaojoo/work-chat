@@ -210,7 +210,8 @@ function fadeClose(win) {
 }
 
 async function startShot(sender) {
-  if (shotWin && !shotWin.isDestroyed()) return { ok: false, busy: true }
+  // 每一条早退都要留一行日志：以前只有成功才 log，"点了没反应"那种情况在主进程这边查不到痕迹
+  if (shotWin && !shotWin.isDestroyed()) { log('shot 被挡住：已经有一个截图/编辑窗开着'); return { ok: false, busy: true, error: '已经有一个截图/编辑窗开着，先关掉那个' } }
   let disp, dpr, cur
   try {
     cur = screen.getCursorScreenPoint()
@@ -293,12 +294,13 @@ function closeShot() {
    复用截图那套标注器，只是底图换成这张图、窗口按图的大小开（不铺满屏）。
    shot.js 里的映射是 bg.width / innerWidth，所以图比屏幕大、窗口等比缩过也不会导出糊的。 */
 async function startEdit(sender, dataUrl, editPin, size) {
-  if (shotWin && !shotWin.isDestroyed()) return { ok: false, busy: true }
+  // 每条早退都留一行日志 + 一句人话：busy 以前只回 {ok:false}，前端显示"未知原因"，等于没报
+  if (shotWin && !shotWin.isDestroyed()) { log('edit 被挡住：已经有一个截图/编辑窗开着'); return { ok: false, busy: true, error: '已经有一个截图/编辑窗开着，先关掉那个' } }
   const url = String(dataUrl || '')
-  if (!url.startsWith('data:image/')) return { ok: false, error: '这张图不是 data:image 开头的' }
+  if (!url.startsWith('data:image/')) { log(`edit 被挡住：图不是 data:image（${url.slice(0, 24)}）`); return { ok: false, error: '这张图不是 data:image 开头的' } }
   const sw = Math.round(Number(size && size.width) || 0)
   const sh = Math.round(Number(size && size.height) || 0)
-  if (!sw || !sh) return { ok: false, error: '这张图量不出尺寸' }
+  if (!sw || !sh) { log(`edit 被挡住：量不出尺寸 ${sw}x${sh}`); return { ok: false, error: '这张图量不出尺寸（拿不到原始像素宽高）' } }
   const disp = currentDisplay()
   const dpr = disp.scaleFactor || 1
   shotOpener = sender ? BrowserWindow.fromWebContents(sender) : null
@@ -373,7 +375,7 @@ function tellOpener(payload) {
   if (shotOpener && !shotOpener.isDestroyed()) shotOpener.webContents.send('chat:shot-result', payload)
 }
 
-function pinImage(dataUrl) {
+function pinImage(dataUrl, at) {
   const img = nativeImage.createFromDataURL(dataUrl)
   const b = img.getSize()
   const disp = currentDisplay()
@@ -385,10 +387,12 @@ function pinImage(dataUrl) {
   const cap = Math.min(1, (disp.bounds.width - 40) / w, (disp.bounds.height - 40) / h)
   w = Math.max(1, Math.round(w * cap))
   h = Math.max(1, Math.round(h * cap))
+  // at = 选区在屏幕上的左上角（DIP）。给了就留在原地，别摆到屏幕正中——截完图眼睛还盯着那块呢
+  const px = at && Number.isFinite(at.x) ? Math.round(at.x) : disp.bounds.x + Math.round((disp.bounds.width - w) / 2)
+  const py = at && Number.isFinite(at.y) ? Math.round(at.y) : disp.bounds.y + Math.round((disp.bounds.height - h) / 3)
   const win = new BrowserWindow({
     width: w, height: h, useContentSize: true,
-    x: disp.bounds.x + Math.round((disp.bounds.width - w) / 2),
-    y: disp.bounds.y + Math.round((disp.bounds.height - h) / 3),
+    x: px, y: py,
     show: false, frame: false, transparent: false, hasShadow: true, skipTaskbar: true,
     alwaysOnTop: true, minimizable: false, maximizable: false, fullscreenable: false,
     resizable: true, backgroundColor: '#ffffff',
@@ -401,7 +405,7 @@ function pinImage(dataUrl) {
   win.webContents.on('did-finish-load', () => win.webContents.send('pin:data', dataUrl))
   win.on('closed', () => { const i = pinWins.indexOf(win); if (i >= 0) pinWins.splice(i, 1); pinInfo.delete(win); log('pin closed') })
   win.loadFile(path.join(__dirname, 'pin.html'))
-  log(`pinned ${w}x${h} from ${b.width}x${b.height}${cap < 1 ? '（比屏幕大，等比缩到 ' + Math.round(cap * 100) + '%）' : ''}`)
+  log(`pinned ${w}x${h} @${px},${py}${at ? '（留在选区位置）' : '（屏幕居中）'} ← 源图 ${b.width}x${b.height}${cap < 1 ? '（比屏幕大，等比缩到 ' + Math.round(cap * 100) + '%）' : ''}`)
   return { ok: true, w, h }
 }
 
@@ -557,9 +561,19 @@ if (!app.requestSingleInstanceLock()) {
       if (shotEditPin && !shotEditPin.isDestroyed()) shotEditPin.webContents.send('pin:note', '已复制到剪贴板')
       closeShot()
     })
-    ipcMain.on('shot:pin', (event, dataUrl) => {
+    ipcMain.on('shot:pin', (event, payload) => {
+      // 遮罩/编辑窗送过来的是 {url, at}：at 是选区在**自己窗口内**的 DIP 左上角，
+      // 加上窗口自己的屏幕原点才是"截的那一块"在屏幕上的位置
+      const url = typeof payload === 'string' ? payload : String(payload?.url || '')
+      const sel = typeof payload === 'string' ? null : payload?.at
+      const src = BrowserWindow.fromWebContents(event.sender)
+      let at = null
+      if (sel && src && !src.isDestroyed()) {
+        const b = src.getBounds()
+        at = { x: b.x + Number(sel.x), y: b.y + Number(sel.y) }
+      }
       // 编辑态是从某张钉图进来的，就换那张；否则新开一张
-      if (!(shotEditPin && pinSetImage(shotEditPin, dataUrl))) pinImage(String(dataUrl || ''))
+      if (!(shotEditPin && pinSetImage(shotEditPin, url))) pinImage(url, at)
       tellOpener({ ok: true, action: 'pin' })
       closeShot()
     })

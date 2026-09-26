@@ -172,7 +172,9 @@ function exportPng() {
 function finish(kind) {
   const url = exportPng()
   if (!url) return
-  if (kind === 'pin') window.shot.pin(url)
+  // 钉图要落在"截的那一块"的位置上，所以把选区左上角一起送过去（窗口内 DIP，
+  // 主进程再加窗口自己的屏幕原点）。不送的话主进程一律摆屏幕正中，看着就是"变了位置"
+  if (kind === 'pin') window.shot.pin({ url, at: { x: R.x, y: R.y } })
   else window.shot.copy(url)
 }
 
