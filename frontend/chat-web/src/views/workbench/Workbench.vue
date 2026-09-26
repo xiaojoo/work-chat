@@ -125,12 +125,13 @@
         <!-- 文档 / 素材 / 知识库：同一张列表骨架，换数据源 -->
         <section v-else-if="['docs', 'materials', 'knowledge'].includes(section)" class="sec">
           <div class="card tbl">
-            <!-- 分类原来是左侧那一栏，改成表格顶上一条横 tab；选中态的色板沿用原来那颗，
-                 只换排列轴，不换视觉语言 -->
-            <div class="tabs">
-              <button v-for="g in sideGroups" :key="g" type="button" class="tab" :class="{ on: sideGroup === g }" @click="sideGroup = g">{{ g }}</button>
-            </div>
-            <div class="tbl-hd">
+            <!-- 一行装完：左边分组、右边搜索框和那颗按钮。
+                 类名带 g 前缀（group）——.tabs/.tab 这名字已经被「我的任务」那排筛选占了，
+                 上一轮我同名覆盖，把那颗胶囊样式一起改掉了 -->
+            <div class="gbar">
+              <div class="gtabs">
+                <button v-for="g in sideGroups" :key="g" type="button" class="gtab" :class="{ on: sideGroup === g }" @click="sideGroup = g">{{ g }}</button>
+              </div>
               <input v-model="q" class="search" type="text" :placeholder="section === 'docs' ? '搜索文档名称或负责人' : '搜索名称'" />
               <button type="button" class="btn" disabled :title="DEMO_NOTE">{{ section === 'docs' ? '新建文档' : '上传' }}</button>
             </div>
@@ -452,14 +453,14 @@ watch(section, () => { drawer.value = null; q.value = ''; sideGroup.value = '全
 td em { margin-left: 7px; font-size: 11.5px; font-style: normal; color: var(--nb-dim); }
 .empty { margin: 0; padding: 18px; font-size: 12.5px; color: var(--nb-dim); text-align: center; }
 
-/* 分类条：从左侧那一栏搬到表格顶上。选中态的底色/字色用的是原来那同一组 token，只换排列轴 */
-.tabs { display: flex; align-items: center; gap: 6px; padding: 8px 12px; border-bottom: 1px solid var(--nb-line); }
-.tab { flex: none; padding: 7px 9px; font: inherit; font-size: 12.5px; color: var(--nb-text); background: none; border: 0;
+/* 分组 + 搜索 + 动作挤在同一行：分组靠左不吃宽度，搜索框 flex:1 吃掉富余，按钮靠右 */
+.gbar { display: flex; align-items: center; gap: 9px; padding: 8px 12px; border-bottom: 1px solid var(--nb-line); }
+.gtabs { display: flex; align-items: center; gap: 6px; flex: none }
+.gtab { padding: 7px 9px; font: inherit; font-size: 12.5px; color: var(--nb-text); background: none; border: 0;
   border-radius: 8px; cursor: pointer; transition: background-color .12s ease, color .12s ease; }
-.tab:hover { background: var(--nb-bg-3); }
-.tab.on { background: var(--brand-soft); color: var(--brand-strong); font-weight: 600; }
-.tbl-hd { display: flex; gap: 9px; align-items: center; padding: 10px 12px; border-bottom: 1px solid var(--nb-line); }
-.search { flex: 1; padding: 7px 10px; font: inherit; font-size: 12.5px; color: var(--nb-text); background: var(--nb-bg-2); border: 1px solid var(--nb-line); border-radius: 9px; outline: none; }
+.gtab:hover { background: var(--nb-bg-3); }
+.gtab.on { background: var(--brand-soft); color: var(--brand-strong); font-weight: 600; }
+.search { flex: 1; min-width: 120px; padding: 7px 10px; font: inherit; font-size: 12.5px; color: var(--nb-text); background: var(--nb-bg-2); border: 1px solid var(--nb-line); border-radius: 9px; outline: none; }
 .search:focus { border-color: var(--brand); }
 .btn { padding: 7px 13px; font: inherit; font-size: 12.5px; border-radius: 9px; border: 1px solid var(--nb-line); background: var(--nb-bg-1); color: var(--nb-text); cursor: pointer; }
 .btn.pri { border-color: var(--brand); background: var(--brand); color: #fff; font-weight: 600; }
