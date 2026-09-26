@@ -405,10 +405,11 @@ watch(section, () => { drawer.value = null; q.value = ''; sideGroup.value = '全
 
 <style scoped>
 .wb { display: grid; grid-template-columns: 208px minmax(0, 1fr); height: 100vh; background: var(--nb-bg-0); color: var(--nb-text);
-  /* 顶部两条栏共用的高与共用那片渐变。--wb-bar = 页头条量出来的现值（内容 42 + 上下内距 28 + 下边框 1）；
-     渐变的竖向停靠点写成视口像素（36/58/92/107）是因为四层都挂 background-attachment: fixed，
+  /* 顶部两条栏共用的高与共用那片渐变。--wb-bar = 页头条量出来的现值（内容 42 + 上下内距 28；
+     下边框已按他要求撤掉，所以这条从 71 改成 70，两条栏的底沿才不会错开 1px）；
+     渐变的竖向停靠点写成视口像素（36/58/92/106）是因为四层都挂 background-attachment: fixed，
      坐标原点在整个窗口上 —— 这样页头条和抽屉头是同一场光的两扇窗，不会在列边界处各起一次 */
-  --wb-bar: 71px;
+  --wb-bar: 70px;
   /* 四层，从上往下叠：① 顶边整条钉在他点名的 #e1e5ec，往下 22px 化开；
      ② 三条发丝弧线（圆心放在视口下方 1400px 处，所以只有右半截落在这条栏里，是缓弧不是圆）。
      弧线用品牌蓝低透明度而不是白：白线压在栏底浅色那头只有 Δ6，看不出是线；品牌蓝这头在深蓝端和浅白端
@@ -418,7 +419,7 @@ watch(section, () => { drawer.value = null; q.value = ''; sideGroup.value = '全
     radial-gradient(circle 1400px at 1000px 1400px, rgba(255, 255, 255, 0) 0 1316px, rgba(43, 107, 232, .17) 1316px 1318px,
       rgba(255, 255, 255, 0) 1318px 1346px, rgba(43, 107, 232, .15) 1346px 1348px,
       rgba(255, 255, 255, 0) 1348px 1376px, rgba(43, 107, 232, .12) 1376px 1378px, rgba(255, 255, 255, 0) 1378px),
-    linear-gradient(180deg, rgba(240, 244, 251, 0) 36px, rgba(240, 244, 251, .92) 92px, #f0f4fb 107px),
+    linear-gradient(180deg, rgba(240, 244, 251, 0) 36px, rgba(240, 244, 251, .92) 92px, #f0f4fb 106px),
     linear-gradient(90deg, #eef4fb 0%, #dfeafb 20%, #a9cdfa 82%);
   /* 只给 2 号用的一组线：把上面那簇弧按 x=640 左右镜像（圆心 1000px → 280px），半径和透明度一模一样。
      原来那簇最远只到 x≈480，够不到左栏，所以左栏自己补一簇镜像的，1 号那边一个字没动 */
@@ -430,10 +431,10 @@ watch(section, () => { drawer.value = null; q.value = ''; sideGroup.value = '全
 /* 渐变只给页头条：新稿子上逐点扫过 —— 左栏竖向是平的（x=0..150 从 y=40 到 y=1000 只差 Δ3）、
    画布也是平的（紧挨页头下 (245,249,254) → 底部 (247,249,253)），整页的渐变全部集中在页头那一块。
    上一版给三列各铺一条，把模块之间的 tone 层次抹平了，这次退回实心 */
-/* 只动 2 号：左栏顶上那 71px 盖上和 1 号同一片光（顶边 #e1e5ec + 白纱 + 蓝坡 + 一组镜像线）。
-   第一层是遮罩 —— y<107 全透让下面的光露出来，y≥107 直接刷成栏底本档，所以 logo 以下还是原来的实心 */
+/* 只动 2 号：左栏顶上那 70px 盖上和 1 号同一片光（顶边 #e1e5ec + 白纱 + 蓝坡 + 一组镜像线）。
+   第一层是遮罩 —— y<106 全透让下面的光露出来，y≥106 直接刷成栏底本档，所以 logo 以下还是原来的实心 */
 .rail { display: flex; flex-direction: column; gap: 2px; min-height: 0; padding: 12px 10px;
-  background: linear-gradient(180deg, rgba(0, 0, 0, 0) 107px, var(--nb-bg-3) 107px), var(--wb-lines-l), var(--wb-wash);
+  background: linear-gradient(180deg, rgba(0, 0, 0, 0) 106px, var(--nb-bg-3) 106px), var(--wb-lines-l), var(--wb-wash);
   background-attachment: fixed; }
 .rail-logo { display: flex; align-items: center; gap: 9px; padding: 6px 8px 12px; cursor: pointer; }
 .lg-ic { display: grid; place-items: center; width: 28px; height: 28px; border-radius: 9px; background: var(--brand); color: #fff; }
@@ -462,7 +463,7 @@ watch(section, () => { drawer.value = null; q.value = ''; sideGroup.value = '全
 /* 页头条 = 整页那片渐变的左半扇窗：右上角一团蓝往左、往下散，横向蓝坡打底 + 竖向白纱盖在上面。
    锚点是稿子按归一化位置扫出来的：顶边 u=0.61 → (176,211,252)、u=0.95 → (172,206,253)，
    同一条竖线走到条底 → (239,245,253) */
-.mh { display: flex; align-items: center; gap: 10px; min-height: var(--wb-bar); padding: 14px 20px; border-bottom: 1px solid var(--nb-line);
+.mh { display: flex; align-items: center; gap: 10px; min-height: var(--wb-bar); padding: 14px 20px;
   background: var(--wb-wash); background-attachment: fixed; }
 .mh-ic { display: grid; place-items: center; flex: none; width: 34px; height: 34px; border-radius: 10px;
   background: var(--brand); color: #fff; }
@@ -592,7 +593,7 @@ td em { margin-left: 7px; font-size: 11.5px; font-style: normal; color: var(--nb
    把 1 号 2 号 3 号切成三截。撤了之后两块之间只剩 tone 差：栏/抽屉 (240,243,248) vs 画布 (244,246,250) = Δ(4,3,2) */
 .dw { background: var(--nb-bg-3); display: flex; flex-direction: column; min-height: 0; }
 /* 抽屉头和页头条同高、同一片渐变 —— 两条下边框落在同一条线上，顶上那一片读起来是一整块 */
-.dw-hd { display: flex; align-items: center; justify-content: space-between; min-height: var(--wb-bar); padding: 14px 16px; border-bottom: 1px solid var(--nb-line);
+.dw-hd { display: flex; align-items: center; justify-content: space-between; min-height: var(--wb-bar); padding: 14px 16px;
   background: var(--wb-wash); background-attachment: fixed; }
 .dw-hd b { font-size: 13.5px; }
 .x { border: 0; background: none; color: var(--nb-dim); font-size: 13px; cursor: pointer; }
