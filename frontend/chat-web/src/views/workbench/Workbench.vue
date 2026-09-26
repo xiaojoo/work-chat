@@ -35,10 +35,6 @@
       </div>
 
       <div class="rail-foot">
-        <div class="plan">
-          <span class="plan-tx"><b>企业版</b><small>专业的内容协作平台</small></span>
-          <span class="plan-go" aria-hidden="true">›</span>
-        </div>
         <button type="button" class="ri quit" @click="handleLogout"><span class="ri-ic" aria-hidden="true"><IcGear /></span><span class="ri-tx">退出登录</span></button>
       </div>
     </nav>
@@ -434,14 +430,8 @@ watch(section, () => { drawer.value = null; q.value = ''; sideGroup.value = '全
 .ri-tx { flex: 1; }
 .ri-n { font-size: 11px; padding: 1px 6px; border-radius: 999px; background: var(--brand); color: #fff; }
 .rail-foot { padding-top: 10px; border-top: 1px solid var(--nb-line); }
-/* 稿子里这张卡是白的 + 一条描边 + 右边一个 ›；菜单栏变浅之后它的底色也得跟着翻白，不然糊成一片 */
-.plan { display: flex; align-items: center; gap: 8px; padding: 8px 9px; border-radius: 10px;
-  background: var(--nb-bg-1); border: 1px solid var(--nb-line); }
-.plan-tx { flex: 1; min-width: 0; }
-.plan-go { flex: none; font-size: 15px; line-height: 1; color: var(--nb-dim); }
-.plan b { display: block; font-size: 12.5px; }
-.plan small { display: block; font-size: 11px; color: var(--nb-dim); }
-.ri.quit { margin-top: 6px; color: var(--nb-dim); }
+/* margin-top 那 6px 是原来跟「企业版」卡片之间的缝，卡片删了就跟着删 */
+.ri.quit { color: var(--nb-dim); }
 
 .main { display: flex; flex-direction: column; min-width: 0; }
 /* 页头那条淡蓝渐变：三个停靠点是沿稿子同一行扫出来的实测值（左 #F2F6FC / 中 #E3EFFD / 右 #E4EDFE） */
