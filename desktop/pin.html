@@ -26,7 +26,8 @@
   #cv { position: absolute; inset: 0; width: 100%; height: 100%; display: none; touch-action: none; z-index: 5 }
   body.editing #cv { display: block }
   body.editing #cv.draw { cursor: crosshair }
-  body.editing #note { bottom: 46px }
+  /* 编辑态提示条挪到顶上：工具条在小窗里会折成两三行、往上长，跟底部 46px 那个位置会叠住 */
+  body.editing #note { top: 6px; bottom: auto; max-width: calc(100% - 64px) }
   #txt { position: absolute; display: none; min-width: 90px; padding: 2px 5px; border: 1px solid #2b6be8;
          border-radius: 4px; background: rgba(255, 255, 255, .96); color: #111; font-size: 16px; outline: none; z-index: 7 }
   /* 工具条：深色胶囊和截图那条同款；小钉图放不下就自己折行（不去长窗口，
