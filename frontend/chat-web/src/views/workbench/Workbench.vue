@@ -409,23 +409,27 @@ watch(section, () => { drawer.value = null; q.value = ''; sideGroup.value = '全
      渐变的竖向停靠点写成视口像素（36/58/92/107）是因为四层都挂 background-attachment: fixed，
      坐标原点在整个窗口上 —— 这样页头条和抽屉头是同一场光的两扇窗，不会在列边界处各起一次 */
   --wb-bar: 71px;
-  /* 四层，从上往下叠：① 顶边整条钉在他点名的 #e1e5ec，往下 22px 化开；
-     ② 三条发丝弧线（圆心放在视口下方 1400px 处，所以只有右半截落在这条栏里，是缓弧不是圆）。
-     弧线用品牌蓝低透明度而不是白：白线压在栏底浅色那头只有 Δ6，看不出是线；品牌蓝这头在深蓝端和浅白端
-     都能到 Δ14 上下，一条线的粗细感全程一致。
-     ③ 竖向白纱（顶透 → 底 #F0F4FB）；④ 横向蓝坡，最右端 #A9CDFA */
+  /* 三条发丝线。圆心在窗口上方 7900px、半径 7958~8000 → 在这条 71px 高的栏里是一段
+     只起伏 18px 的缓弧，左右两头都从栏的竖边穿出去，不会在半路断掉（上一版圆心在下方 1400px，
+     弧太弯，左边那头像被剪断一样停在栏中间）。品牌蓝低透明度，压在深蓝端和浅白端都是 Δ14 上下 */
+  --wb-lines: radial-gradient(circle 8000px at 744px -7900px,
+    rgba(43, 107, 232, 0) 0 7957px, rgba(43, 107, 232, .17) 7957px 7960px,
+    rgba(43, 107, 232, 0) 7960px 7977px, rgba(43, 107, 232, .15) 7977px 7980px,
+    rgba(43, 107, 232, 0) 7980px 7997px, rgba(43, 107, 232, .12) 7997px 8000px,
+    rgba(43, 107, 232, 0) 8000px);
+  /* 页头条那一片：顶边钉 #e1e5ec → 三条线 → 竖向白纱 → 横向蓝坡 */
   --wb-wash: linear-gradient(180deg, #e1e5ec 36px, rgba(225, 229, 236, 0) 58px),
-    radial-gradient(circle 1400px at 1000px 1400px, rgba(255, 255, 255, 0) 0 1316px, rgba(43, 107, 232, .17) 1316px 1318px,
-      rgba(255, 255, 255, 0) 1318px 1346px, rgba(43, 107, 232, .15) 1346px 1348px,
-      rgba(255, 255, 255, 0) 1348px 1376px, rgba(43, 107, 232, .12) 1376px 1378px, rgba(255, 255, 255, 0) 1378px),
+    var(--wb-lines),
     linear-gradient(180deg, rgba(240, 244, 251, 0) 36px, rgba(240, 244, 251, .92) 92px, #f0f4fb 107px),
     linear-gradient(90deg, #eef4fb 0%, #dfeafb 20%, #a9cdfa 82%); }
 .wb:has(.dw) { grid-template-columns: 208px minmax(0, 1fr) 320px; }
 
-/* 渐变只给页头条：新稿子上逐点扫过 —— 左栏竖向是平的（x=0..150 从 y=40 到 y=1000 只差 Δ3）、
-   画布也是平的（紧挨页头下 (245,249,254) → 底部 (247,249,253)），整页的渐变全部集中在页头那一块。
-   上一版给三列各铺一条，把模块之间的 tone 层次抹平了，这次退回实心 */
-.rail { display: flex; flex-direction: column; gap: 2px; min-height: 0; padding: 12px 10px; background: var(--nb-bg-3); border-right: 1px solid var(--nb-line); }
+/* 三列各自往下渐到自己那一档：起点 = 本底压深 6%，终点 = 本底（视口底）。
+   压同一比例 → 模块之间的 tone 差在任意高度都还在（层次不丢）；
+   都挂 background-attachment: fixed → 三列和顶上那条栏是同一套竖向坐标，不各自重起 */
+.rail { display: flex; flex-direction: column; gap: 2px; min-height: 0; padding: 12px 10px; border-right: 1px solid var(--nb-line);
+  background: var(--wb-lines), linear-gradient(180deg, color-mix(in srgb, var(--nb-bg-3) 94%, #000) 36px, var(--nb-bg-3) 100%);
+  background-attachment: fixed; }
 .rail-logo { display: flex; align-items: center; gap: 9px; padding: 6px 8px 12px; cursor: pointer; }
 .lg-ic { display: grid; place-items: center; width: 28px; height: 28px; border-radius: 9px; background: var(--brand); color: #fff; }
 .lg-tx b { display: block; font-size: 13.5px; line-height: 1.2; }
@@ -470,7 +474,9 @@ watch(section, () => { drawer.value = null; q.value = ''; sideGroup.value = '全
 .mh-acts .btn.pri:disabled { opacity: 1; cursor: not-allowed; }
 .pri-ic { display: grid; place-items: center; flex: none; width: 14px; }
 .pri-ic svg { width: 14px; height: 14px; }
-.body { flex: 1; overflow-y: auto; padding: 18px 20px 26px; }
+.body { flex: 1; overflow-y: auto; padding: 18px 20px 26px;
+  background: linear-gradient(180deg, color-mix(in srgb, var(--nb-bg-0) 94%, #000) 107px, var(--nb-bg-0) 100%);
+  background-attachment: fixed; }
 
 .sec { display: flex; flex-direction: column; gap: 14px; }
 .hello h2 { margin: 0; font-size: 18px; }
@@ -578,7 +584,9 @@ td em { margin-left: 7px; font-size: 11.5px; font-style: normal; color: var(--nb
 .msg.me { align-self: flex-end; background: var(--brand); color: #fff; }
 .ask { display: flex; gap: 8px; }
 
-.dw { background: var(--nb-bg-1); border-left: 1px solid var(--nb-line); display: flex; flex-direction: column; min-height: 0; }
+.dw { border-left: 1px solid var(--nb-line); display: flex; flex-direction: column; min-height: 0;
+  background: linear-gradient(180deg, color-mix(in srgb, var(--nb-bg-1) 94%, #000) 36px, var(--nb-bg-1) 100%);
+  background-attachment: fixed; }
 /* 抽屉头和页头条同高、同一片渐变 —— 两条下边框落在同一条线上，顶上那一片读起来是一整块 */
 .dw-hd { display: flex; align-items: center; justify-content: space-between; min-height: var(--wb-bar); padding: 14px 16px; border-bottom: 1px solid var(--nb-line);
   background: var(--wb-wash); background-attachment: fixed; }
