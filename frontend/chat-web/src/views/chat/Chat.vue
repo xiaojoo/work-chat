@@ -1339,6 +1339,17 @@ onUnmounted(() => {
   clearPending()   // 没发出去的缩略图也是整张图在内存里，离开页面要还掉
 })
 
+/* 窗口回到前台：正开着的这条此刻就在眼前，把隐藏期间攒下的角标抹掉并同步给服务端。
+   不补这一笔的话，"最小化时来消息→亮角标"和"回来之后红点还挂着"会同时发生。 */
+function onRefocus() {
+  const conv = currentConversation.value
+  if (document.hidden || !conv || !conv.unreadCount) return
+  conv.unreadCount = 0
+  clearUnread(String(conv.id))
+}
+onMounted(() => document.addEventListener('visibilitychange', onRefocus))
+onUnmounted(() => document.removeEventListener('visibilitychange', onRefocus))
+
 onMounted(async () => {
   // 验证 Token
   if (!validateToken()) {
@@ -1366,6 +1377,10 @@ onMounted(async () => {
     const conv = conversations.value.find(c => String(c.id) === savedConvId)
     if (conv) {
       currentConversation.value = conv
+      /* 恢复上次打开的会话时也要清未读：正开着的那条，来消息是不计角标的（见 MESSAGE_RECEIVE），
+         可服务端不知情、照加。不在这里抹平，下次重载就会看到"我正在读的这条挂着个红 1"。 */
+      conv.unreadCount = 0
+      clearUnread(String(conv.id))
       // 等待连接建立后发送
       sendWhenConnected('LOAD_MESSAGES', { conversationId: String(conv.id), limit: 50 })
         .catch(() => console.warn('Failed to load messages: WebSocket not connected'))
@@ -1392,6 +1407,15 @@ onMounted(async () => {
         if (conv) {
           conv.lastMessage = previewOf(data.content)
           conv.lastMessageTime = data.timestamp
+          /* 服务端 updateLastMessage 对"非发送方的每个绑定"都 +1，但界面上这一笔从来没跟上，
+             所以红色角标只在重新拉会话列表（登录/切页签）那一刻出现，收消息时不亮。
+             这里补上，跳过两种情况：这条会话正开着、窗口也正给他看着（消息当场就滚进画面了，
+             再标红就是骗他还有东西没看）；自己发出去的（和服务端跳过 senderId 是同一条规则）。
+             最小化/切到别的标签页时窗口是 hidden 的，那一条要亮，回到前台由 onRefocus 抹掉 */
+          const looking = !document.hidden && !!currentConversation.value
+            && String(currentConversation.value.id) === String(data.conversationId)
+          const mine = String(data.senderId) === String(userStore.userId)
+          if (!looking && !mine) conv.unreadCount = (conv.unreadCount || 0) + 1
         }
         break
       }
