@@ -410,22 +410,24 @@ watch(section, () => { drawer.value = null; q.value = ''; sideGroup.value = '全
      坐标原点在整个窗口上 —— 这样页头条和抽屉头是同一场光的两扇窗，不会在列边界处各起一次 */
   --wb-bar: 71px;
   /* 四层，从上往下叠：① 顶边整条钉在他点名的 #e1e5ec，往下 22px 化开；
-     ② 三条发丝弧线（圆心放在视口下方 1400px 处，所以只有右半截落在这条栏里，是缓弧不是圆）。
-     弧线用品牌蓝低透明度而不是白：白线压在栏底浅色那头只有 Δ6，看不出是线；品牌蓝这头在深蓝端和浅白端
-     都能到 Δ14 上下，一条线的粗细感全程一致。
+     ② 三条发丝线 —— 圆心挪到窗口上方 7900px、半径 7963~7998，在这条 71px 高的栏里是起伏 26px 的缓弧，
+        从 x=0 一路走到 x=1280 都在栏内（上一版圆心在下方 1400px，弧太弯，左端停在 x≈480，
+        所以左边那块要线就没有线）。线仍用品牌蓝低透明度：白线压在浅色那头只有 Δ6 看不出是线；
      ③ 竖向白纱（顶透 → 底 #F0F4FB）；④ 横向蓝坡，最右端 #A9CDFA */
   --wb-wash: linear-gradient(180deg, #e1e5ec 36px, rgba(225, 229, 236, 0) 58px),
-    radial-gradient(circle 1400px at 1000px 1400px, rgba(255, 255, 255, 0) 0 1316px, rgba(43, 107, 232, .17) 1316px 1318px,
-      rgba(255, 255, 255, 0) 1318px 1346px, rgba(43, 107, 232, .15) 1346px 1348px,
-      rgba(255, 255, 255, 0) 1348px 1376px, rgba(43, 107, 232, .12) 1376px 1378px, rgba(255, 255, 255, 0) 1378px),
+    radial-gradient(circle 8100px at 640px -7900px, rgba(255, 255, 255, 0) 0 7963px, rgba(43, 107, 232, .17) 7963px 7966px,
+      rgba(255, 255, 255, 0) 7966px 7979px, rgba(43, 107, 232, .15) 7979px 7982px,
+      rgba(255, 255, 255, 0) 7982px 7995px, rgba(43, 107, 232, .12) 7995px 7998px, rgba(255, 255, 255, 0) 7998px),
     linear-gradient(180deg, rgba(240, 244, 251, 0) 36px, rgba(240, 244, 251, .92) 92px, #f0f4fb 107px),
     linear-gradient(90deg, #eef4fb 0%, #dfeafb 20%, #a9cdfa 82%); }
 .wb:has(.dw) { grid-template-columns: 208px minmax(0, 1fr) 320px; }
 
-/* 渐变只给页头条：新稿子上逐点扫过 —— 左栏竖向是平的（x=0..150 从 y=40 到 y=1000 只差 Δ3）、
-   画布也是平的（紧挨页头下 (245,249,254) → 底部 (247,249,253)），整页的渐变全部集中在页头那一块。
-   上一版给三列各铺一条，把模块之间的 tone 层次抹平了，这次退回实心 */
-.rail { display: flex; flex-direction: column; gap: 2px; min-height: 0; padding: 12px 10px; background: var(--nb-bg-3); border-right: 1px solid var(--nb-line); }
+/* 左栏顶上那 71px 也盖同一片光（和页头条、抽屉头一模一样，含三条线）：
+   第一层是遮罩 —— y<107 全透让下面的 --wb-wash 露出来，y≥107 直接刷成栏底本档，
+   所以这条栏往下还是实心，只有 logo 那一截跟着顶栏走 */
+.rail { display: flex; flex-direction: column; gap: 2px; min-height: 0; padding: 12px 10px; border-right: 1px solid var(--nb-line);
+  background: linear-gradient(180deg, rgba(0, 0, 0, 0) 107px, var(--nb-bg-3) 107px), var(--wb-wash);
+  background-attachment: fixed; }
 .rail-logo { display: flex; align-items: center; gap: 9px; padding: 6px 8px 12px; cursor: pointer; }
 .lg-ic { display: grid; place-items: center; width: 28px; height: 28px; border-radius: 9px; background: var(--brand); color: #fff; }
 .lg-tx b { display: block; font-size: 13.5px; line-height: 1.2; }
