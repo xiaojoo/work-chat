@@ -160,7 +160,9 @@ function submit() {
 .ipt { width: 100%; box-sizing: border-box; padding: 8px 56px 8px 11px; font: inherit; font-size: 13px; color: var(--nb-text); background: var(--nb-bg-2); border: 1px solid var(--nb-line); border-radius: 10px; outline: none; }
 .ipt:focus { border-color: var(--brand); box-shadow: 0 0 0 3px var(--brand-line); }
 .ipt::placeholder { color: var(--nb-dim-2, var(--nb-dim)); }
-.ta { resize: vertical; min-height: 46px; padding-right: 11px; line-height: 1.5; }
+/* 右下角那个斜角把手去掉、高度钉死：textarea 不会自己长高（字多了框内滚），
+   所以只要不给 resize，高度就由 rows=2 定住 —— 和 AddMembersModal 的欢迎消息框同一条规则 */
+.ta { resize: none; min-height: 46px; padding-right: 11px; line-height: 1.5; }
 .cnt { position: absolute; right: 10px; bottom: 8px; font-size: 11.5px; color: var(--nb-dim); pointer-events: none; }
 .ta-cnt { top: 8px; bottom: auto; }
 .types { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }
