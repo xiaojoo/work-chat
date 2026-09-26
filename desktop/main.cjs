@@ -30,6 +30,38 @@ function readInstallId() {
   }
 }
 
+// 文件名是别的用户传上来的：可能带 "../x"、Windows 非法字符、或 CON/NUL 这类保留名，
+// 洗干净才敢拼进下载目录
+function safeName(name) {
+  let s = path.basename(String(name || ''))
+    .replace(/[<>:"/\\|?*]/g, '_')
+    .replace(/\s+/g, ' ')
+    .replace(/[. ]+$/, '')
+    .trim()
+  const stem = (s.split('.')[0] || '').toLowerCase()
+  if (['con', 'prn', 'aux', 'nul'].includes(stem) || /^(com|lpt)[1-9]$/.test(stem)) s = '_' + s
+  return s || '文件'
+}
+
+// 可执行 / 脚本类不自动"打开"——那等于替别人在他机器上跑代码，只落文件
+const EXEC_EXT = new Set(['exe', 'bat', 'cmd', 'com', 'msi', 'msp', 'ps1', 'psm1', 'vbs', 'vbe',
+  'js', 'jse', 'wsf', 'wsh', 'scr', 'cpl', 'hta', 'jar', 'reg', 'lnk', 'sh'])
+
+// 落盘并返回真实路径：同名且内容一样（sha256）就复用那一份，不重不堆副本；
+// 同名不同内容往后加 " (2)"，绝不覆盖已有文件
+function placeFile(dir, name, buf) {
+  const { name: stem, ext } = path.parse(name)
+  const digest = crypto.createHash('sha256').update(buf).digest('hex')
+  for (let i = 1; ; i++) {
+    const p = i === 1 ? path.join(dir, name) : path.join(dir, `${stem} (${i})${ext}`)
+    if (!fs.existsSync(p)) {
+      fs.writeFileSync(p, buf)
+      return p
+    }
+    if (crypto.createHash('sha256').update(fs.readFileSync(p)).digest('hex') === digest) return p
+  }
+}
+
 // 没有现成图标文件，按 32x32 直接画一个：实心圆 + 一道斜环
 function makeIcon() {
   const size = 32
@@ -454,6 +486,36 @@ if (!app.requestSingleInstanceLock()) {
         log(`save failed: ${e.message}`)
         return { ok: false, error: String(e.message || e) }
       }
+    })
+
+    // 「下载到默认目录 + 用系统默认应用打开」：渲染端在沙箱里既拿不到下载目录，
+    // 也没权限启动外部程序，所以字节送过来，主进程落盘再交给 shell.openPath。
+    ipcMain.handle('chat:open-file', async (event, { name, bytes }) => {
+      const buf = Buffer.from(bytes || new Uint8Array())
+      let dir
+      try {
+        dir = app.getPath('downloads')
+      } catch (e) {
+        dir = app.getPath('home')
+      }
+      let target
+      try {
+        target = placeFile(dir, safeName(name), buf)
+      } catch (e) {
+        log(`open-file write failed: ${e.message}`)
+        return { ok: false, error: String(e.message || e) }
+      }
+      const ext = path.extname(target).slice(1).toLowerCase()
+      // 可执行/脚本类只落文件、不启动：那等于替别人在他机器上跑代码
+      if (EXEC_EXT.has(ext)) {
+        log(`refused to open ${target} (${ext})`)
+        return { ok: true, path: target, dir, size: buf.length, opened: false, refused: true }
+      }
+      const err = await shell.openPath(target)
+      log(`open-file ${target} (${buf.length} bytes) → ${err || 'ok'}`)
+      return err
+        ? { ok: false, path: target, dir, size: buf.length, error: err }
+        : { ok: true, path: target, dir, size: buf.length, opened: true }
     })
 
     // 截图：主窗口只能"发起"，抓屏/遮罩窗/剪贴板都在上面那几个函数里

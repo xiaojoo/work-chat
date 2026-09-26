@@ -9,6 +9,8 @@ contextBridge.exposeInMainWorld('chatDesktop', {
   notify: (payload) => ipcRenderer.send('chat:notify', payload),
   // 「另存为」：字节在渲染端取好送过来，主进程弹系统对话框再写盘
   save: (payload) => ipcRenderer.invoke('chat:save', payload),
+  // 「下载到默认目录并用系统默认应用打开」：pdf / office 这一类走这条路
+  openFile: (payload) => ipcRenderer.invoke('chat:open-file', payload),
   // 截图：抓屏和遮罩窗都在主进程，这边只发起 + 收结果
   shot: () => ipcRenderer.invoke('chat:shot'),
   onShotResult: (cb) => {

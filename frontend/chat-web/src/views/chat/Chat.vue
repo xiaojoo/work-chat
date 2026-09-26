@@ -1994,9 +1994,7 @@ async function saveAsRef(r) {
   if (!r) { toast('这条消息里没有可保存的文件', 'error'); return }
   try {
     if (!window.chatDesktop?.save) { downloadRef(r); toast('已交给浏览器下载', 'success'); return }
-    const url = r.dataUrl || await fileObjectUrl(r.fileId)
-    const bytes = new Uint8Array(await (await fetch(url)).arrayBuffer())
-    const res = await window.chatDesktop.save({ name: r.name || '文件', bytes })
+    const res = await window.chatDesktop.save({ name: r.name || '文件', bytes: await refBytes(r) })
     if (res?.ok) toast(`已保存（${res.size} 字节）`, 'success')
     else if (!res?.canceled) toast('保存失败：' + (res?.error || '未知错误'), 'error')
   } catch (e) {
@@ -3091,12 +3089,16 @@ watch(imgView, v => {
   document.addEventListener('keydown', ivEsc)
 })
 
-/* ===== 文档预览（文本类）=====
-   只做文本：库里现在就是 json / txt 这一类，零依赖、两端一致。
-   PDF 和 Office 没做——PDF 要验客户端的内置查看器（这台机器 mimeTypes 命中了，但没样本验成渲染），
-   Office 得服务端转格式，那是另一件事。判不出来的类型不装死：弹框照开，写明是哪一类、给下载。 */
+/* ===== 文档预览（文本类）+ PDF/Office 交给系统默认应用 =====
+   文本：库里现在就是 json / txt 这一类，零依赖、两端一致，点开在本页弹框里看。
+   PDF / Office：桌面壳先落到系统的「下载」文件夹，再用默认应用打开（点击即开，不再只给下载）。
+     网页端没这条路，仍然是弹框 + 下载。
+   Office 的"在线预览"仍然没做——那要服务端转格式，是另一件事。 */
 const docView = ref(null)
 const canSave = !!window.chatDesktop?.save
+const canOpenApp = !!window.chatDesktop?.openFile
+// 只有"文档"这一类才自动打开：压缩包、视频等点开仍旧是弹框，不替他把外部程序拉起来
+const OPEN_EXT = new Set(['pdf', 'doc', 'docx', 'xls', 'xlsx', 'ppt', 'pptx', 'wps', 'et', 'dps'])
 const DOC_PREVIEW_MAX = 200 * 1024
 const TEXT_EXT = new Set(['txt', 'md', 'markdown', 'json', 'jsonl', 'ndjson', 'csv', 'tsv', 'log', 'yml', 'yaml',
   'xml', 'ini', 'conf', 'properties', 'env', 'toml', 'svg', 'html', 'htm', 'css', 'scss', 'less',
@@ -3133,6 +3135,8 @@ async function openDocView(r) {
   closeAllMenus()
   const kind = docKindOf(r)
   const label = docLabel(r.contentType, r.name)
+  const ext = String(r.name || '').split('.').pop().toLowerCase()
+  if (kind !== 'text' && canOpenApp && OPEN_EXT.has(ext)) { openWithApp(r); return }
   docView.value = { name: r.name || '文件', size: r.size || 0, contentType: r.contentType, ct: label,
     fileId: r.fileId, dataUrl: r.dataUrl, kind, text: null, truncated: false, rest: 0, err: '' }
   if (kind !== 'text') {
@@ -3140,8 +3144,7 @@ async function openDocView(r) {
     return
   }
   try {
-    const url = r.dataUrl || await fileObjectUrl(r.fileId)
-    const buf = await (await fetch(url)).arrayBuffer()
+    const buf = await refBytes(r)
     const cut = buf.byteLength > DOC_PREVIEW_MAX
     let text = new TextDecoder('utf-8', { fatal: false }).decode(new Uint8Array(buf, 0, Math.min(buf.byteLength, DOC_PREVIEW_MAX)))
     let rest = 0
@@ -3152,6 +3155,28 @@ async function openDocView(r) {
     if (docView.value) Object.assign(docView.value, { text, truncated: cut, rest })
   } catch (e) {
     if (docView.value) docView.value.err = '读不出来：' + (e?.message || e)
+  }
+}
+// 字节两头都从同一个地方取：消息里带的 dataUrl，否则按 fileId 换 objectURL
+async function refBytes(r) {
+  const url = r.dataUrl || await fileObjectUrl(r.fileId)
+  return new Uint8Array(await (await fetch(url)).arrayBuffer())
+}
+// 落到「下载」文件夹 + 用系统默认应用打开，实际写盘和 shell.openPath 都在主进程
+let openingDoc = false
+async function openWithApp(r) {
+  if (!r || openingDoc) return
+  openingDoc = true
+  try {
+    const res = await window.chatDesktop.openFile({ name: r.name || '文件', bytes: await refBytes(r) })
+    if (!res?.ok) { toast('打开失败：' + (res?.error || '未知错误'), 'error'); return }
+    toast(res.opened
+      ? `${r.name} 已存进「下载」文件夹，正在用默认应用打开`
+      : `${r.name} 已存进「下载」文件夹，这类文件不会自动打开`, 'success')
+  } catch (e) {
+    toast('打开失败：' + (e?.message || e), 'error')
+  } finally {
+    openingDoc = false
   }
 }
 function closeDocView() { docView.value = null }
