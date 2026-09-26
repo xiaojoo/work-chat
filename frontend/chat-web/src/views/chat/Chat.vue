@@ -1967,7 +1967,8 @@ const canShot = !!window.chatDesktop?.shot
 async function startShot() {
   try {
     const r = await window.chatDesktop.shot()
-    if (r && !r.ok && !r.busy) toast('截图没起来：' + (r.error || '未知原因'), 'error')
+    // busy 以前是静默的：截图窗还开着的时候点那颗按钮，看着就像"点了没反应"
+    if (r && !r.ok) toast((r.busy ? '' : '截图没起来：') + (r.error || '未知原因'), r.busy ? 'warning' : 'error')
   } catch (e) {
     toast('截图没起来：' + (e?.message || e), 'error')
   }
@@ -2883,7 +2884,10 @@ async function editViewingImage() {
       width: el.naturalWidth,
       height: el.naturalHeight
     })
-    if (r && !r.ok && !r.busy) toast('编辑没打开：' + (r.error || '未知原因'), 'error')
+    // 编辑窗开起来了就把查看器关掉：两层图叠着看，改完都不知道自己在改哪一份
+    if (r?.ok) closeImageView()
+    else if (r?.busy) toast(r.error || '已经有一个截图/编辑窗开着，先关掉那个', 'warning')
+    else toast('编辑没打开：' + (r?.error || '未知原因'), 'error')
   } catch (e) {
     toast('编辑没打开：' + (e?.message || e), 'error')
   }
@@ -4166,8 +4170,9 @@ watch(imgView, v => {
   background: #fff; border: 1px solid var(--nb-line); border-radius: 10px; box-shadow: var(--shadow-2);
 }
 .mp-cap { padding: 2px 6px 6px; font-size: 11px; letter-spacing: 1px; color: var(--nb-dim-2); }
-/* 名单只在里面滚，外层不滚；行高 30px，八条出头就开始滚 */
-.mp-list { max-height: 244px; overflow-y: auto }
+/* 名单只在里面滚，外层不滚；行高 30px，八条出头就开始滚。
+   行间给 3px 缝：原来几条贴着排，选中那条的高亮块和上下块糊成一片，看不出选的是谁 */
+.mp-list { display: flex; flex-direction: column; gap: 3px; max-height: 250px; overflow-y: auto }
 .mp-row { display: flex; align-items: center; gap: 8px; width: 100%; padding: 4px 6px; border: 0;
   border-radius: 7px; background: transparent; color: var(--nb-text); font: inherit; font-size: 13px; text-align: left; cursor: pointer }
 .mp-row:hover, .mp-row.on { background: var(--brand-soft) }
