@@ -4153,6 +4153,9 @@ async function openWithApp(r) {
 .row {
   position: relative; display: flex; align-items: center; gap: 10px;
   padding: 8px; margin-bottom: 4px; border-radius: 8px; cursor: pointer;
+  /* 滚动后 hover 底色会残留一小截（他那张图量出来：行宽 246、高 8px 的 #E0E4EC 窄带落在行缝上）。
+     给底色加一段过渡，hover 变更时整个矩形会被重新invalidate，不留旧瓦片 */
+  transition: background-color .12s ease;
 }
 .row:hover { background: var(--row-hover); }
 /* 选中原来直接吃 --brand-soft（品牌色约 10% 落白），在列表灰底上几乎看不出来。
