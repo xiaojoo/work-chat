@@ -83,7 +83,7 @@
           <div v-if="!filteredConversations.length" class="list-empty">暂无会话</div>
         </template>
 
-        <!-- 真实好友：按姓名首字母分组，右侧常驻 A-Z 索引（和群组共用 AlphaList） -->
+        <!-- 真实好友：按姓名首字母分组，右侧常驻 A-Z 索引（和群组共用 AlphaList），行右侧同样换成 ⋯ -->
         <template v-else-if="activeTab === 'friend'">
           <AlphaList v-if="filteredFriends.length" :items="filteredFriends" :name-of="friendName" :key-of="f => f.friendId">
             <template #default="{ item: friend }">
@@ -96,6 +96,8 @@
                   <div class="row-top"><span class="row-name">{{ friendName(friend) }}</span></div>
                   <div class="row-last">@{{ friend.username }}</div>
                 </div>
+                <button class="row-more" type="button" aria-label="查看好友信息" title="好友信息"
+                        @click.stop="openFriendCard(friend)">⋯</button>
               </div>
             </template>
           </AlphaList>
@@ -647,6 +649,44 @@
         <div class="modal-foot">
           <button class="btn btn-ghost" @click="settingsFromGroupCard">群设置</button>
           <button class="btn btn-primary" @click="chatFromGroupCard">进入群聊</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- 好友信息：从通讯录行上的 ⋯ 进来，字段沿用成员弹框那份白名单 -->
+    <div v-if="friendCard" class="modal-overlay" @click.self="friendCard = null">
+      <div class="modal member-info-modal">
+        <div class="modal-head">
+          <div>
+            <div class="modal-title">好友信息</div>
+            <div class="modal-kicker">FRIEND INFO · 通讯录好友详情</div>
+          </div>
+          <button class="btn btn-link btn-sm" aria-label="关闭" @click="friendCard = null">✕</button>
+        </div>
+        <div class="modal-body">
+          <div class="member-info-card">
+            <div class="avatar s72">
+              <img v-if="friendCardInfo.avatar" :src="friendCardInfo.avatar" alt="" />
+              <span v-else>{{ (friendCardInfo.nickname || friendCardInfo.username || '?').charAt(0).toUpperCase() }}</span>
+            </div>
+            <div class="member-info-detail">
+              <div class="member-info-name">{{ friendCardInfo.nickname || friendCardInfo.username }}</div>
+              <div class="member-info-meta">@{{ friendCardInfo.username }} · ID {{ friendCard.friendId }}</div>
+            </div>
+          </div>
+          <div class="member-info-fields">
+            <div v-for="r in friendCardRows" :key="r.k" class="member-info-row">
+              <span class="member-info-label">{{ r.label }}</span>
+              <span class="member-info-value">{{ r.v }}</span>
+            </div>
+            <div v-if="!friendCardRows.length" class="member-info-row">
+              <span class="member-info-label">资料</span>
+              <span class="member-info-value">对方资料都还没填</span>
+            </div>
+          </div>
+        </div>
+        <div class="modal-foot">
+          <button class="btn btn-primary" @click="chatFromFriendCard">发消息</button>
         </div>
       </div>
     </div>
@@ -2250,6 +2290,30 @@ async function settingsFromGroupCard() {
   drawerOpen.value = true
 }
 
+/* 好友信息弹框：通讯录行上的 ⋯ 进来。GET /friend/list 只给
+   id / userId / friendId / username / nickname / avatar / status，
+   部门职务邮箱这些要再拿 GET /api/user/{id} 补一份；
+   字段仍走 MEMBER_FIELDS 那份白名单——remark、location 后端恒返回空串、也没有任何写入路径，列出来就是空行 */
+const friendCard = ref(null)
+const friendProfile = ref({})
+const friendCardInfo = computed(() => ({ ...friendCard.value, ...friendProfile.value }))
+const friendCardRows = computed(() => MEMBER_FIELDS
+  .map(([k, label]) => ({ k, label, v: String(friendProfile.value[k] || '').trim() }))
+  .filter(r => r.v))
+async function openFriendCard(friend) {
+  friendCard.value = friend
+  friendProfile.value = {}
+  try {
+    const p = await getUserProfile(friend.friendId)
+    if (p && !p.error) friendProfile.value = p
+  } catch (e) { /* 拉不到就退回列表行上已有的昵称和头像 */ }
+}
+async function chatFromFriendCard() {
+  const f = friendCard.value
+  friendCard.value = null
+  if (f) await startChatWithFriend(f)
+}
+
 // —— 组织架构 / 在线状态：创建群聊与添加用户两个弹窗的数据源 ——
 const orgData = ref([])
 const onlineUsers = ref([])   // [{ userId, status: 'ONLINE'|'BUSY' }]，不在里面就是离线
@@ -2260,7 +2324,7 @@ const showAddMembers = ref(false)
 // （菜单 z-index 9999 > 遮罩 95）。这段必须放在所有被引用 ref 之后 —— 放前面是 TDZ，
 // setup 直接抛错，整页空白
 watch(
-  [showProfile, showAddFriend, showAddMembers, showCreateGroup, groupCard],
+  [showProfile, showAddFriend, showAddMembers, showCreateGroup, groupCard, friendCard],
   (vals) => { if (vals.some(Boolean)) closeAllMenus() }
 )
 
