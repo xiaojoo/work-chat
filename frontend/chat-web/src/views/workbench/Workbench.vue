@@ -432,7 +432,7 @@ watch(section, () => { drawer.value = null; q.value = ''; sideGroup.value = '全
    上一版给三列各铺一条，把模块之间的 tone 层次抹平了，这次退回实心 */
 /* 只动 2 号：左栏顶上那 71px 盖上和 1 号同一片光（顶边 #e1e5ec + 白纱 + 蓝坡 + 一组镜像线）。
    第一层是遮罩 —— y<107 全透让下面的光露出来，y≥107 直接刷成栏底本档，所以 logo 以下还是原来的实心 */
-.rail { display: flex; flex-direction: column; gap: 2px; min-height: 0; padding: 12px 10px; border-right: 1px solid var(--nb-line);
+.rail { display: flex; flex-direction: column; gap: 2px; min-height: 0; padding: 12px 10px;
   background: linear-gradient(180deg, rgba(0, 0, 0, 0) 107px, var(--nb-bg-3) 107px), var(--wb-lines-l), var(--wb-wash);
   background-attachment: fixed; }
 .rail-logo { display: flex; align-items: center; gap: 9px; padding: 6px 8px 12px; cursor: pointer; }
@@ -588,7 +588,9 @@ td em { margin-left: 7px; font-size: 11.5px; font-style: normal; color: var(--nb
 .ask { display: flex; gap: 8px; }
 
 /* 抽屉正文换成左边菜单那一档淡蓝 --nb-bg-3(#f0f3f8)。抽屉头自己盖着 --wb-wash（不透明），不受这条影响 */
-.dw { background: var(--nb-bg-3); border-left: 1px solid var(--nb-line); display: flex; flex-direction: column; min-height: 0; }
+/* 两道竖边框按他要求撤了（左栏的右边框、抽屉的左边框）—— 它们原本会横穿顶部那一片光，
+   把 1 号 2 号 3 号切成三截。撤了之后两块之间只剩 tone 差：栏/抽屉 (240,243,248) vs 画布 (244,246,250) = Δ(4,3,2) */
+.dw { background: var(--nb-bg-3); display: flex; flex-direction: column; min-height: 0; }
 /* 抽屉头和页头条同高、同一片渐变 —— 两条下边框落在同一条线上，顶上那一片读起来是一整块 */
 .dw-hd { display: flex; align-items: center; justify-content: space-between; min-height: var(--wb-bar); padding: 14px 16px; border-bottom: 1px solid var(--nb-line);
   background: var(--wb-wash); background-attachment: fixed; }
