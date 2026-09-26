@@ -400,7 +400,9 @@ watch(section, () => { drawer.value = null; q.value = ''; sideGroup.value = '全
 .ri.quit { margin-top: 6px; color: var(--nb-dim); }
 
 .main { display: flex; flex-direction: column; min-width: 0; }
-.mh { display: flex; align-items: center; gap: 10px; padding: 14px 20px; border-bottom: 1px solid var(--nb-line); background: var(--nb-bg-shell); }
+/* 页头条并到内容画布那一档（--nb-bg-0 = #f4f6fa）：它和画布同色之后，
+   靠下面那条 border-bottom 分界（#e2e7f0 距 #f4f6fa 实测 43） */
+.mh { display: flex; align-items: center; gap: 10px; padding: 14px 20px; border-bottom: 1px solid var(--nb-line); background: var(--nb-bg-0); }
 .mh-t { flex: 1; min-width: 0; }
 .mh-t h1 { margin: 0; font-size: 16px; font-weight: 600; }
 .mh-t p { margin: 2px 0 0; font-size: 12px; color: var(--nb-dim); }
