@@ -128,7 +128,7 @@
             <!-- 分类原来是左侧那一栏，改成表格顶上一条横 tab；选中态的色板沿用原来那颗，
                  只换排列轴，不换视觉语言 -->
             <div class="tabs">
-              <p class="tabs-cap">{{ section === 'docs' ? '产品官网' : section === 'materials' ? '素材分类' : '知识库' }}</p>
+              <p class="tabs-cap">{{ section === 'docs' ? '文档分类' : section === 'materials' ? '素材分类' : '知识库' }}</p>
               <button v-for="g in sideGroups" :key="g" type="button" class="tab" :class="{ on: sideGroup === g }" @click="sideGroup = g">{{ g }}</button>
             </div>
             <div class="tbl-hd">
@@ -336,8 +336,9 @@ const rowsOfSection = computed(() => section.value === 'materials' ? materialRow
   : section.value === 'knowledge' ? knowledgeRows : docRows)
 const shownRows = computed(() => {
   const kw = q.value.trim().toLowerCase()
+  // 分组字段三页各叫各的：文档 group、素材 type、知识库 tag
   return rowsOfSection.value.filter(r => (!kw || [r.name, r.owner, r.type, r.tag].some(v => String(v || '').toLowerCase().includes(kw)))
-    && (sideGroup.value === '全部' || String(r.name).includes(sideGroup.value) || String(r.type || r.tag || '') === sideGroup.value))
+    && (sideGroup.value === '全部' || String(r.group || r.type || r.tag || '') === sideGroup.value))
 })
 
 const gridItems = computed(() => section.value === 'favorites' ? favoriteRows

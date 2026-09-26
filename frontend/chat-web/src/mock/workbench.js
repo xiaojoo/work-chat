@@ -97,11 +97,11 @@ export const favoriteRows = [
 ]
 
 export const docRows = [
-  { name: '首页文案 V2.4', type: 'Markdown', size: '3.4 MB', at: '2 分钟前', owner: '张三' },
-  { name: '产品介绍文档', type: 'Markdown', size: '2.1 MB', at: '1 小时前', owner: '李四' },
-  { name: '功能演示视频', type: 'MP4', size: '12.6 MB', at: '3 小时前', owner: '王五' },
-  { name: '产品图设计稿', type: 'PSD', size: '8.3 MB', at: '5 小时前', owner: '陈六' },
-  { name: '用户调研报告', type: '文档', size: '1.2 MB', at: '昨天', owner: '李七' }
+  { name: '首页文案 V2.4', type: 'Markdown', size: '3.4 MB', at: '2 分钟前', owner: '张三', group: '产品官网' },
+  { name: '产品介绍文档', type: 'Markdown', size: '2.1 MB', at: '1 小时前', owner: '李四', group: '产品官网' },
+  { name: '功能演示视频', type: 'MP4', size: '12.6 MB', at: '3 小时前', owner: '王五', group: '市场活动' },
+  { name: '产品图设计稿', type: 'PSD', size: '8.3 MB', at: '5 小时前', owner: '陈六', group: '产品官网' },
+  { name: '用户调研报告', type: '文档', size: '1.2 MB', at: '昨天', owner: '李七', group: '内容运营' }
 ]
 
 export const materialRows = [
