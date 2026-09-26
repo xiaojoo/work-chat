@@ -16,6 +16,7 @@ let installId = ''
 let windowSeq = 0
 let tray = null
 let quitting = false
+let mainWin = null
 
 const log = (...args) => console.log('[desktop]', new Date().toISOString().slice(11, 19), ...args)
 
@@ -284,7 +285,6 @@ function createWindow() {
   log(`window #${windowSeq} deviceId=${installId}-w${windowSeq} mode=${DEV_URL ? 'dev-server' : 'app://'}`)
 
   win.once('ready-to-show', () => win.show())
-  win.on('closed', () => deviceIds.delete(win.webContents.id))
   win.on('maximize', () => win.webContents.send('chat:win-state', true))
   win.on('unmaximize', () => win.webContents.send('chat:win-state', false))
 
@@ -295,7 +295,11 @@ function createWindow() {
       win.hide()
     }
   })
-
+  /* 'closed' 触发时 win.webContents 已经被销毁，再 win.webContents.id 就是
+     "Object has been destroyed" —— 主进程未捕获异常，托盘点「退出」弹的就是它。
+     id 在建窗时扣下来。 */
+  const wcId = win.webContents.id
+  win.on('closed', () => { deviceIds.delete(wcId); if (mainWin === win) mainWin = null })
   win.webContents.on('did-fail-load', (event, code, description, validatedUrl) => {
     log(`load failed ${code} ${description} ${validatedUrl}`)
   })
@@ -314,16 +318,20 @@ function createWindow() {
     // 写成 /index.html 会一条路由都不命中，页面只剩背景、#app 空着
     win.loadURL('app://chat/')
   }
+  mainWin = win
   return win
 }
 
+/* 只认主窗：getAllWindows() 里还混着钉图窗和遮罩窗，
+   原先取"第一个没销毁的"，托盘一点就可能把钉图置顶、把主窗留在身后 */
 function focusMainWindow() {
-  const win = BrowserWindow.getAllWindows().find(w => !w.isDestroyed())
-  if (!win) return createWindow()
-  if (win.isMinimized()) win.restore()
-  win.show()
-  win.focus()
-  return win
+  if (mainWin && !mainWin.isDestroyed()) {
+    if (mainWin.isMinimized()) mainWin.restore()
+    mainWin.show()
+    mainWin.focus()
+    return mainWin
+  }
+  return createWindow()
 }
 
 function toggleWindow(win) {
@@ -558,7 +566,6 @@ function buildTray() {
   tray.setToolTip('Chat')
   tray.setContextMenu(Menu.buildFromTemplate([
     { label: '显示主窗口', click: () => focusMainWindow() },
-    { label: '新建窗口', click: () => createWindow() },
     { type: 'separator' },
     { label: '退出', click: () => { quitting = true; app.quit() } }
   ]))
