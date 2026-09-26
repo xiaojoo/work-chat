@@ -157,7 +157,7 @@
                   <span class="msg-time">{{ formatConvTime(msg.timestamp || msg.createTime) }}</span>
                 </div>
                 <div class="msg-line">
-                  <div v-if="bodyText(msg)" class="bubble" :class="{ 'b-media': msg.messageType === 'IMAGE' }"
+                  <div v-if="bodyText(msg)" class="bubble" :class="{ 'b-media': msg.messageType === 'IMAGE', 'b-doc': msg.messageType === 'FILE' }"
                        @contextmenu.prevent.stop="openMsgMenu($event, msg)">
                     <span v-if="msg.messageType === 'DELETED'" class="b-del">{{ msg.content }}</span>
                     <template v-else-if="msg.messageType === 'IMAGE'">
@@ -4209,6 +4209,9 @@ watch(imgView, v => {
 /* 图片消息不要那圈底色和内边距：图自己就是这块表面。圆角 10px 和头像/文字气泡同值，
    白底上的白图靠图自己那点投影分出来，不靠色块 */
 .bubble.b-media, .msg.self .bubble.b-media { padding: 0; background: none; box-shadow: none; }
+/* 文件也一样把底色撤掉：那张白卡片自己就是这块表面，外面再套一圈蓝底（自己发的）
+   或灰底（别人的）只是把它框了一层，看着像"气泡里塞了个控件" */
+.bubble.b-doc, .msg.self .bubble.b-doc { padding: 0; background: none; box-shadow: none; }
 /* 引用行：气泡下方一小块灰字，左边一条竖线。自己发的要靠右，所以用 fit-content + margin-left:auto */
 .msg-quote {
   margin-top: 4px; width: fit-content; max-width: 100%;
