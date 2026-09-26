@@ -114,7 +114,7 @@
               <tbody>
                 <tr v-for="t in shownTasks" :key="t.id" @click="openTask(t)">
                   <td><span class="pill" :class="tickClass(t.status)">{{ t.status }}</span></td>
-                  <td class="t-name">{{ t.name }}<small>{{ t.project }}</small></td>
+                  <td class="t-name"><span class="t-nm">{{ t.name }}<small>{{ t.project }}</small></span></td>
                   <td><span class="bar"><i :style="{ width: t.progress + '%' }" /></span><em>{{ t.progress }}%</em></td>
                   <td>{{ t.owner }}</td>
                   <td class="t-due">{{ t.due }}</td>
@@ -147,11 +147,11 @@
               </thead>
               <tbody>
                 <tr v-for="r in shownRows" :key="r.name" @click="openDoc(r)">
-                  <td class="t-name">
+                  <td class="t-name"><span class="t-nm">
                     <span class="tile" :style="{ background: tintOf(r), color: inkOf(r) }">
                       <component :is="glyphOf(r)" theme="outline" size="14" />
-                    </span>{{ r.name }}</td>
-                  <td><span class="pill" :style="{ background: tintOf(r), color: inkOf(r) }">{{ r.type || r.tag }}</span></td>
+                    </span>{{ r.name }}</span></td>
+                  <td><span class="cpill" :style="{ background: tintOf(r), color: inkOf(r) }">{{ r.type || r.tag }}</span></td>
                   <td>{{ r.size || '—' }}</td>
                   <td class="t-due">{{ r.at }}</td>
                   <td>{{ r.owner }}</td>
@@ -497,12 +497,20 @@ watch(section, () => { drawer.value = null; q.value = ''; sideGroup.value = '全
 .tbl th { font-weight: 600; color: var(--nb-dim); font-size: 11.5px; background: var(--nb-bg-2); }
 .tbl tbody tr { cursor: pointer; }
 .tbl tbody tr:hover { background: var(--nb-bg-3); }
+/* 末行那道分隔线去掉：卡片自己有一圈边框，两条线中间夹着 1px 白，圆角处还越岔越开 —— 看着就是"底部两条线" */
+.tbl tbody tr:last-child td { border-bottom: 0; }
 .tbl .c-st { width: 88px; } .tbl .c-who { width: 78px; } .tbl .c-due { width: 92px; } .tbl .c-pr { width: 132px; }
-.t-name { display: flex; align-items: center; font-weight: 500; }
+/* td 自己不能是 flex：它一旦不是 table-cell 就不跟着行高撑开，
+   自己那道 border-bottom 会画到比邻列高 1px（列表页）/ 高 5px（任务页）的地方 —— 分隔线在列边界上错开一个台阶。
+   要 flex 就套一层 span，td 保持 table-cell */
+.t-name { font-weight: 500; }
+.t-nm { display: flex; align-items: center; }
 /* 行名字前的图标色块 + 分类列的彩色胶囊：墨色是稿子上量的三个值，底色按同色 14% 落白 */
 .tile { display: grid; place-items: center; flex: none; width: 26px; height: 26px; margin-right: 9px; border-radius: 8px; }
 .tile svg { width: 14px; height: 14px; }
-.pill { display: inline-block; padding: 2px 8px; border-radius: 999px; font-size: 11.5px; font-weight: 600; }
+/* 分类列的胶囊另起一个类：.pill 这个类「我的任务」的状态列在用，它带一圈 1px --nb-line 灰边，
+   我上一轮同名写了一条没带边的，后写的把先写的盖了 —— 灰边套在彩色胶囊上，稿子里没有这一圈 */
+.cpill { display: inline-block; padding: 2px 8px; border-radius: 999px; font-size: 11.5px; font-weight: 600; }
 .t-name small { display: block; margin-left: 0; font-size: 11px; font-weight: 400; color: var(--nb-dim); }
 .t-due { color: var(--nb-dim); }
 .pill { display: inline-block; padding: 2px 8px; font-size: 11.5px; border-radius: 999px; border: 1px solid var(--nb-line); color: var(--nb-dim); background: var(--nb-bg-2); }
