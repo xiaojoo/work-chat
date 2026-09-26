@@ -263,7 +263,7 @@
         <textarea id="chat-message-input" ref="areaRef" v-model="inputMessage" name="message" class="area" :style="{ height: areaH + 'px' }"
                   placeholder="输入消息，或使用 / 触发 AI 功能…"
                   @keydown="onAreaKey" @contextmenu.prevent.stop="openInputMenu($event)"
-                  @input="syncMention" @click="syncMention" @blur="closeMention"
+                  @input="onAreaInput" @click="syncMention" @blur="closeMention"
                   @paste="handlePaste" :disabled="!connected || !currentConversation"></textarea>
         <div class="bar">
           <div class="bar-tools">
@@ -814,6 +814,12 @@ function caretOf() {
   const el = areaRef.value
   return el && typeof el.selectionStart === 'number' ? el.selectionStart : 0
 }
+// 真敲键盘/粘贴/删除才走这里：程序改 inputMessage.value 不会触发 input 事件，
+// 所以"引用"插进去那一行、发完清空这些都不算"动过手"
+function onAreaInput() {
+  inputDirty.value = true
+  syncMention()
+}
 function syncMention() {
   const el = areaRef.value
   const m = el && canMention.value ? MENTION_RE.exec(el.value.slice(0, caretOf())) : null
@@ -1106,6 +1112,9 @@ const inputMenuVisible = ref(false)
 const inputMenuX = ref(0)
 const inputMenuY = ref(0)
 const inputHasSelection = ref(false)
+// 只记"这个框里动过手没有"，不是"还有没有可撤的"：Chromium 不暴露 canUndo，后者探不到。
+// 所以撤到底之后再点撤销，仍是原生的空操作——灰只保证"一个字都没输过的时候不骗你"。
+const inputDirty = ref(false)
 
 const msgMenuVisible = ref(false)
 const msgMenuX = ref(0)
@@ -1634,6 +1643,7 @@ function stampNow() {
 async function sendLongTextAsFile(text) {
   const name = `长文本 ${stampNow()} (${text.length}字).txt`
   inputMessage.value = ''
+  inputDirty.value = false
   pendingQuote.value = null
   closeMention()
   const file = new File([text], name, { type: 'text/plain;charset=utf-8' })
@@ -1690,6 +1700,7 @@ function sendTextMessage() {
   }
 
   inputMessage.value = ''
+  inputDirty.value = false
   pendingQuote.value = null
   closeMention()   // 程序改 value 不会触发 input，名单得自己收，不然发完还挂着
   scrollToBottom()
@@ -2609,8 +2620,8 @@ async function handleConvDelete() {
 const inputEl = () => document.querySelector('#chat-message-input')
 
 const inputMenu = computed(() => [
-  { k: 'undo', name: '撤销', kb: 'Ctrl+Z', icon: Undo },
-  { k: 'redo', name: '重做', kb: 'Ctrl+Y', icon: Redo },
+  { k: 'undo', name: '撤销', kb: 'Ctrl+Z', icon: Undo, off: !inputDirty.value },
+  { k: 'redo', name: '重做', kb: 'Ctrl+Y', icon: Redo, off: !inputDirty.value },
   { k: 'cut', name: '剪切', kb: 'Ctrl+X', icon: Scissors, off: !inputHasSelection.value },
   { k: 'copy', name: '复制', kb: 'Ctrl+C', icon: Copy, off: !inputHasSelection.value },
   { k: 'paste', name: '粘贴', kb: 'Ctrl+V', icon: Clipboard },
@@ -2637,8 +2648,9 @@ function runInputMenu(it) {
      copy: handleInputCopy, paste: handleInputPaste, all: handleInputSelectAll })[it.k]()
 }
 
-/* 撤销/重做走浏览器原生那条编辑栈：Chromium 不暴露 canUndo，JS 侧没法探测"还有没有可撤的"，
-   所以这两项不做探测性置灰 —— 没东西可撤时就是原生的空操作，和系统菜单一个行为 */
+/* 撤销/重做走浏览器原生那条编辑栈。Chromium 不暴露 canUndo，"还有没有可撤的"探不到，
+   所以这两项只在"这个框里一个字都没动过"时置灰（inputDirty），动过手就常亮；
+   撤到底之后再点仍是原生空操作。要连那一步都准，得自建输入历史栈并接管 Ctrl+Z，那是另一件事 */
 function execOnInput(cmd) {
   const textarea = inputEl()
   if (!textarea) return
