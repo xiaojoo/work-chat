@@ -43,7 +43,9 @@ class ChatActivity : EdgeBackActivity() {
         state = findViewById(R.id.state)
         list = findViewById(R.id.messages)
         adapter = Adapter()
-        list.layoutManager = LinearLayoutManager(this).apply { stackFromEnd = true }
+        /* 不 stackFromEnd：消息不满一屏时也要从顶上往下铺，底部留白看起来像没加载。
+           满了照样靠下面那几处 scrollToPosition 停在最新一条 */
+        list.layoutManager = LinearLayoutManager(this)
         list.adapter = adapter
 
         findViewById<Button>(R.id.back).setOnClickListener { finish() }
@@ -160,7 +162,9 @@ class ChatActivity : EdgeBackActivity() {
             h.bubble.text = m.optString("content")
             h.bubble.setBackgroundResource(if (self) R.drawable.bubble_self else R.drawable.bubble_other)
             h.bubble.setTextColor(if (self) 0xFFFFFFFF.toInt() else 0xFF1B2434.toInt())
-            h.row.gravity = if (self) Gravity.END else Gravity.START
+            /* 这里必须带上 CENTER_VERTICAL：只给 END/START 会把 xml 里的垂直居中覆盖掉，
+               头像 34dp、气泡更高，于是尾巴和头像都贴到行的上沿，看着没对齐气泡中部 */
+            h.row.gravity = Gravity.CENTER_VERTICAL or (if (self) Gravity.END else Gravity.START)
             h.time.gravity = if (self) Gravity.END else Gravity.START
             h.time.text = pretty(m.optString("createTime"))
             val letter = (if (self) mine else convName).ifEmpty { "?" }.take(1).uppercase()
