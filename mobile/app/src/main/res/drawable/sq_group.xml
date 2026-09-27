@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 通讯录顶部那档的图标方块：微信是 40 见方、小圆角、纯色底白图形。
+     底色取这套色里的 ok，不另挑一个绿 -->
+<shape xmlns:android="http://schemas.android.com/apk/res/android" android:shape="rectangle">
+    <solid android:color="@color/ok" />
+    <corners android:radius="7dp" />
+</shape>

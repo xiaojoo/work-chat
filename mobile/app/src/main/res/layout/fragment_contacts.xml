@@ -42,7 +42,7 @@
         <!-- 微信那条 A-Z：整列铺满高度，手指可以顺着滑，字母跟着跳；
              按中的那颗在中间吐一个气泡回显 -->
         <LinearLayout android:id="@+id/rail"
-            android:layout_width="28dp" android:layout_height="match_parent"
+            android:layout_width="34dp" android:layout_height="match_parent"
             android:layout_gravity="end"
             android:orientation="vertical" android:gravity="center_vertical" />
 

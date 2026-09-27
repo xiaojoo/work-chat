@@ -18,7 +18,8 @@ class ContactsFragment : Fragment() {
     private sealed interface Line
     private data class Head(val letter: String) : Line
     private data class Person(val f: Api.Friend) : Line
-    private data class GroupLine(val c: Api.Conversation) : Line
+    /** 顶部那一档「群聊」：微信是"行 → 点进去一列表"，不是把群摊在通讯录里 */
+    private data class Entry(val count: Int) : Line
 
     private val lines = ArrayList<Line>()
     private var allLines = ArrayList<Line>()
@@ -138,10 +139,7 @@ class ContactsFragment : Fragment() {
         }
         lines.clear(); shownHeads = 0; shownPeople = 0
         allLines = ArrayList()
-        if (groupConvs.isNotEmpty()) {
-            allLines.add(Head("群聊"))
-            groupConvs.forEach { allLines.add(GroupLine(it)) }
-        }
+        if (groupConvs.isNotEmpty()) allLines.add(Entry(groupConvs.size))
         for ((letter, fs) in groups) {
             allLines.add(Head(letter))
             fs.forEach { allLines.add(Person(it)) }
@@ -161,7 +159,7 @@ class ContactsFragment : Fragment() {
         lines.clear()
         lines.addAll(allLines.take(n))
         shownHeads = lines.count { it is Head }
-        shownPeople = lines.count { it !is Head }
+        shownPeople = lines.count { it is Person }
     }
 
     private fun loadMore() {
@@ -174,7 +172,7 @@ class ContactsFragment : Fragment() {
 
     private fun renderMeta() {
         status.text = "${friends.size} 位联系人 · ${groupConvs.size} 个群聊 · " +
-            "已显示 $shownPeople/${allLines.size - shownHeads}（$shownHeads 组）· 接口无分页参数"
+            "已显示 $shownPeople/$friends.size（$shownHeads 组）· 接口无分页参数"
     }
 
     private fun name(f: Api.Friend) = f.nickname.ifEmpty { f.username }
@@ -204,11 +202,11 @@ class ContactsFragment : Fragment() {
     private fun buildRail() {
         rail.removeAllViews()
         val dm = resources.displayMetrics.density
-        val itemH = (16 * dm).toInt()
+        val itemH = (18 * dm).toInt()
         for (l in LETTERS) {
             val tv = TextView(requireContext())
             tv.text = l
-            tv.textSize = 11f
+            tv.textSize = 13f
             tv.gravity = android.view.Gravity.CENTER
             tv.setTextColor(0xFF69788F.toInt())
             tv.alpha = if (groups.containsKey(l)) 1f else 0.32f
@@ -222,12 +220,17 @@ class ContactsFragment : Fragment() {
     }
 
     private inner class Adapter : RecyclerView.Adapter<RecyclerView.ViewHolder>() {
-        override fun getItemViewType(p: Int) = if (lines[p] is Head) 0 else 1
+        override fun getItemViewType(p: Int) = when (lines[p]) {
+            is Head -> 0; is Entry -> 2; else -> 1
+        }
 
         override fun onCreateViewHolder(p: ViewGroup, t: Int): RecyclerView.ViewHolder {
             val inf = LayoutInflater.from(p.context)
-            return if (t == 0) HeadVH(inf.inflate(R.layout.item_contact_head, p, false))
-            else PersonVH(inf.inflate(R.layout.item_contact, p, false))
+            return when (t) {
+                0 -> HeadVH(inf.inflate(R.layout.item_contact_head, p, false))
+                2 -> EntryVH(inf.inflate(R.layout.item_entry, p, false))
+                else -> PersonVH(inf.inflate(R.layout.item_contact, p, false))
+            }
         }
 
         override fun getItemCount() = lines.size
@@ -235,6 +238,14 @@ class ContactsFragment : Fragment() {
         override fun onBindViewHolder(h: RecyclerView.ViewHolder, i: Int) {
             when (val ln = lines[i]) {
                 is Head -> (h as HeadVH).letter.text = ln.letter
+                is Entry -> {
+                    val v = h as EntryVH
+                    v.label.text = "群聊"
+                    v.count.text = ln.count.toString()
+                    v.itemView.setOnClickListener {
+                        startActivity(Intent(requireContext(), GroupListActivity::class.java))
+                    }
+                }
                 is Person -> {
                     val v = h as PersonVH
                     val nm = name(ln.f)
@@ -246,24 +257,18 @@ class ContactsFragment : Fragment() {
                     }
                 }
                 /** 群聊这一档：桌面端的群本来就在会话列表里，这里给的是同一个入口，
-                 *  点了直接进 ChatActivity，不是又造一份数据 */
-                is GroupLine -> {
-                    val v = h as PersonVH
-                    val nm = ln.c.name.ifEmpty { "群聊 ${ln.c.id}" }
-                    v.ava.text = nm.take(1).uppercase()
-                    v.name.text = nm
-                    v.sub.text = "群聊" + if (ln.c.unread > 0) " · ${ln.c.unread} 条未读" else ""
-                    v.itemView.setOnClickListener {
-                        startActivity(Intent(requireContext(), ChatActivity::class.java)
-                            .putExtra("conv", ln.c.id).putExtra("name", nm))
-                    }
-                }
+                 *  点了进那一页的列表，不是又造一份数据 */
             }
         }
     }
 
     private class HeadVH(v: View) : RecyclerView.ViewHolder(v) {
         val letter: TextView = v.findViewById(R.id.letter)
+    }
+
+    private class EntryVH(v: View) : RecyclerView.ViewHolder(v) {
+        val label: TextView = v.findViewById(R.id.label)
+        val count: TextView = v.findViewById(R.id.value)
     }
 
     private class PersonVH(v: View) : RecyclerView.ViewHolder(v) {

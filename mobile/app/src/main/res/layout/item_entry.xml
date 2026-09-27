@@ -1,0 +1,41 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 通讯录顶部那一档的行：彩色图标方块 + 标题 + 右边计数 + 箭头。
+     分隔线从文字起头（左边缩进 68dp），和微信一样不顶到卡片左缘 -->
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent" android:layout_height="wrap_content"
+    android:orientation="vertical" android:background="@color/surface">
+
+    <LinearLayout android:id="@+id/tappable"
+        android:layout_width="match_parent" android:layout_height="wrap_content"
+        android:minHeight="56dp" android:orientation="horizontal" android:gravity="center_vertical"
+        android:background="?attr/selectableItemBackground"
+        android:paddingStart="16dp" android:paddingEnd="12dp">
+
+        <FrameLayout android:layout_width="28dp" android:layout_height="28dp">
+            <View android:layout_width="28dp" android:layout_height="28dp"
+                android:background="@drawable/sq_group" />
+            <ImageView android:layout_width="20dp" android:layout_height="20dp"
+                android:layout_gravity="center"
+                android:src="@drawable/ic_group" android:contentDescription="" />
+        </FrameLayout>
+
+        <TextView android:id="@+id/label"
+            android:layout_width="0dp" android:layout_height="wrap_content"
+            android:layout_weight="1" android:layout_marginStart="12dp"
+            android:textSize="16sp" android:textColor="@color/ink" />
+
+        <TextView android:id="@+id/value"
+            android:layout_width="wrap_content" android:layout_height="wrap_content"
+            android:textSize="15sp" android:textColor="@color/ink_dim" />
+
+        <ImageView android:id="@+id/chev"
+            android:layout_width="16dp" android:layout_height="16dp"
+            android:layout_marginStart="6dp"
+            android:src="@drawable/chevron_right" android:contentDescription="" />
+    </LinearLayout>
+
+    <View android:id="@+id/line"
+        android:layout_width="match_parent" android:layout_height="1dp"
+        android:layout_marginStart="56dp"
+        android:background="@color/line_soft" />
+</LinearLayout>
