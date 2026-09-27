@@ -178,6 +178,36 @@ class ContactsFragment : Fragment() {
 
     private fun name(f: Api.Friend) = f.nickname.ifEmpty { f.username }
 
+    /** 点一个联系人 = 进和这条单聊。先按 targetId 找已有会话，没有才建一条
+     *  （和桌面端 startChatWithFriend、好友信息页那颗「发消息」同一句判断）。
+     *  原来这里只弹一句"会话在微信页里开"——那是个点了没去处的控件。 */
+    private var busyChat = false
+    private fun openChat(userId: String, nm: String) {
+        val ctx = requireContext()
+        val base = Cfg.apiBase(ctx); val tk = Cfg.token(ctx); val me = Cfg.userId(ctx)
+        if (base.isEmpty() || tk.isEmpty() || userId.isEmpty()) { say("还没登录"); return }
+        if (busyChat) return
+        busyChat = true
+        status.text = "打开和 $nm 的会话…"
+        thread(name = "open-chat") {
+            val res = runCatching { Api(base, tk).privateConvWith(userId, me) }
+            activity?.runOnUiThread {
+                busyChat = false
+                if (!isAdded) return@runOnUiThread
+                res.onSuccess { id ->
+                    status.text = ""
+                    startActivity(Intent(ctx, ChatActivity::class.java)
+                        .putExtra("conv", id).putExtra("name", nm))
+                }.onFailure {
+                    status.text = "打不开和 $nm 的会话"; say("打不开：${it.message}")
+                }
+            }
+        }
+    }
+
+    private fun say(msg: String) =
+        android.widget.Toast.makeText(requireContext(), msg, android.widget.Toast.LENGTH_SHORT).show()
+
     /** 组头自己带一根下边框，所以它上面那一行不能再画自己的线——否则两条线夹着一条灰带，看着像双线。
      *  最后一行下面也没有行了，同样不画：那根线（241,243,248）和页面底色（240,243,248）只差 1，
      *  画出来就是列表底边一个台阶——线从文字起头，左半截和右半截收尾不在同一条 y 上 */
@@ -263,9 +293,7 @@ class ContactsFragment : Fragment() {
                     v.name.text = nm
                     v.sub.text = "@${ln.f.username}"
                     v.line.visibility = lineBefore(lines.getOrNull(i + 1))
-                    v.itemView.setOnClickListener {
-                        android.widget.Toast.makeText(requireContext(), "和 $nm 的会话在「微信」页里开", android.widget.Toast.LENGTH_SHORT).show()
-                    }
+                    v.itemView.setOnClickListener { openChat(ln.f.id, nm) }
                 }
                 /** 群聊这一档：桌面端的群本来就在会话列表里，这里给的是同一个入口，
                  *  点了进那一页的列表，不是又造一份数据 */

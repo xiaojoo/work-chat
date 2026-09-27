@@ -92,12 +92,7 @@ class PersonActivity : EdgeBackActivity() {
         val base = Cfg.apiBase(this); val tk = Cfg.token(this); val me = Cfg.userId(this)
         status.text = "找会话中…"
         thread(name = "chat") {
-            val res = runCatching {
-                val api = Api(base, tk)
-                // 和桌面端一样：已有的一对一会话直接进去，别另建一条
-                api.conversations(me).firstOrNull { it.type == 1 && it.targetId == userId }?.id
-                    ?: api.createConversation(userId)
-            }
+            val res = runCatching { Api(base, tk).privateConvWith(userId, me) }
             runOnUiThread {
                 if (isFinishing) return@runOnUiThread
                 busy = false

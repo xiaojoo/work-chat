@@ -104,6 +104,14 @@ class Api(private val base: String, private val token: String = "") {
         return o.opt("conversationId")?.toString() ?: ""
     }
 
+    /** 和这个人的单聊会话 id：列表里有就复用，没有才建一条。
+     *  通讯录那一行、好友信息页的「发消息」都走这一句，别在两处各写一遍判断。
+     *  注意：对**已软删**的绑定，create 会返回原来那个 id 但不撤销 deleted，列表里还是看不见——
+     *  真要还原得服务端改标记，这里不负责。 */
+    fun privateConvWith(targetUserId: String, myId: String): String =
+        conversations(myId).firstOrNull { it.type == 1 && it.targetId == targetUserId }?.id
+            ?: createConversation(targetUserId)
+
     data class Friend(val id: String, val username: String, val nickname: String, val avatar: String)
     /** GET /api/friend/list 只认令牌，不接 userId 查询参数（桌面端 api/friend.js 就没传） */
     fun friends(): List<Friend> {
