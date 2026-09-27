@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- 会话行：和通讯录那套同一处理方式——白行 + 一根从文字起头（缩 56dp）的下边框，
+<!-- 会话行：白行 + 一根从文字起头的下边框（缩进 = 8 + 头像 48 + 间距 10 = 66dp），
      不再是带 4dp 缝的圆角卡片（卡片下面再画直线会看成两条线） -->
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
     android:layout_width="match_parent" android:layout_height="wrap_content"
@@ -12,9 +12,11 @@
         android:background="?attr/selectableItemBackground"
         android:padding="8dp">
 
+        <!-- 头像 48dp（原来 38dp，×1.26）；字号按同一个系数 14sp→18sp。
+             行高跟着从 54dp 变成 8+48+8=64dp -->
         <TextView android:id="@+id/ava"
-            android:layout_width="38dp" android:layout_height="38dp"
-            android:gravity="center" android:textSize="14sp" android:textStyle="bold"
+            android:layout_width="48dp" android:layout_height="48dp"
+            android:gravity="center" android:textSize="18sp" android:textStyle="bold"
             android:textColor="#FFFFFF" android:background="@drawable/ava_square" />
 
         <LinearLayout android:layout_width="0dp" android:layout_height="wrap_content"
@@ -51,6 +53,6 @@
 
     <View android:id="@+id/line"
         android:layout_width="match_parent" android:layout_height="0.5dp"
-        android:layout_marginStart="56dp"
+        android:layout_marginStart="66dp"
         android:background="@color/line_soft" />
 </LinearLayout>
