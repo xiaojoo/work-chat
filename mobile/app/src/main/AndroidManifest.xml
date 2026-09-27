@@ -30,6 +30,8 @@
         <activity android:name=".GroupListActivity" android:exported="false" />
         <!-- 聊天页右上 ⋯ 进来的那页 -->
         <activity android:name=".ChatInfoActivity" android:exported="false" />
+        <!-- 群成员宫格最后那颗 ＋ 点进来的一页 -->
+        <activity android:name=".AddMembersActivity" android:exported="false" />
     </application>
 
 </manifest>

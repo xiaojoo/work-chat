@@ -13,6 +13,9 @@ object Cfg {
     // 后端四个服务里只有 chat-user(8081) 和消息网关(18082) 是手机端要直连的
     const val USER_PORT = 8081
     const val GW_PORT = 18082
+    /** 群成员 / 邀请在 chat-group 那个服务上，端口和 8081 不是一个，
+     *  所以它得有自己的 base（桌面端是 vite 代理把 /api/group 转过去的，手机没有那层代理） */
+    const val GROUP_PORT = 8084
 
     fun apiBase(ctx: Context): String =
         ctx.getSharedPreferences(PREF, Context.MODE_PRIVATE).getString(KEY_BASE, "") ?: ""
@@ -40,6 +43,15 @@ object Cfg {
         val host = base.substringAfter("://").substringBefore("/").substringBefore(":")
         val scheme = if (base.startsWith("https")) "wss" else "ws"
         return "$scheme://$host:$GW_PORT/ws"
+    }
+
+    /** 群服务：同一个宿主、另一个端口，和 wsBase 一个推法 */
+    fun groupBase(ctx: Context): String {
+        val base = apiBase(ctx)
+        if (base.isEmpty()) return ""
+        val scheme = base.substringBefore("://")
+        val host = base.substringAfter("://").substringBefore("/").substringBefore(":")
+        return "$scheme://$host:$GROUP_PORT"
     }
 
     fun token(ctx: Context): String =

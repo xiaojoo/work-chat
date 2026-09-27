@@ -140,4 +140,39 @@ class Api(private val base: String, private val token: String = "") {
         if (err.isNotEmpty()) throw Failure(err)
         return toProfile(o, userId)
     }
+
+    // ===== 群：成员和邀请在 chat-group(8084)，组织树在 chat-user(8081)，两个 base 都要用 =====
+
+    data class Member(val userId: String, val role: Int)
+
+    /** GET /api/group/{纯数字 groupId}/members。role=2 是群主，0 是普通成员 */
+    fun groupMembers(groupId: String): List<Member> {
+        val arr = JSONArray(call("/api/group/${groupId.removePrefix("g")}/members"))
+        return List(arr.length()) { i ->
+            val o = arr.getJSONObject(i)
+            Member(o.opt("userId")?.toString() ?: "", o.optInt("role"))
+        }
+    }
+
+    data class OrgPerson(val id: String, val nickname: String, val username: String, val position: String)
+    data class OrgDept(val name: String, val people: List<OrgPerson>)
+
+    /** GET /api/user/org：[{department, count, members:[...]}]，桌面端「添加用户」那棵树同一份数据 */
+    fun org(): List<OrgDept> {
+        val arr = JSONArray(call("/api/user/org"))
+        return List(arr.length()) { i ->
+            val o = arr.getJSONObject(i)
+            val ms = o.optJSONArray("members") ?: JSONArray()
+            OrgDept(str(o, "department"), List(ms.length()) { k ->
+                val p = ms.getJSONObject(k)
+                OrgPerson(p.opt("id")?.toString() ?: "", str(p, "nickname"), str(p, "username"), str(p, "position"))
+            })
+        }
+    }
+
+    /** POST /api/group/{id}/invite {userIds:[...]}。后端签名是 List<Long>，所以发数字不是字符串 */
+    fun invite(groupId: String, userIds: List<String>) {
+        val ids = JSONArray().apply { userIds.forEach { put(it.toLong()) } }
+        call("/api/group/${groupId.removePrefix("g")}/invite", JSONObject().put("userIds", ids).toString())
+    }
 }

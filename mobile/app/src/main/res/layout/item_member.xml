@@ -1,0 +1,34 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 聊天信息页顶上的成员宫格的一格：44 方头像 + 下面一行名字（和桌面端 .gs-cell 同一种排法）。
+     群主/管理员按桌面端的 .gs-tag 压在头像右下角，不拼进名字里——拼进去一列宽放不下，会被截成 probeA…。
+     名字框吃满整列（GridLayout 那一列的权重宽度），不是只跟头像一样宽。 -->
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="0dp" android:layout_height="wrap_content"
+    android:layout_columnWeight="1"
+    android:minHeight="78dp" android:orientation="vertical" android:gravity="center"
+    android:paddingTop="8dp" android:paddingBottom="8dp">
+
+    <FrameLayout
+        android:layout_width="44dp" android:layout_height="44dp">
+
+        <TextView android:id="@+id/ava"
+            android:layout_width="44dp" android:layout_height="44dp"
+            android:gravity="center" android:textSize="16sp" android:textStyle="bold"
+            android:textColor="#FFFFFF" android:background="@drawable/ava_square" />
+
+        <TextView android:id="@+id/tag"
+            android:layout_width="wrap_content" android:layout_height="wrap_content"
+            android:layout_gravity="bottom|end"
+            android:paddingStart="2dp" android:paddingEnd="2dp"
+            android:textSize="8sp" android:textColor="#FFFFFF"
+            android:background="@drawable/tag_owner" android:visibility="invisible" />
+    </FrameLayout>
+
+    <TextView android:id="@+id/name"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginStart="2dp" android:layout_marginEnd="2dp"
+        android:layout_marginTop="5dp" android:gravity="center"
+        android:textSize="11sp" android:textColor="@color/ink_dim"
+        android:maxLines="1" android:ellipsize="end" />
+</LinearLayout>

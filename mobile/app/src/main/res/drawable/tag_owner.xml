@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 桌面端 .gs-tag 是 3px 圆角、白字压在头像右下角；owner 用 warn 色 -->
+<shape xmlns:android="http://schemas.android.com/apk/res/android" android:shape="rectangle">
+    <solid android:color="@color/warn" />
+    <corners android:radius="3dp" />
+</shape>
