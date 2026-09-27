@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">Chat</string>
+    <string name="server_hint">服务器地址，例如 192.168.31.5</string>
+    <string name="username_hint">用户名</string>
+    <string name="password_hint">密码</string>
+    <string name="login">登录</string>
+    <string name="logging_in">登录中…</string>
+    <string name="conversations_title">会话</string>
+    <string name="reload">刷新</string>
+</resources>

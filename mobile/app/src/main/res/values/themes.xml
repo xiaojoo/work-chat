@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- AppCompatActivity 要求父主题必须是 AppCompat 系，不然运行时直接 IllegalStateException -->
+    <style name="Theme.ChatMobile" parent="Theme.AppCompat.Light.NoActionBar" />
+</resources>
