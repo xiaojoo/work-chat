@@ -1,48 +1,56 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- 尺寸逐项照桌面端：.row padding 8 / margin-bottom 4 / radius 8 / gap 10；
-     .ava 38 方角 9 白字 14；.row-name 14、.row-time 11、.row-last 12、.row-badge 18 圆角 9 -->
+<!-- 会话行：和通讯录那套同一处理方式——白行 + 一根从文字起头（缩 56dp）的下边框，
+     不再是带 4dp 缝的圆角卡片（卡片下面再画直线会看成两条线） -->
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
     android:layout_width="match_parent" android:layout_height="wrap_content"
-    android:layout_marginBottom="4dp"
-    android:minHeight="54dp" android:orientation="horizontal" android:gravity="center_vertical"
-    android:background="@drawable/row_bg"
-    android:padding="8dp">
+    android:orientation="vertical" android:background="@color/surface">
 
-    <TextView android:id="@+id/ava"
-        android:layout_width="38dp" android:layout_height="38dp"
-        android:gravity="center" android:textSize="14sp" android:textStyle="bold"
-        android:textColor="#FFFFFF" android:background="@drawable/ava_square" />
+    <LinearLayout
+        android:id="@+id/row"
+        android:layout_width="match_parent" android:layout_height="wrap_content"
+        android:minHeight="54dp" android:orientation="horizontal" android:gravity="center_vertical"
+        android:background="?attr/selectableItemBackground"
+        android:padding="8dp">
 
-    <LinearLayout android:id="@+id/main"
-        android:layout_width="0dp" android:layout_height="wrap_content"
-        android:layout_weight="1" android:layout_marginStart="10dp"
-        android:orientation="vertical">
-        <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content"
-            android:orientation="horizontal" android:gravity="center_vertical">
-            <TextView android:id="@+id/name"
-                android:layout_width="0dp" android:layout_height="wrap_content"
-                android:layout_weight="1"
-                android:textSize="14sp" android:textColor="@color/ink"
+        <TextView android:id="@+id/ava"
+            android:layout_width="38dp" android:layout_height="38dp"
+            android:gravity="center" android:textSize="14sp" android:textStyle="bold"
+            android:textColor="#FFFFFF" android:background="@drawable/ava_square" />
+
+        <LinearLayout android:layout_width="0dp" android:layout_height="wrap_content"
+            android:layout_weight="1" android:layout_marginStart="10dp"
+            android:orientation="vertical">
+            <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content"
+                android:orientation="horizontal" android:gravity="center_vertical">
+                <TextView android:id="@+id/name"
+                    android:layout_width="0dp" android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    android:textSize="14sp" android:textColor="@color/ink"
+                    android:maxLines="1" android:ellipsize="end" />
+                <TextView android:id="@+id/time"
+                    android:layout_width="wrap_content" android:layout_height="wrap_content"
+                    android:layout_marginStart="6dp"
+                    android:textSize="11sp" android:textColor="@color/ink_dim2" />
+            </LinearLayout>
+            <TextView android:id="@+id/last"
+                android:layout_width="match_parent" android:layout_height="wrap_content"
+                android:layout_marginTop="2dp"
+                android:textSize="12sp" android:textColor="@color/ink_dim"
                 android:maxLines="1" android:ellipsize="end" />
-            <TextView android:id="@+id/time"
-                android:layout_width="wrap_content" android:layout_height="wrap_content"
-                android:layout_marginStart="6dp"
-                android:textSize="11sp" android:textColor="@color/ink_dim2" />
         </LinearLayout>
-        <TextView android:id="@+id/last"
-            android:layout_width="match_parent" android:layout_height="wrap_content"
-            android:layout_marginTop="2dp"
-            android:textSize="12sp" android:textColor="@color/ink_dim"
-            android:maxLines="1" android:ellipsize="end" />
+
+        <TextView android:id="@+id/unread"
+            android:layout_width="wrap_content" android:layout_height="18dp"
+            android:layout_marginStart="8dp"
+            android:background="@drawable/unread_badge"
+            android:minWidth="18dp" android:gravity="center"
+            android:paddingStart="5dp" android:paddingEnd="5dp"
+            android:textColor="#FFFFFF" android:textSize="11sp" android:textStyle="bold"
+            android:visibility="gone" />
     </LinearLayout>
 
-    <TextView android:id="@+id/unread"
-        android:layout_width="wrap_content" android:layout_height="18dp"
-        android:layout_marginStart="8dp"
-        android:background="@drawable/unread_badge"
-        android:minWidth="18dp" android:gravity="center"
-        android:paddingStart="5dp" android:paddingEnd="5dp"
-        android:textColor="#FFFFFF" android:textSize="11sp" android:textStyle="bold"
-        android:visibility="gone" />
-
+    <View android:id="@+id/line"
+        android:layout_width="match_parent" android:layout_height="1dp"
+        android:layout_marginStart="56dp"
+        android:background="@color/line_soft" />
 </LinearLayout>

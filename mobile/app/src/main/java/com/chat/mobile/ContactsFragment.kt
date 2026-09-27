@@ -178,6 +178,9 @@ class ContactsFragment : Fragment() {
 
     private fun name(f: Api.Friend) = f.nickname.ifEmpty { f.username }
 
+    /** 组头自己带一根下边框，所以它上面那一行不能再画自己的线——否则两条线夹着一条灰带，看着像双线 */
+    private fun lineBefore(nextIsHead: Boolean) = if (nextIsHead) View.GONE else View.VISIBLE
+
     /** 分组标题吸顶：只有当这一组真正的组头完全滚出上沿之后才钉住它。
      *  原来用"第一个可见项是不是组头"判断，组头露 1 个像素也算露着，结果滚到一半谁都不钉 */
     private fun renderSticky() {
@@ -243,6 +246,7 @@ class ContactsFragment : Fragment() {
                     val v = h as EntryVH
                     v.label.text = "群聊"
                     v.count.text = ln.count.toString()
+                    v.line.visibility = lineBefore(lines.getOrNull(i + 1) is Head)
                     v.itemView.setOnClickListener {
                         startActivity(Intent(requireContext(), GroupListActivity::class.java))
                     }
@@ -253,6 +257,7 @@ class ContactsFragment : Fragment() {
                     v.ava.text = nm.take(1).uppercase()
                     v.name.text = nm
                     v.sub.text = "@${ln.f.username}"
+                    v.line.visibility = lineBefore(lines.getOrNull(i + 1) is Head)
                     v.itemView.setOnClickListener {
                         android.widget.Toast.makeText(requireContext(), "和 $nm 的会话在「微信」页里开", android.widget.Toast.LENGTH_SHORT).show()
                     }
@@ -270,11 +275,13 @@ class ContactsFragment : Fragment() {
     private class EntryVH(v: View) : RecyclerView.ViewHolder(v) {
         val label: TextView = v.findViewById(R.id.label)
         val count: TextView = v.findViewById(R.id.value)
+        val line: View = v.findViewById(R.id.line)
     }
 
     private class PersonVH(v: View) : RecyclerView.ViewHolder(v) {
         val ava: TextView = v.findViewById(R.id.ava)
         val name: TextView = v.findViewById(R.id.name)
         val sub: TextView = v.findViewById(R.id.sub)
+        val line: View = v.findViewById(R.id.line)
     }
 }

@@ -1,10 +1,10 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- 输入框只留一根下划线：把上、左、右三条边用负 inset 推出可视区，剩下的就是底边 -->
+<!-- 输入框只留一根下划线：一条压在底边的 1dp 实心线。
+     不用负 inset——实测那套在这台机上上下两条都会画出来 -->
 <layer-list xmlns:android="http://schemas.android.com/apk/res/android">
-    <item android:top="-1dp" android:left="-1dp" android:right="-1dp">
+    <item android:gravity="bottom" android:height="1dp">
         <shape android:shape="rectangle">
-            <solid android:color="@android:color/transparent" />
-            <stroke android:width="1dp" android:color="@color/line" />
+            <solid android:color="@color/line" />
         </shape>
     </item>
 </layer-list>
