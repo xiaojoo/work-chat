@@ -26,8 +26,9 @@
         </FrameLayout>
     </LinearLayout>
 
+    <!-- 和消息/通讯录那几根一样：0.5dp 在这台机（dpr 2.75）落到 1px，1dp 实渲 3px -->
     <View android:id="@+id/line"
-        android:layout_width="match_parent" android:layout_height="1dp"
+        android:layout_width="match_parent" android:layout_height="0.5dp"
         android:layout_marginStart="16dp"
         android:background="@color/line_soft" />
 </LinearLayout>
