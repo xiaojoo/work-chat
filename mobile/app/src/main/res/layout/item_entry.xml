@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!-- 通讯录顶部那一档的行：彩色图标方块 + 标题 + 右边计数 + 箭头。
-     分隔线从文字起头（左边缩进 68dp），和微信一样不顶到卡片左缘 -->
+     方块和下面人的头像同尺寸、文字同一起点，分隔线也从文字起头（64dp），上下是一列 -->
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
     android:layout_width="match_parent" android:layout_height="wrap_content"
     android:orientation="vertical" android:background="@color/surface">
@@ -11,17 +11,19 @@
         android:background="?attr/selectableItemBackground"
         android:paddingStart="16dp" android:paddingEnd="12dp">
 
-        <FrameLayout android:layout_width="28dp" android:layout_height="28dp">
-            <View android:layout_width="28dp" android:layout_height="28dp"
+        <!-- 方块和下面那些人的头像同尺寸（item_contact 的 ava 是 38dp），里面那枚图形按
+             原来的比例 20/28 放大到 27dp；文字起点也跟着对齐到 16+38+10=64dp -->
+        <FrameLayout android:layout_width="38dp" android:layout_height="38dp">
+            <View android:layout_width="38dp" android:layout_height="38dp"
                 android:background="@drawable/sq_group" />
-            <ImageView android:layout_width="20dp" android:layout_height="20dp"
+            <ImageView android:layout_width="27dp" android:layout_height="27dp"
                 android:layout_gravity="center"
                 android:src="@drawable/ic_group" android:contentDescription="" />
         </FrameLayout>
 
         <TextView android:id="@+id/label"
             android:layout_width="0dp" android:layout_height="wrap_content"
-            android:layout_weight="1" android:layout_marginStart="12dp"
+            android:layout_weight="1" android:layout_marginStart="10dp"
             android:textSize="16sp" android:textColor="@color/ink" />
 
         <TextView android:id="@+id/value"
@@ -35,7 +37,7 @@
     </LinearLayout>
 
     <View android:id="@+id/line"
-        android:layout_width="match_parent" android:layout_height="1dp"
-        android:layout_marginStart="56dp"
+        android:layout_width="match_parent" android:layout_height="0.5dp"
+        android:layout_marginStart="64dp"
         android:background="@color/line_soft" />
 </LinearLayout>
