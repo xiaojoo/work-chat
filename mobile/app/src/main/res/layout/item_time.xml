@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 居中的时间分隔，对应桌面端 .day-split：整行居中，字是一块 nb-bg-3 圆角小药丸上的 11sp -->
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent" android:layout_height="wrap_content"
+    android:orientation="horizontal" android:gravity="center"
+    android:paddingTop="6dp" android:paddingBottom="16dp">
+
+    <TextView android:id="@+id/at"
+        android:layout_width="wrap_content" android:layout_height="wrap_content"
+        android:background="@drawable/time_pill"
+        android:paddingStart="10dp" android:paddingEnd="10dp"
+        android:paddingTop="2dp" android:paddingBottom="2dp"
+        android:textSize="11sp" android:textColor="@color/ink_dim" />
+</LinearLayout>

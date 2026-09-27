@@ -58,6 +58,7 @@ class ChatActivity : EdgeBackActivity() {
         list.adapter = adapter
 
         findViewById<Button>(R.id.back).setOnClickListener { finish() }
+        loadNames()
         findViewById<Button>(R.id.more).setOnClickListener {
             startActivity(Intent(this, ChatInfoActivity::class.java).putExtra("conv", convId))
         }
@@ -90,8 +91,8 @@ class ChatActivity : EdgeBackActivity() {
                 .put("messageType", "TEXT")
                 .put("content", text)
                 .put("createTime", OffsetDateTime.now(java.time.ZoneOffset.UTC).toString()))
-            adapter.notifyItemInserted(msgs.size - 1)
-            list.scrollToPosition(msgs.size - 1)
+            rebuildRows(); adapter.notifyDataSetChanged()
+            list.scrollToPosition(rows.size - 1)
             input.setText("")
         }
 
@@ -130,17 +131,17 @@ class ChatActivity : EdgeBackActivity() {
                 val got = ArrayList<JSONObject>()
                 for (i in 0 until arr.length()) got.add(arr.getJSONObject(i))
                 msgs.clear(); msgs.addAll(got.reversed())
-                adapter.notifyDataSetChanged()
+                rebuildRows(); adapter.notifyDataSetChanged()
                 state.text = "${msgs.size} 条消息"
-                if (msgs.isNotEmpty()) list.scrollToPosition(msgs.size - 1)
+                if (rows.isNotEmpty()) list.scrollToPosition(rows.size - 1)
             }
 
             "MESSAGE_RECEIVE" -> {
                 val d = m.optJSONObject("data") ?: return
                 if (d.optString("conversationId") != convId) return
                 msgs.add(d)
-                adapter.notifyItemInserted(msgs.size - 1)
-                list.scrollToPosition(msgs.size - 1)
+                rebuildRows(); adapter.notifyDataSetChanged()
+                list.scrollToPosition(rows.size - 1)
                 state.text = "${msgs.size} 条消息"
                 /* 正开着这条、画面就在眼前时来消息，服务端照加未读（它不知道你在看）。
                    不在这里抹掉，回列表点刷新就会挂出一个假红标——桌面端量到过同一笔漂移 */
@@ -157,42 +158,127 @@ class ChatActivity : EdgeBackActivity() {
         }
     }
 
-    private inner class Adapter : RecyclerView.Adapter<VH>() {
-        override fun onCreateViewHolder(parent: ViewGroup, type: Int): VH =
-            VH(layoutInflater.inflate(R.layout.item_message, parent, false))
+    /** 界面上的一行：一条消息，或一条居中时间分隔 */
+    private sealed interface Row
+    private data class MsgRow(val m: JSONObject) : Row
+    private data class TimeRow(val text: String) : Row
 
-        override fun getItemCount(): Int = msgs.size
+    private val rows = ArrayList<Row>()
 
-        override fun onBindViewHolder(h: VH, i: Int) {
-            val m = msgs[i]
-            // senderId 是 JSON 数字，getString 会抛；一律 get().toString()
-            val sender = m.opt("senderId")?.toString() ?: ""
-            val self = sender.isNotEmpty() && sender == myId
-            h.bubble.text = m.optString("content")
-            h.bubble.setBackgroundResource(if (self) R.drawable.bubble_self else R.drawable.bubble_other)
-            h.bubble.setTextColor(if (self) 0xFFFFFFFF.toInt() else 0xFF1B2434.toInt())
-            /* 这里必须带上 CENTER_VERTICAL：只给 END/START 会把 xml 里的垂直居中覆盖掉，
-               头像 34dp、气泡更高，于是尾巴和头像都贴到行的上沿，看着没对齐气泡中部 */
-            h.row.gravity = Gravity.CENTER_VERTICAL or (if (self) Gravity.END else Gravity.START)
-            h.time.gravity = if (self) Gravity.END else Gravity.START
-            h.time.text = pretty(m.optString("createTime"))
-            val letter = (if (self) mine else convName).ifEmpty { "?" }.take(1).uppercase()
-            h.avaL.visibility = if (self) View.GONE else View.VISIBLE
-            h.avaR.visibility = if (self) View.VISIBLE else View.GONE
-            h.avaL.text = letter
-            h.avaR.text = letter
-            // 尾巴和气泡同色，跟着一起翻边：对方在左指、自己在右指
-            h.tailL.visibility = if (self) View.GONE else View.VISIBLE
-            h.tailR.visibility = if (self) View.VISIBLE else View.GONE
-            val tail = if (self) 0xFF2B6BE8.toInt() else 0xFFF0F3F8.toInt()
-            h.tailL.setColorFilter(tail, android.graphics.PorterDuff.Mode.SRC_IN)
-            h.tailR.setColorFilter(tail, android.graphics.PorterDuff.Mode.SRC_IN)
-            /* 长按要挂在整行、不能挂在气泡上：气泡是 TextView，MIUI 的「文本识别」会先吃掉
-               TextView 自己的长按（实测弹出来的是系统的识别条，我们的菜单根本没出现）。
-               整行是 LinearLayout，没有这套内置处理。 */
-            h.bubble.setTextIsSelectable(false)
-            h.itemView.setOnLongClickListener { showMsgMenu(h.bubble, m, self); true }
+    /** 桌面端 shouldShowTime 的同一套：第一条、或和上一条隔够 5 分钟，才插一条居中分隔；
+     *  时间读不出来的那条不插空药丸 */
+    private fun rebuildRows() {
+        rows.clear()
+        var prev = 0L
+        msgs.forEachIndexed { i, m ->
+            val t = tsOf(m)
+            if ((i == 0 || prev == 0L || t - prev >= 5 * 60 * 1000L) && t > 0L) rows.add(TimeRow(divider(t)))
+            if (t > 0L) prev = t
+            rows.add(MsgRow(m))
         }
+    }
+
+    private fun divider(ms: Long): String {
+        val z = java.time.Instant.ofEpochMilli(ms).atZone(java.time.ZoneId.systemDefault())
+        val now = java.time.ZonedDateTime.now()
+        val hm = z.format(DateTimeFormatter.ofPattern("HH:mm"))
+        return when (z.toLocalDate()) {
+            now.toLocalDate() -> "今天 $hm"
+            now.toLocalDate().minusDays(1) -> "昨天 $hm"
+            else -> if (z.year == now.year) z.format(DateTimeFormatter.ofPattern("M月d日 $hm"))
+                    else z.format(DateTimeFormatter.ofPattern("yyyy年M月d日 $hm"))
+        }
+    }
+
+    /** 群聊才印发送人名（桌面端 .msg-who）。名字先查好友表，查不到再逐个 /api/user/{id} 补，
+     *  和桌面端 loadMemberNames → resolveSenderName 同一条路径 */
+    /** 补名字是在后台线程写的、界面在主线程读，所以用 ConcurrentHashMap，不用普通 HashMap */
+    private val names = java.util.concurrent.ConcurrentHashMap<String, String>()
+    private var myName = ""
+    private val isGroup get() = convId.startsWith("g")
+
+    private fun nameOf(id: String): String = when {
+        id.isEmpty() -> ""
+        id == myId -> myName.ifEmpty { mine }
+        names.containsKey(id) -> names[id] ?: ""
+        else -> { lookup(id); "" }
+    }
+
+    private fun lookup(id: String) {
+        thread(name = "who-$id") {
+            val n = runCatching { Api(Cfg.apiBase(this@ChatActivity), Cfg.token(this@ChatActivity)).profile(id).nickname }
+                .getOrNull().orEmpty()
+            names[id] = n
+            if (n.isNotEmpty()) runOnUiThread { if (!isFinishing) adapter.notifyDataSetChanged() }
+        }
+    }
+
+    private fun loadNames() {
+        thread(name = "names") {
+            val base = Cfg.apiBase(this); val tk = Cfg.token(this)
+            runCatching {
+                Api(base, tk).friends().forEach { names[it.id] = it.nickname.ifEmpty { it.username } }
+                myName = Api(base, tk).profile(myId).nickname
+            }
+            runOnUiThread { if (!isFinishing) adapter.notifyDataSetChanged() }
+        }
+    }
+
+    private inner class Adapter : RecyclerView.Adapter<RecyclerView.ViewHolder>() {
+        override fun getItemViewType(p: Int) = if (rows[p] is TimeRow) 1 else 0
+
+        override fun onCreateViewHolder(parent: ViewGroup, type: Int): RecyclerView.ViewHolder =
+            if (type == 1) TimeVH(layoutInflater.inflate(R.layout.item_time, parent, false))
+            else VH(layoutInflater.inflate(R.layout.item_message, parent, false))
+
+        override fun getItemCount(): Int = rows.size
+
+        override fun onBindViewHolder(h: RecyclerView.ViewHolder, i: Int) {
+            when (val r = rows[i]) {
+                is TimeRow -> (h as TimeVH).at.text = r.text
+                is MsgRow -> bindMsg(h as VH, r.m)
+            }
+        }
+    }
+
+    private fun bindMsg(h: VH, m: JSONObject) {
+        // senderId 是 JSON 数字，getString 会抛；一律 get().toString()
+        val sender = m.opt("senderId")?.toString() ?: ""
+        val self = sender.isNotEmpty() && sender == myId
+        h.bubble.text = m.optString("content")
+        h.bubble.setBackgroundResource(if (self) R.drawable.bubble_self else R.drawable.bubble_other)
+        h.bubble.setTextColor(if (self) 0xFFFFFFFF.toInt() else 0xFF1B2434.toInt())
+        /* 这里必须带上 CENTER_VERTICAL：只给 END/START 会把 xml 里的垂直居中覆盖掉，
+           头像 34dp、气泡更高，于是尾巴和头像都贴到行的上沿，看着没对齐气泡中部 */
+        h.row.gravity = Gravity.CENTER_VERTICAL or (if (self) Gravity.END else Gravity.START)
+        val letter = (if (self) nameOf(myId) else nameOf(sender)).ifEmpty {
+            (if (self) mine else convName)
+        }.take(1).uppercase()
+        h.avaL.visibility = if (self) View.GONE else View.VISIBLE
+        h.avaR.visibility = if (self) View.VISIBLE else View.GONE
+        h.avaL.text = letter
+        h.avaR.text = letter
+        // 尾巴和气泡同色，跟着一起翻边：对方在左指、自己在右指
+        h.tailL.visibility = if (self) View.GONE else View.VISIBLE
+        h.tailR.visibility = if (self) View.VISIBLE else View.GONE
+        val tail = if (self) 0xFF2B6BE8.toInt() else 0xFFF0F3F8.toInt()
+        h.tailL.setColorFilter(tail, android.graphics.PorterDuff.Mode.SRC_IN)
+        h.tailR.setColorFilter(tail, android.graphics.PorterDuff.Mode.SRC_IN)
+        /* 群聊才在气泡上方印发送人名；单聊不印（桌面端 .msg-who 也是这个口径）。
+           自己的那行右对齐，名字跟着气泡走 */
+        val who = if (isGroup) nameOf(sender) else ""
+        h.who.text = who
+        h.who.visibility = if (who.isEmpty()) View.GONE else View.VISIBLE
+        h.who.gravity = if (self) Gravity.END else Gravity.START
+        /* 名字要和气泡对齐，所以左右各让开「头像 34 + 间距 8 + 尾巴 6 + 内边距 12」= 60dp，
+           让哪一边跟着气泡那边走 */
+        val inset = (60 * resources.displayMetrics.density).toInt()
+        h.who.setPadding(if (self) 0 else inset, 0, if (self) inset else 0, 0)
+        /* 长按要挂在整行、不能挂在气泡上：气泡是 TextView，MIUI 的「文本识别」会先吃掉
+           TextView 自己的长按（实测弹出来的是系统的识别条，我们的菜单根本没出现）。
+           整行是 LinearLayout，没有这套内置处理。 */
+        h.bubble.setTextIsSelectable(false)
+        h.itemView.setOnLongClickListener { showMsgMenu(h.bubble, m, self); true }
     }
 
     /** 长按一条消息 → 桌面端右键那十二项，这里改成五列一行的格子（微信那种双行排法）。
@@ -278,17 +364,9 @@ class ChatActivity : EdgeBackActivity() {
             .show()
     }
 
-    /** createTime 是带 Z 的 UTC（实测 2026-09-27T05:06:30.586Z 在手机上印成 05:06，
-     *  而本机当时是 13:06 —— 差整 8 小时）。必须换算到设备时区再印。 */
-    private fun pretty(iso: String): String = try {
-        val t = OffsetDateTime.parse(iso).atZoneSameInstant(java.time.ZoneId.systemDefault())
-        val now = java.time.ZonedDateTime.now()
-        if (t.toLocalDate() == now.toLocalDate())
-            t.format(DateTimeFormatter.ofPattern("HH:mm"))
-        else
-            t.format(DateTimeFormatter.ofPattern("M-d HH:mm"))
-    } catch (e: Exception) { "" }
-
+    /** 原来这里有个 pretty(iso)：把时间印在每条气泡底下。时间改成居中分隔后它就没主了，删掉。
+     *  留一句要紧的事实给 tsOf：createTime 是带 Z 的 UTC（实测 2026-09-27T05:06:30.586Z
+     *  在手机上直接印成 05:06，而本机当时是 13:06 —— 差整 8 小时），必须换算到设备时区。 */
     override fun onDestroy() {
         ws?.close(); ws = null
         super.onDestroy()
@@ -297,10 +375,14 @@ class ChatActivity : EdgeBackActivity() {
     private class VH(v: View) : RecyclerView.ViewHolder(v) {
         val row: LinearLayout = v.findViewById(R.id.row)
         val bubble: TextView = v.findViewById(R.id.bubble)
-        val time: TextView = v.findViewById(R.id.time)
+        val who: TextView = v.findViewById(R.id.who)
         val avaL: TextView = v.findViewById(R.id.avaL)
         val avaR: TextView = v.findViewById(R.id.avaR)
-        val tailL: android.widget.ImageView = v.findViewById(R.id.tailL)
-        val tailR: android.widget.ImageView = v.findViewById(R.id.tailR)
+        val tailL: ImageView = v.findViewById(R.id.tailL)
+        val tailR: ImageView = v.findViewById(R.id.tailR)
+    }
+
+    private class TimeVH(v: View) : RecyclerView.ViewHolder(v) {
+        val at: TextView = v.findViewById(R.id.at)
     }
 }

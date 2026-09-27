@@ -1,5 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- 消息行照桌面端 .msg：头像 34 方角 10、气泡圆角 10、行间距 16 -->
+<!-- 消息行照桌面端 .msg：头像 34 方角、气泡圆角、行间距。
+     群聊才在气泡上方印发送人名（对应桌面端 .msg-who），单聊不印；
+     时间不再写在每条底下——桌面端是「第一条、或和上一条隔够 5 分钟」才插一条居中分隔，见 item_time.xml -->
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
     android:layout_width="match_parent"
     android:layout_height="wrap_content"
@@ -9,6 +11,19 @@
     android:paddingTop="4dp"
     android:paddingBottom="12dp">
 
+    <TextView
+        android:id="@+id/who"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginBottom="3dp"
+        android:paddingStart="58dp"
+        android:paddingEnd="58dp"
+        android:textSize="11sp"
+        android:textColor="@color/ink_dim"
+        android:maxLines="1"
+        android:ellipsize="end"
+        android:visibility="gone" />
+
     <LinearLayout
         android:id="@+id/row"
         android:layout_width="match_parent"
@@ -16,8 +31,7 @@
         android:orientation="horizontal"
         android:gravity="center_vertical">
 
-        <!-- 两侧头像，和桌面端 .msg-ava 一样：对方在左、自己在右，另一侧留空。
-             字母取会话名/自己昵称的首字，桌面端也是这么取的，不为这个再打一次用户接口 -->
+        <!-- 两侧头像，和桌面端 .msg-ava 一样：对方在左、自己在右，另一侧留空 -->
         <TextView
             android:id="@+id/avaL"
             android:layout_width="34dp"
@@ -47,10 +61,10 @@
             android:paddingEnd="12dp"
             android:paddingTop="7dp"
             android:paddingBottom="7dp"
-            android:textSize="14sp"
-            android:textColor="@color/ink"
             android:gravity="center_vertical"
             android:minHeight="34dp"
+            android:textSize="14sp"
+            android:textColor="@color/ink"
             android:maxWidth="260dp" />
 
         <ImageView
@@ -73,13 +87,4 @@
             android:background="@drawable/ava_square"
             android:visibility="gone" />
     </LinearLayout>
-
-    <TextView
-        android:id="@+id/time"
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:paddingTop="2dp"
-        android:textSize="11sp"
-        android:textColor="@color/ink_dim2" />
-
 </LinearLayout>
