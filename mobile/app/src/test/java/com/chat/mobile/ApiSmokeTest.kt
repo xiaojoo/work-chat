@@ -30,6 +30,10 @@ class ApiSmokeTest {
         assertTrue("会话列表为空", list.isNotEmpty())
         assertTrue("每条都要有 id 和未读位（未读位解析不出来的话这个端就看不见红点）",
             list.all { it.id.isNotEmpty() && it.unread >= 0 })
+        // 真机截图上抓到过：后端对没值的字段给 JSON null，Android 的 org.json 把它读成
+        // 字符串 "null"，界面上就真渲染出这三个字母。这条断言在修好之前必须是红的
+        val leaked = list.filter { v -> listOf(v.name, v.lastMessage, v.lastMessageTime, v.targetId).any { it == "null" } }
+        assertTrue("有字段把 JSON null 读成了字面量 \"null\"：${leaked.map { it.id }}", leaked.isEmpty())
     }
 
     @Test

@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<shape xmlns:android="http://schemas.android.com/apk/res/android"
+    android:shape="rectangle">
+    <!-- 和桌面端 .row-badge 同一枚色：theme.css 里 danger 变量 = d94860 -->
+    <solid android:color="#D94860" />
+    <corners android:radius="10dp" />
+</shape>

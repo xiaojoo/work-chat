@@ -56,6 +56,11 @@ class Api(private val base: String, private val token: String = "") {
         val lastMessage: String, val lastMessageTime: String, val unread: Int
     )
 
+    /** 后端对没有值的字段返回的是 JSON null（不是缺键），而 Android 自带的 org.json
+     *  对 null 调 optString 会给出字符串 "null"，界面上就真渲染出 null 这三个字母。 */
+    private fun str(o: JSONObject, key: String): String =
+        if (o.isNull(key)) "" else o.optString(key)
+
     fun conversations(userId: String): List<Conversation> {
         val arr = JSONArray(call("/api/conversation/list?userId=$userId"))
         return List(arr.length()) { i ->
@@ -63,10 +68,10 @@ class Api(private val base: String, private val token: String = "") {
             Conversation(
                 id = o.getString("id"),
                 type = o.optInt("type"),
-                name = o.optString("name"),
-                targetId = o.optString("targetId"),
-                lastMessage = o.optString("lastMessage"),
-                lastMessageTime = o.optString("lastMessageTime"),
+                name = str(o, "name"),
+                targetId = str(o, "targetId"),
+                lastMessage = str(o, "lastMessage"),
+                lastMessageTime = str(o, "lastMessageTime"),
                 unread = o.optInt("unreadCount")
             )
         }

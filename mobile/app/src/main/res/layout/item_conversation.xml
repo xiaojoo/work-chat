@@ -34,17 +34,19 @@
             android:ellipsize="end" />
     </LinearLayout>
 
-    <!-- 手机上未读不能只靠一个红点：得看得见数字，所以给它自己的列 -->
+    <!-- 手机上未读不能只靠一个红点：得看得见数字。
+         样式照桌面端那颗 .row-badge：红底白字小胶囊，色值同 theme.css 里的 danger -->
     <TextView
         android:id="@+id/unread"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
-        android:paddingStart="8dp"
-        android:paddingEnd="8dp"
-        android:minWidth="26dp"
+        android:background="@drawable/unread_badge"
+        android:paddingStart="7dp"
+        android:paddingEnd="7dp"
+        android:minWidth="20dp"
         android:gravity="center"
-        textColor="#D94860"
-        android:textSize="13sp"
+        android:textColor="#FFFFFF"
+        android:textSize="12sp"
         android:textStyle="bold" />
 
 </LinearLayout>
