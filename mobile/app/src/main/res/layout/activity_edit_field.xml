@@ -27,12 +27,14 @@
             android:textSize="15sp" android:text="保存" />
     </LinearLayout>
 
-    <View android:layout_width="match_parent" android:layout_height="1dp"
+    <View android:layout_width="match_parent" android:layout_height="0.5dp"
         android:background="@color/line" />
 
+    <!-- 输入框高度 56dp→44dp：原来那 56dp 里文字墨只占 36px，上下各空 63/56px（≈22dp）。
+         44dp 是拇指可点下限，再往下就是让命中区替留白买单，所以只收这一档 -->
     <EditText android:id="@+id/input"
         android:layout_width="match_parent" android:layout_height="wrap_content"
-        android:minHeight="56dp"
+        android:minHeight="44dp"
         android:background="@drawable/field_underline"
         android:paddingStart="16dp" android:paddingEnd="16dp"
         android:layout_marginTop="12dp"
