@@ -17,7 +17,8 @@ import kotlin.concurrent.thread
  * （对方取自会话列表的 targetId，和桌面端「成员」页签在单聊也渲染宫格同一条口径）。
  * 名字再逐个 GET :8081 /api/user/{id} 补——members 那个 DTO 里没有昵称，桌面端也是这么补的。
  * 每颗都能点：别人 → 好友信息页，自己 → 可改的个人信息页。
- * ＋ 那格只在群聊有（POST /{id}/invite）；桌面端单聊那颗 ＋ 是「转群」，这端还没接那条流程。
+ * 最后一格是 ＋：群聊是邀请进来一个人（POST /{id}/invite）；单聊是把他俩转成群聊
+ * （POST /api/group/create，成员 = 我 + 对方 + 选的那个人），和桌面端那颗 ＋ 同一件事。
  *
  * 微信这一屏还有查找聊天记录、提醒、聊天背景、清空记录、投诉——后端都没有对应接口，不摆。
  * 本机真做得到的两条（消息免打扰、置顶聊天）放在人下面，和长按菜单同一份 ConvFlags。
@@ -104,7 +105,8 @@ class ChatInfoActivity : EdgeBackActivity() {
             "${members.size} 名成员 · 来自 GET :${Cfg.GROUP_PORT}/api/group/{id}/members"
         else
             "2 人 · 对方取自 GET :${Cfg.USER_PORT}/api/conversation/list 的 targetId；" +
-                "桌面端单聊那颗 ＋ 是「转群」，这端没接那条流程，所以这里不摆 ＋") +
+                "那颗 ＋ 是转群：POST /api/group/create，成员 = 我 + 对方 + 选的那个人，" +
+                "这条私聊和它的记录原样留着") +
             "；免打扰和置顶和会话列表长按那一项是同一份状态（存在本机）"
     }
 
@@ -115,7 +117,7 @@ class ChatInfoActivity : EdgeBackActivity() {
         val host = card.findViewById<LinearLayout>(R.id.gridRows)
         val cells = ArrayList<View>()
         members.forEach { cells.add(memberCell(it)) }
-        if (isGroup) cells.add(addCellView())
+        cells.add(addCellView())
         cells.chunked(PER_ROW).forEach { line ->
             val r = LinearLayout(this)
             r.orientation = LinearLayout.HORIZONTAL
@@ -158,9 +160,20 @@ class ChatInfoActivity : EdgeBackActivity() {
         ava.setTextColor(getColor(R.color.ink_dim))
         add.findViewById<TextView>(R.id.name).text = "添加成员"
         add.setOnClickListener {
-            startActivity(Intent(this, AddMembersActivity::class.java)
-                .putExtra("conv", convId)
-                .putExtra("have", members.joinToString(",") { it.userId }))
+            val i = Intent(this, AddMembersActivity::class.java).putExtra("conv", convId)
+            if (isGroup) {
+                i.putExtra("have", members.joinToString(",") { it.userId })
+            } else {
+                // 单聊：把自己和对方从树上排掉——自己不用选（后端落成群主），对方已经在里面了
+                // 群名第一段用账号不是昵称，和桌面端 createGroupFromPrivate 那份拼法一致
+                val tName = names[targetId].orEmpty()
+                i.putExtra("mode", "convert")
+                    .putExtra("have", listOf(myId, targetId).joinToString(",") { it })
+                    .putExtra("mine", Cfg.username(this))
+                    .putExtra("target", targetId)
+                    .putExtra("targetName", tName)
+            }
+            startActivity(i)
         }
         return add
     }

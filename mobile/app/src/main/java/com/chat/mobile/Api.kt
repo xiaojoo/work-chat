@@ -186,4 +186,16 @@ class Api(private val base: String, private val token: String = "") {
         val ids = JSONArray().apply { userIds.forEach { put(it.toLong()) } }
         call("/api/group/${groupId.removePrefix("g")}/invite", JSONObject().put("userIds", ids).toString())
     }
+
+    /** 单聊转群聊走这一条：POST /api/group/create {name, memberIds:[...]}，返回新群的纯数字 id。
+     *  后端 createGroupWithMembers = 建群（我落成群主）+ 邀请这批人，并给每人绑好那条群会话，
+     *  所以建完直接就能用 "g"+id 打开，不用再查一遍会话列表。name 是 @NotBlank、上限 100。 */
+    fun createGroup(name: String, memberIds: List<String>): String {
+        val ids = JSONArray().apply { memberIds.forEach { put(it.toLong()) } }
+        val o = JSONObject(call("/api/group/create",
+            JSONObject().put("name", name).put("memberIds", ids).toString()))
+        val err = o.optString("error")
+        if (err.isNotEmpty()) throw Failure(err)
+        return o.opt("id")?.toString() ?: ""
+    }
 }

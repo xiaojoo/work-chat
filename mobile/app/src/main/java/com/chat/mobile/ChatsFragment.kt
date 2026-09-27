@@ -91,8 +91,10 @@ class ChatsFragment : Fragment() {
     override fun onResume() {
         super.onResume()
         /* 从聊天信息页改了免打扰/置顶回来，这一页要跟着重排和换角标颜色——
-           同一份状态的每个入口都得自己刷新，不重打接口，只重摊本地那份 */
-        if (rows.isEmpty()) load() else filter()
+           同一份状态的每个入口都得自己刷新，不重打接口，只重摊本地那份。
+           但「多了一条会话」这种事摊不出来：转群新建的那条得重打接口才看得见，
+           所以建完群那边会立 needsReload 这个牌子，这里认账并把它放倒。 */
+        if (rows.isEmpty() || needsReload) { needsReload = false; load() } else filter()
     }
 
     private fun filter() {
@@ -255,5 +257,11 @@ class ChatsFragment : Fragment() {
         val last: TextView = v.findViewById(R.id.last)
         val time: TextView = v.findViewById(R.id.time)
         val unread: TextView = v.findViewById(R.id.unread)
+    }
+
+    companion object {
+        /** 转群会新建一条会话，本地那份 all 里根本没有它，重摊也摊不出来——
+         *  建完群那边把它立起来，这一页 onResume 看到就重打一次接口 */
+        @Volatile var needsReload = false
     }
 }
