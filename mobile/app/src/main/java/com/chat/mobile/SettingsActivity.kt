@@ -15,7 +15,7 @@ import androidx.appcompat.app.AppCompatActivity
  * 组里只摆后端/本机真有的东西：个人信息（PUT /api/user/profile 那一套）、
  * 服务器地址与消息网关（本机偏好）、退出登录。微信的通知/通用/关于这里没有对应接口，不抄文案。
  */
-class SettingsActivity : AppCompatActivity() {
+class SettingsActivity : EdgeBackActivity() {
 
     private lateinit var groups: LinearLayout
     private lateinit var status: TextView

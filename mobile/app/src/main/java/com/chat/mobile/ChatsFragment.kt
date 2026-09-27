@@ -9,6 +9,7 @@ import android.widget.EditText
 import android.widget.TextView
 import androidx.appcompat.app.AlertDialog
 import androidx.fragment.app.Fragment
+import androidx.recyclerview.widget.ItemTouchHelper
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
 import androidx.swiperefreshlayout.widget.SwipeRefreshLayout
@@ -62,7 +63,30 @@ class ChatsFragment : Fragment() {
                 if (lm.findLastVisibleItemPosition() >= rows.size - 5) loadMore()
             }
         })
+        attachSwipes()
     }
+
+    /** 左滑=删除（走同一颗确认框），右滑=标为已读/标为未读。
+     *  微信左滑是先露两个按钮再点，这里滑完直接回弹、动作各自再决定要不要真的移行走——
+     *  少一层"藏在行后面的按钮"，也就少一种点了看不见的命中区 */
+    private fun attachSwipes() {
+        val cb = object : ItemTouchHelper.SimpleCallback(0, ItemTouchHelper.LEFT or ItemTouchHelper.RIGHT) {
+            override fun onMove(rv: RecyclerView, h: RecyclerView.ViewHolder, t: RecyclerView.ViewHolder) = false
+            override fun onSwiped(h: RecyclerView.ViewHolder, dir: Int) {
+                val pos = h.bindingAdapterPosition
+                if (pos == RecyclerView.NO_POSITION || pos >= rows.size) return
+                val c = rows[pos]
+                list.adapter?.notifyItemChanged(pos)
+                if (dir == ItemTouchHelper.LEFT) confirmDelete(c)
+                else if (unreadOf(c) > 0) { markRead(c); toast("已标为已读") }
+                else { unreadOverride[c.id] = 1; refreshRow(c); toast("已标为未读") }
+            }
+        }
+        ItemTouchHelper(cb).attachToRecyclerView(list)
+    }
+
+    private fun toast(msg: String) =
+        android.widget.Toast.makeText(requireContext(), msg, android.widget.Toast.LENGTH_SHORT).show()
 
     override fun onResume() {
         super.onResume()

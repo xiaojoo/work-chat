@@ -16,7 +16,7 @@ import java.time.OffsetDateTime
 import java.time.format.DateTimeFormatter
 import kotlin.concurrent.thread
 
-class ChatActivity : AppCompatActivity() {
+class ChatActivity : EdgeBackActivity() {
 
     private lateinit var convId: String
     private lateinit var convName: String

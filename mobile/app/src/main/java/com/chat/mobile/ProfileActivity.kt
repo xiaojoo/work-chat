@@ -12,7 +12,7 @@ import kotlin.concurrent.thread
  * 个人信息页：微信那张竖排表（头像 / 名字 / 账号 / 部门…），左标题右值带箭头。
  * 箭头只给 PUT /api/user/profile 真认的键；账号和 ID 后端没有写入路径，就不摆一颗点不动的箭头。
  */
-class ProfileActivity : AppCompatActivity() {
+class ProfileActivity : EdgeBackActivity() {
 
     private lateinit var rows: LinearLayout
     private lateinit var status: TextView
