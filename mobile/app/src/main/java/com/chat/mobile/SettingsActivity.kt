@@ -5,21 +5,20 @@ import android.content.Intent
 import android.graphics.Color
 import android.graphics.drawable.ColorDrawable
 import android.os.Bundle
-import android.text.InputType
 import android.view.Gravity
 import android.view.ViewGroup
 import android.view.Window
 import android.widget.Button
-import android.widget.EditText
 import android.widget.LinearLayout
 import android.widget.TextView
-import androidx.appcompat.app.AlertDialog
-import androidx.appcompat.app.AppCompatActivity
 
 /**
  * 微信那个「设置」页的形状：灰底上几组白行，组标题 13sp，行末浅线从文字起头。
- * 组里只摆后端/本机真有的东西：个人信息（PUT /api/user/profile 那一套）、
- * 服务器地址与消息网关（本机偏好）、退出登录。微信的通知/通用/关于这里没有对应接口，不抄文案。
+ * 组里只摆后端/本机真有的东西：个人信息（PUT /api/user/profile 那一套）、退出登录。
+ *
+ * 服务器地址和消息网关这两行已经撤掉——那两个值是**项目配置**（app/build.gradle.kts 的
+ * API_BASE，换机器在 mobile/local.properties 写 api.base=...），不在界面上展示也不给改。
+ * 微信的通知/通用/关于这里没有对应接口，也不抄文案。
  */
 class SettingsActivity : EdgeBackActivity() {
 
@@ -49,37 +48,10 @@ class SettingsActivity : EdgeBackActivity() {
         Rows.endGroup(groups)
 
         Rows.gap(groups)
-        Rows.row(groups, "服务器地址", Cfg.apiBase(this), "还没设置") { editServer() }
-        Rows.row(groups, "消息网关", Cfg.wsBase(this), "还没设置", onClick = null)
-        Rows.endGroup(groups)
-
-        Rows.gap(groups)
         Rows.row(groups, "退出登录", "", danger = true) { confirmLogout() }
         Rows.endGroup(groups)
 
-        status.text = "服务器地址存在本机；网关端口由它推导（同宿主 :${Cfg.GW_PORT}）。" +
-            "换地址后下拉刷新会话列表即可，不用重装。"
-    }
-
-    private fun editServer() {
-        val input = EditText(this).apply {
-            setSingleLine(true)
-            inputType = InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_VARIATION_URI
-            setText(Cfg.apiBase(this@SettingsActivity))
-            hint = "例如 192.168.31.5"
-            setSelectAllOnFocus(true)
-            setPadding(48, 24, 48, 8)
-        }
-        AlertDialog.Builder(this)
-            .setTitle("服务器地址")
-            .setView(input)
-            .setNegativeButton("取消") { d, _ -> d.dismiss() }
-            .setPositiveButton("保存") { d, _ ->
-                Cfg.setApiBase(this, input.text.toString())
-                d.dismiss()
-                render()
-            }
-            .show()
+        status.text = "后端地址和网关端口都在项目配置里给（编译期 API_BASE），这一页不提供改的地方。"
     }
 
     /** 微信那块的底部面板：退出登录 / 关闭微信 / 取消。

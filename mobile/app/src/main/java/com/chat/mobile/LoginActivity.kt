@@ -20,9 +20,8 @@ class LoginActivity : AppCompatActivity() {
         val submit = findViewById<Button>(R.id.submit)
         val status = findViewById<TextView>(R.id.status)
 
-        // 地址记本机：手机连开发机要填局域网 IP，每次重打太烦
-        server.setText(Cfg.apiBase(this))
-        // 预填过的框，点下去要先全选——否则新字是接在后面，实测拼出过 127.0.0.1:8081127.0.0.1:8081
+        // 地址不在这里展示：项目配置里给（编译期 API_BASE）。这格只是逃生口——
+        // 留空就用项目配置，填了才存成本机覆盖值（换机器临时连一下，不用重打包）
         server.setSelectAllOnFocus(true)
 
         /* 有令牌就直接进列表：手机上是"看一眼"的端，每次冷启动都重打一遍口令等于没做。
@@ -34,9 +33,11 @@ class LoginActivity : AppCompatActivity() {
         }
 
         submit.setOnClickListener {
-            val base = Cfg.normalize(server.text.toString())
-            if (base.isEmpty()) { status.text = "先填服务器地址"; return@setOnClickListener }
-            Cfg.setApiBase(this, server.text.toString())
+            val raw = server.text.toString()
+            // 空=退回项目配置（setApiBase("") 存的就是空串，apiBase 读到空会 fallback）
+            Cfg.setApiBase(this, raw)
+            val base = Cfg.apiBase(this)
+            if (base.isEmpty()) { status.text = "项目配置里没有后端地址"; return@setOnClickListener }
 
             val user = account.text.toString().trim()
             val pass = password.text.toString()

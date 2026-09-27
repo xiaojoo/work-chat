@@ -3,12 +3,17 @@ package com.chat.mobile
 import android.content.Context
 
 /**
- * 服务器地址。手机上 127.0.0.1 是手机自己，连不到开发机，
- * 所以地址必须能在界面上改、并存在本机；不给编译期默认值。
+ * 后端地址来自**项目配置**：app/build.gradle.kts 里的 API_BASE，
+ * 要换机器就在 mobile/local.properties 写一行 api.base=http://192.168.31.5（这文件不提交）。
+ * 界面上不再展示、也不再给改这个值——设置页那两行已经撤掉。
+ * 登录页那格留着一个逃生口：留空=用项目配置；填了才存成本机覆盖值。
  */
 object Cfg {
     private const val PREF = "server"
     private const val KEY_BASE = "api_base"
+
+    /** 编译期烘进包里的地址；adb reverse 在时 127.0.0.1 就是开发机 */
+    const val DEFAULT_BASE = BuildConfig.API_BASE
 
     // 后端四个服务里只有 chat-user(8081) 和消息网关(18082) 是手机端要直连的
     const val USER_PORT = 8081
@@ -17,15 +22,18 @@ object Cfg {
      *  所以它得有自己的 base（桌面端是 vite 代理把 /api/group 转过去的，手机没有那层代理） */
     const val GROUP_PORT = 8084
 
+    /** 本机没存过覆盖值就用项目配置 */
     fun apiBase(ctx: Context): String =
-        ctx.getSharedPreferences(PREF, Context.MODE_PRIVATE).getString(KEY_BASE, "") ?: ""
+        ctx.getSharedPreferences(PREF, Context.MODE_PRIVATE).getString(KEY_BASE, "")!!
+            .ifEmpty { DEFAULT_BASE }
 
+    /** 传空串就是把覆盖值清掉，退回项目配置那个地址 */
     fun setApiBase(ctx: Context, value: String) {
         ctx.getSharedPreferences(PREF, Context.MODE_PRIVATE).edit()
             .putString(KEY_BASE, normalize(value)).apply()
     }
 
-    /** 允许他填 192.168.31.5、192.168.31.5:8081 或 http://192.168.31.5 三种写法 */
+    /** 允许填 192.168.31.5、192.168.31.5:8081 或 http://192.168.31.5 三种写法；空串原样返回空 */
     fun normalize(raw: String): String {
         var s = raw.trim().removeSuffix("/")
         if (s.isEmpty()) return ""
