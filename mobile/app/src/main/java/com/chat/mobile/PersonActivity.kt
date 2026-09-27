@@ -2,6 +2,7 @@ package com.chat.mobile
 
 import android.content.Intent
 import android.os.Bundle
+import android.view.LayoutInflater
 import android.widget.Button
 import android.widget.LinearLayout
 import android.widget.TextView
@@ -9,20 +10,21 @@ import android.widget.Toast
 import kotlin.concurrent.thread
 
 /**
- * 聊天里点对方头像进来的那一屏，对应桌面端「好友信息」弹框（Chat.vue 的 friendCard）。
+ * 聊天里点对方头像、或聊天信息页点某颗头像进来的那一屏。
  *
- * 字段走同一份白名单：部门 / 职务 / 邮箱 / 电话 / 个性签名，来自 GET :8081 /api/user/{id}；
- * 空值不列（桌面端也是 .filter(r => r.v)），五项都空就只留一行「对方资料都还没填」。
- * remark、location 后端恒返回空串且没有任何写入路径，两边都不摆。
+ * 版式照微信那张详细资料：头像在左，右边一列「标签：值」，下面一颗整行居中的「发消息」。
+ * 值全部来自 GET :8081 /api/user/{id}，后端是空串的字段就不列那一行。
+ * 微信那屏的 地区、备注、性别、朋友资料（改备注/标签/备忘/权限）、朋友圈、音视频通话——
+ * 后端分别是恒空串且无写入路径、没有这个字段、没有这些接口，所以这一屏不摆，不照抄文案。
  *
  * 「发消息」和桌面端 startChatWithFriend 同一条路径：先在会话列表里找和这个人的一对一会话，
  * 没有才 POST /api/conversation/create 建一条，然后把聊天页打开。
  */
 class PersonActivity : EdgeBackActivity() {
 
-    private lateinit var groups: LinearLayout
+    private lateinit var lines: LinearLayout
     private lateinit var status: TextView
-    private lateinit var chatBtn: Button
+    private lateinit var chatRow: LinearLayout
     private var userId = ""
     private var shown = ""
     private var busy = false
@@ -30,17 +32,21 @@ class PersonActivity : EdgeBackActivity() {
     override fun onCreate(s: Bundle?) {
         super.onCreate(s)
         setContentView(R.layout.activity_person)
-        groups = findViewById(R.id.groups)
+        lines = findViewById(R.id.lines)
         status = findViewById(R.id.status)
-        chatBtn = findViewById(R.id.chat)
+        chatRow = findViewById(R.id.chat)
         findViewById<Button>(R.id.back).setOnClickListener { finish() }
 
         userId = intent.getStringExtra("user") ?: ""
         shown = intent.getStringExtra("name") ?: ""
-        findViewById<TextView>(R.id.name).text = shown
-        findViewById<TextView>(R.id.ava).text = shown.take(1).uppercase()
-        chatBtn.setOnClickListener { startChat() }
+        showName(shown)
+        chatRow.setOnClickListener { startChat() }
         load()
+    }
+
+    private fun showName(nm: String) {
+        findViewById<TextView>(R.id.name).text = nm
+        findViewById<TextView>(R.id.ava).text = nm.take(1).uppercase()
     }
 
     private fun load() {
@@ -52,14 +58,11 @@ class PersonActivity : EdgeBackActivity() {
             runOnUiThread {
                 if (isFinishing) return@runOnUiThread
                 res.onSuccess { p ->
-                    shown = p.nickname.ifEmpty { p.username }.ifEmpty { shown }
-                    findViewById<TextView>(R.id.name).text = shown
-                    findViewById<TextView>(R.id.ava).text = shown.take(1).uppercase()
-                    findViewById<TextView>(R.id.meta).text =
-                        "@${p.username}" + if (p.id.isNotEmpty()) " · ID ${p.id}" else ""
+                    val nm = p.nickname.ifEmpty { p.username }
+                    shown = nm.ifEmpty { shown }
+                    showName(nm.ifEmpty { shown })
                     renderFields(p)
-                    status.text = "字段来自 GET :${Cfg.USER_PORT}/api/user/$userId；" +
-                        "空值不列，和桌面端好友信息那份白名单一致（部门/职务/邮箱/电话/个性签名）"
+                    status.text = "这几行来自 GET :${Cfg.USER_PORT}/api/user/$userId，后端是空串的字段就不列"
                 }.onFailure { status.text = "读取失败：${it.message}" }
             }
         }
@@ -67,23 +70,25 @@ class PersonActivity : EdgeBackActivity() {
 
     /** 只列后端真有值的那几行——摆一行空值等于摆了个没做的控件 */
     private fun renderFields(p: Api.Profile) {
-        groups.removeAllViews()
-        val rows = listOf(
-            "部门" to p.department, "职务" to p.position, "邮箱" to p.email,
-            "电话" to p.phone, "个性签名" to p.bio)
-        val filled = rows.filter { it.second.isNotEmpty() }
-        if (filled.isEmpty()) {
-            Rows.row(groups, "资料", "", hint = "对方资料都还没填", onClick = null)
-        } else {
-            filled.forEach { Rows.row(groups, it.first, it.second, onClick = null) }
-        }
-        Rows.endGroup(groups)
+        lines.removeAllViews()
+        listOf(
+            "账号" to p.username, "部门" to p.department, "职务" to p.position,
+            "邮箱" to p.email, "电话" to p.phone, "个性签名" to p.bio,
+            "用户 ID" to p.id)
+            .filter { it.second.isNotEmpty() }
+            .forEach { addLine("${it.first}：${it.second}") }
+    }
+
+    private fun addLine(text: String) {
+        val v = LayoutInflater.from(this).inflate(R.layout.item_person_line, lines, false)
+        v.findViewById<TextView>(R.id.line).text = text
+        lines.addView(v)
     }
 
     private fun startChat() {
         if (busy) return
         busy = true
-        chatBtn.isEnabled = false
+        chatRow.isClickable = false
         val base = Cfg.apiBase(this); val tk = Cfg.token(this); val me = Cfg.userId(this)
         status.text = "找会话中…"
         thread(name = "chat") {
@@ -96,7 +101,7 @@ class PersonActivity : EdgeBackActivity() {
             runOnUiThread {
                 if (isFinishing) return@runOnUiThread
                 busy = false
-                chatBtn.isEnabled = true
+                chatRow.isClickable = true
                 res.onSuccess { conv ->
                     startActivity(Intent(this, ChatActivity::class.java)
                         .putExtra("conv", conv).putExtra("name", shown))
