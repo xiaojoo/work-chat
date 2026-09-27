@@ -24,6 +24,12 @@ class ConversationListActivity : AppCompatActivity() {
         list.adapter = Adapter()
 
         findViewById<Button>(R.id.reload).setOnClickListener { load() }
+        // 自动进列表之后，换账号只能从这里走
+        findViewById<Button>(R.id.logout).setOnClickListener {
+            Cfg.clearToken(this)
+            startActivity(android.content.Intent(this, LoginActivity::class.java))
+            finish()
+        }
         load()
     }
 

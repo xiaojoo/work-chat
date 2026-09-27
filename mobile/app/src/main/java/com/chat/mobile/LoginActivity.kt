@@ -22,6 +22,16 @@ class LoginActivity : AppCompatActivity() {
 
         // 地址记本机：手机连开发机要填局域网 IP，每次重打太烦
         server.setText(Cfg.apiBase(this))
+        // 预填过的框，点下去要先全选——否则新字是接在后面，实测拼出过 127.0.0.1:8081127.0.0.1:8081
+        server.setSelectAllOnFocus(true)
+
+        /* 有令牌就直接进列表：手机上是"看一眼"的端，每次冷启动都重打一遍口令等于没做。
+           令牌过期会在列表页报"拉取失败"，那边有「退出」可以回到这里，不会出不去 */
+        if (Cfg.token(this).isNotEmpty() && Cfg.userId(this).isNotEmpty()) {
+            startActivity(Intent(this, ConversationListActivity::class.java))
+            finish()
+            return
+        }
 
         submit.setOnClickListener {
             val base = Cfg.normalize(server.text.toString())

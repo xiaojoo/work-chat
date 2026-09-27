@@ -25,6 +25,14 @@
             android:layout_height="wrap_content"
             android:minHeight="48dp"
             android:text="@string/reload" />
+
+        <!-- 自动进列表之后，这是唯一能换账号的口子，必须常驻 -->
+        <Button
+            android:id="@+id/logout"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:minHeight="48dp"
+            android:text="@string/logout" />
     </LinearLayout>
 
     <TextView

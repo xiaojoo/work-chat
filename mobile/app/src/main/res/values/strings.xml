@@ -8,4 +8,5 @@
     <string name="logging_in">登录中…</string>
     <string name="conversations_title">会话</string>
     <string name="reload">刷新</string>
+    <string name="logout">退出</string>
 </resources>
