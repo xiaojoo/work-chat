@@ -1,0 +1,38 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 工作台列表的一行，照微信「收藏」那张图的卡片形状：
+     左边标题 + 下面一行元信息，右边一个图标方块，再下面一行标签。
+     元信息只写真有的东西：它属于哪一组；标签行只写"未接后端"——不编描述文案。 -->
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent" android:layout_height="wrap_content"
+    android:orientation="vertical" android:background="@drawable/card_round"
+    android:padding="14dp">
+
+    <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content"
+        android:orientation="horizontal" android:gravity="center_vertical">
+
+        <LinearLayout android:layout_width="0dp" android:layout_height="wrap_content"
+            android:layout_weight="1" android:orientation="vertical">
+
+            <TextView android:id="@+id/name"
+                android:layout_width="match_parent" android:layout_height="wrap_content"
+                android:textSize="16sp" android:textColor="@color/ink" />
+
+            <TextView android:id="@+id/meta"
+                android:layout_width="match_parent" android:layout_height="wrap_content"
+                android:layout_marginTop="8dp"
+                android:textSize="12sp" android:textColor="@color/ink_dim2" />
+        </LinearLayout>
+
+        <FrameLayout android:layout_width="52dp" android:layout_height="52dp"
+            android:layout_marginStart="12dp" android:background="@drawable/tile_bg">
+            <ImageView android:id="@+id/ic"
+                android:layout_width="26dp" android:layout_height="26dp"
+                android:layout_gravity="center" android:contentDescription="" />
+        </FrameLayout>
+    </LinearLayout>
+
+    <TextView android:id="@+id/tag"
+        android:layout_width="wrap_content" android:layout_height="wrap_content"
+        android:layout_marginTop="10dp"
+        android:textSize="12sp" android:textColor="@color/brand" />
+</LinearLayout>

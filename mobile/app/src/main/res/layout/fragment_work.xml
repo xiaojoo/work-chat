@@ -1,5 +1,8 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- 工作台：微信「服务」那一屏的形状——灰底上几张白卡片，每张一个灰标题 + 四列图标 -->
+<!-- 工作台照微信「收藏」那张图的形状：搜索框 + 一排分类页签 + 竖排卡片列表。
+     页签和搜索都是真过滤（过滤本机这 11 条），不是摆着好看的。
+     原来底下那段"这 11 格是静态壳"的说明去掉了——现在每张卡的标签行自己写着「未接后端接口」，
+     同一件事不在一页上说两遍。 -->
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
     android:layout_width="match_parent" android:layout_height="match_parent"
     android:orientation="vertical" android:background="@color/nb_bg_3">
@@ -13,27 +16,39 @@
             android:textColor="@color/ink" />
     </FrameLayout>
 
+    <!-- 搜索框：白卡 + 放大镜 + 一个不留背景的输入框 -->
+    <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content"
+        android:orientation="horizontal" android:gravity="center_vertical"
+        android:layout_marginStart="10dp" android:layout_marginEnd="10dp"
+        android:layout_marginTop="10dp" android:padding="12dp"
+        android:background="@drawable/card_round">
+
+        <ImageView android:layout_width="18dp" android:layout_height="18dp"
+            android:src="@drawable/ic_m_menusearch" android:contentDescription="" />
+
+        <EditText android:id="@+id/search"
+            android:layout_width="0dp" android:layout_height="wrap_content"
+            android:layout_weight="1" android:layout_marginStart="8dp"
+            android:background="@null" android:maxLines="1"
+            android:textSize="15sp" android:textColor="@color/ink"
+            android:textColorHint="@color/ink_dim2" android:hint="搜索" />
+    </LinearLayout>
+
+    <!-- 分类页签：全部 / 工作台 / 内容 / AI，代码里塞进去 -->
+    <HorizontalScrollView android:layout_width="match_parent" android:layout_height="wrap_content"
+        android:layout_marginTop="14dp" android:scrollbars="none">
+
+        <LinearLayout android:id="@+id/tabs"
+            android:layout_width="wrap_content" android:layout_height="wrap_content"
+            android:orientation="horizontal" android:paddingStart="10dp" android:paddingEnd="10dp" />
+    </HorizontalScrollView>
+
     <ScrollView android:layout_width="match_parent" android:layout_height="0dp"
-        android:layout_weight="1" android:fillViewport="true">
+        android:layout_weight="1" android:scrollbars="none">
 
-        <!-- 顶上留 10dp：和卡片之间那道缝（WorkFragment 给 ci>0 的第一张加的 10dp）同一个节奏，
-             不留的话第一张白卡直接顶到标题栏下沿 -->
-        <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content"
+        <LinearLayout android:id="@+id/cards"
+            android:layout_width="match_parent" android:layout_height="wrap_content"
             android:orientation="vertical" android:paddingStart="10dp" android:paddingEnd="10dp"
-            android:paddingTop="10dp">
-
-            <LinearLayout android:id="@+id/cards"
-                android:layout_width="match_parent" android:layout_height="wrap_content"
-                android:orientation="vertical" />
-
-            <!-- 这块必须显眼，不是页脚小字：这些格子后端都没有接口，不说清楚就等于摆了一屏点不动的按钮 -->
-            <TextView android:id="@+id/note"
-                android:layout_width="match_parent" android:layout_height="wrap_content"
-                android:layout_marginTop="10dp" android:layout_marginBottom="12dp"
-                android:padding="14dp"
-                android:textSize="12sp" android:textColor="@color/ink_dim"
-                android:background="@drawable/card_round"
-                android:text="@string/workbench_note" />
-        </LinearLayout>
+            android:paddingTop="6dp" android:paddingBottom="12dp" />
     </ScrollView>
 </LinearLayout>
