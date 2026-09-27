@@ -1,0 +1,46 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 微信「更改名字」那一屏：顶栏左边返回、中间标题、右边保存，
+     下面一根下划线就是输入框，再下面一行灰字提示。不是模态框，是一整页 -->
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent" android:layout_height="match_parent"
+    android:orientation="vertical" android:background="@color/page_bg"
+    android:fitsSystemWindows="true">
+
+    <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content"
+        android:orientation="horizontal" android:gravity="center_vertical"
+        android:minHeight="52dp" android:paddingStart="6dp" android:paddingEnd="6dp"
+        android:background="@color/shell">
+
+        <Button android:id="@+id/back" style="@style/BackBtn"
+            android:layout_width="44dp" android:layout_height="44dp"
+            android:text="‹" />
+
+        <TextView android:id="@+id/title"
+            android:layout_width="0dp" android:layout_height="wrap_content"
+            android:layout_weight="1" android:gravity="center"
+            android:textSize="17sp" android:textStyle="bold" android:textColor="@color/ink"
+            android:maxLines="1" android:ellipsize="end" />
+
+        <Button android:id="@+id/save" style="@style/BackBtn"
+            android:layout_width="wrap_content" android:layout_height="44dp"
+            android:paddingStart="12dp" android:paddingEnd="12dp"
+            android:textSize="15sp" android:text="保存" />
+    </LinearLayout>
+
+    <View android:layout_width="match_parent" android:layout_height="1dp"
+        android:background="@color/line" />
+
+    <EditText android:id="@+id/input"
+        android:layout_width="match_parent" android:layout_height="wrap_content"
+        android:minHeight="56dp"
+        android:background="@drawable/field_underline"
+        android:paddingStart="16dp" android:paddingEnd="16dp"
+        android:layout_marginTop="12dp"
+        android:textSize="17sp" android:textColor="@color/ink"
+        android:textColorHint="@color/ink_dim2"
+        android:importantForAutofill="no" android:inputType="text" />
+
+    <TextView android:id="@+id/hint"
+        android:layout_width="match_parent" android:layout_height="wrap_content"
+        android:padding="16dp" android:textSize="13sp" android:textColor="@color/ink_dim2" />
+</LinearLayout>

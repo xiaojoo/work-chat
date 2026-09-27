@@ -1,5 +1,6 @@
 package com.chat.mobile
 
+import android.content.Intent
 import android.os.Bundle
 import android.view.LayoutInflater
 import android.widget.Button
@@ -17,7 +18,6 @@ class ProfileActivity : EdgeBackActivity() {
     private lateinit var rows: LinearLayout
     private lateinit var status: TextView
     private var prof: Api.Profile? = null
-    private lateinit var editor: ProfileEditor
 
     override fun onCreate(s: Bundle?) {
         super.onCreate(s)
@@ -25,13 +25,13 @@ class ProfileActivity : EdgeBackActivity() {
         rows = findViewById(R.id.groups)
         status = findViewById(R.id.status)
         findViewById<Button>(R.id.back).setOnClickListener { finish() }
-
-        editor = ProfileEditor(
-            host = this,
-            onSaved = { p -> prof = p; render(); status.text = "已保存，来源 PUT /api/user/profile" },
-            onBusy = { msg -> status.text = msg }
-        )
         load()
+    }
+
+    /** 从填写页回来要重读一次：改完名字回到这一页，值得跟着新 */
+    override fun onResume() {
+        super.onResume()
+        if (prof != null) load()
     }
 
     private fun load() {
@@ -60,7 +60,10 @@ class ProfileActivity : EdgeBackActivity() {
         fun editable(key: String) {
             val f = Fields.ALL.first { it.key == key }
             Rows.row(rows, f.label, Fields.value(p, key), "未填写") {
-                editor.edit(f, Fields.value(p, key))
+                startActivity(Intent(this, EditFieldActivity::class.java)
+                    .putExtra("label", f.label).putExtra("key", f.key)
+                    .putExtra("value", Fields.value(p, key))
+                    .putExtra("ime", f.ime).putExtra("max", f.max).putExtra("hint", f.hint))
             }
         }
         editable("nickname")

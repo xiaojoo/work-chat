@@ -4,11 +4,8 @@ import android.text.InputType
 import android.view.LayoutInflater
 import android.view.View
 import android.view.inputmethod.EditorInfo
-import android.widget.EditText
 import android.widget.LinearLayout
 import android.widget.TextView
-import androidx.appcompat.app.AlertDialog
-import kotlin.concurrent.thread
 
 /**
  * 微信那种「左标题 / 右值 / 箭头」的行。我页和个人信息页都从这里出，
@@ -64,20 +61,22 @@ object Rows {
 }
 
 /** 一行编辑框：标题、后端 PUT /user/profile 认的键、输入法、字数上限（后端 bio 截 200，这里先拦） */
-data class Field(val label: String, val key: String, val ime: Int, val max: Int = 0)
+data class Field(val label: String, val key: String, val ime: Int, val max: Int = 0, val hint: String = "")
 
 object Fields {
     private const val TEXT = InputType.TYPE_CLASS_TEXT
     private const val DONE = EditorInfo.IME_ACTION_DONE
+    /** 名字那句是照他给的那一屏抄的，其余几句只说这一页真做得到的事 */
+    private const val SHOWN = "保存后显示在个人信息页；留空即不填。"
 
     val ALL = listOf(
-        Field("名字", "nickname", TEXT or DONE),
-        Field("部门", "department", TEXT or DONE),
-        Field("职务", "position", TEXT or DONE),
-        Field("邮箱", "email", TEXT or InputType.TYPE_TEXT_VARIATION_EMAIL_ADDRESS or DONE),
-        Field("电话", "phone", InputType.TYPE_CLASS_PHONE or DONE),
+        Field("名字", "nickname", TEXT or DONE, 0, "好名字可以让你的朋友更容易记住你。"),
+        Field("部门", "department", TEXT or DONE, 0, SHOWN),
+        Field("职务", "position", TEXT or DONE, 0, SHOWN),
+        Field("邮箱", "email", TEXT or InputType.TYPE_TEXT_VARIATION_EMAIL_ADDRESS or DONE, 0, SHOWN),
+        Field("电话", "phone", InputType.TYPE_CLASS_PHONE or DONE, 0, SHOWN),
         Field("个性签名", "bio", TEXT or InputType.TYPE_TEXT_FLAG_MULTI_LINE or
-            EditorInfo.IME_FLAG_NO_EXTRACT_UI or DONE, 200)
+            EditorInfo.IME_FLAG_NO_EXTRACT_UI or DONE, 200, "最多 200 字，超出的部分后端会截掉。")
     )
 
     fun value(p: Api.Profile, key: String): String = when (key) {
@@ -87,41 +86,5 @@ object Fields {
         "email" -> p.email
         "phone" -> p.phone
         else -> p.bio
-    }
-}
-
-/** 改一处、PUT 一处、拿响应体刷界面；后端这个接口按 containsKey 逐条应用，所以只发被改的那个键 */
-class ProfileEditor(private val host: androidx.appcompat.app.AppCompatActivity,
-                    private val onSaved: (Api.Profile) -> Unit,
-                    private val onBusy: (String) -> Unit) {
-
-    fun edit(f: Field, current: String) {
-        val input = EditText(host).apply {
-            setText(current); setSelection(current.length)
-            hint = f.label; inputType = f.ime
-            setSingleLine(f.max == 0)
-            if (f.max > 0) filters = arrayOf(android.text.InputFilter.LengthFilter(f.max))
-            setPadding(48, 24, 48, 8)
-        }
-        AlertDialog.Builder(host)
-            .setTitle("修改${f.label}")
-            .setView(input)
-            .setNegativeButton("取消") { d, _ -> d.dismiss() }
-            .setPositiveButton("保存") { d, _ ->
-                val text = input.text.toString().trim()
-                d.dismiss()
-                onBusy("保存中…")
-                thread(name = "profile-put") {
-                    val res = runCatching {
-                        Api(Cfg.apiBase(host), Cfg.token(host))
-                            .updateProfile(f.key, text, Cfg.userId(host))
-                    }
-                    host.runOnUiThread {
-                        res.onSuccess(onSaved)
-                            .onFailure { onBusy("保存失败：${it.message}") }
-                    }
-                }
-            }
-            .show()
     }
 }
