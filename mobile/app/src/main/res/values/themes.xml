@@ -28,6 +28,17 @@
         <item name="android:textColor">@color/tab_tint</item>
     </style>
 
+    <!-- 顶栏那颗返回 ‹：无边框只留按下反馈。原生 Button 的灰底在浅灰顶栏上是一块明显的方疙瘩 -->
+    <style name="BackBtn" parent="Widget.AppCompat.Button.Borderless">
+        <item name="android:textColor">@color/ink</item>
+        <item name="android:textSize">22sp</item>
+        <item name="android:paddingLeft">0dp</item>
+        <item name="android:paddingRight">0dp</item>
+        <item name="android:insetTop">0dp</item>
+        <item name="android:insetBottom">0dp</item>
+        <item name="android:stateListAnimator">@null</item>
+    </style>
+
     <!-- 微信式的行：白底、左图标/头像、中间两行文字、右箭头，底部一条分隔线 -->
     <style name="RowItem">
         <item name="android:layout_width">match_parent</item>

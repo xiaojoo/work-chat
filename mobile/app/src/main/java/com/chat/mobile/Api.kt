@@ -22,10 +22,11 @@ class Api(private val base: String, private val token: String = "") {
 
     class Failure(message: String) : Exception(message)
 
-    private fun call(path: String, body: String? = null, method: String = if (body == null) "GET" else "POST"): String {
+    private fun call(path: String, body: String? = null, method: String? = null): String {
         val builder = Request.Builder().url(base.trimEnd('/') + path)
         if (token.isNotEmpty()) builder.addHeader("Authorization", "Bearer $token")
-        builder.method(method, body?.toRequestBody("application/json; charset=utf-8".toMediaType()))
+        val verb = method ?: if (body == null) "GET" else "POST"
+        builder.method(verb, body?.toRequestBody("application/json; charset=utf-8".toMediaType()))
         http.newCall(builder.build()).execute().use { resp ->
             val text = resp.body?.string() ?: ""
             if (!resp.isSuccessful) throw Failure("${resp.code} ${text.take(120)}")
@@ -105,20 +106,32 @@ class Api(private val base: String, private val token: String = "") {
         val id: String, val username: String, val nickname: String, val avatar: String,
         val department: String, val position: String, val email: String, val phone: String, val bio: String)
 
+    /** 后端只认这四个字面键，多传的会被无视；body 是 Map<String,String>，所以值不能为 null */
+    private fun toProfile(o: JSONObject, fallbackId: String) = Profile(
+        id = o.opt("id")?.toString() ?: fallbackId,
+        username = str(o, "username"),
+        nickname = str(o, "nickname"),
+        avatar = str(o, "avatar"),
+        department = str(o, "department"),
+        position = str(o, "position"),
+        email = str(o, "email"),
+        phone = str(o, "phone"),
+        bio = str(o, "bio"))
+
     /** GET /api/user/{id}。remark、location 后端恒返回空串且没有任何写入路径，不收进这个类 */
     fun profile(userId: String): Profile {
         val o = JSONObject(call("/api/user/$userId"))
         val err = o.optString("error")
         if (err.isNotEmpty()) throw Failure(err)
-        return Profile(
-            id = o.opt("id")?.toString() ?: userId,
-            username = str(o, "username"),
-            nickname = str(o, "nickname"),
-            avatar = str(o, "avatar"),
-            department = str(o, "department"),
-            position = str(o, "position"),
-            email = str(o, "email"),
-            phone = str(o, "phone"),
-            bio = str(o, "bio"))
+        return toProfile(o, userId)
+    }
+
+    /** PUT /api/user/profile：只发改动了的那一个键（UserController 按 containsKey 逐条应用），
+     *  返回体就是新资料，直接拿它刷界面，不用再多打一次 GET。 */
+    fun updateProfile(key: String, value: String, userId: String): Profile {
+        val o = JSONObject(call("/api/user/profile", JSONObject().put(key, value).toString(), "PUT"))
+        val err = o.optString("error")
+        if (err.isNotEmpty()) throw Failure(err)
+        return toProfile(o, userId)
     }
 }

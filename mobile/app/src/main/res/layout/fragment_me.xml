@@ -1,50 +1,52 @@
 <?xml version="1.0" encoding="utf-8"?>
 <ScrollView xmlns:android="http://schemas.android.com/apk/res/android"
     android:layout_width="match_parent" android:layout_height="match_parent"
-    android:background="@color/nb_bg_3" android:fillViewport="true">
+    android:background="@color/page_bg" android:fillViewport="true">
 
     <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content"
         android:orientation="vertical">
 
-        <!-- 「我」顶部这张卡：底对齐桌面端标题栏那层 shell，头像 38 方角 9 -->
-        <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content"
+        <!-- 微信「我」顶部这张卡：整块可点，点进去是个人信息页。
+             底色用 nb-bg-1（卡片面），按下反馈走 foreground，不盖掉白底 -->
+        <LinearLayout android:id="@+id/card"
+            android:layout_width="match_parent" android:layout_height="wrap_content"
             android:orientation="horizontal" android:gravity="center_vertical"
-            android:background="@color/shell"
-            android:padding="16dp">
+            android:minHeight="76dp"
+            android:background="@color/surface"
+            android:foreground="?attr/selectableItemBackground"
+            android:paddingStart="16dp" android:paddingEnd="12dp"
+            android:paddingTop="14dp" android:paddingBottom="14dp">
+
             <TextView android:id="@+id/ava"
                 android:layout_width="52dp" android:layout_height="52dp"
                 android:gravity="center" android:textSize="20sp" android:textStyle="bold"
                 android:textColor="#FFFFFF" android:background="@drawable/ava_square" />
+
             <LinearLayout android:layout_width="0dp" android:layout_height="wrap_content"
-                android:layout_weight="1" android:layout_marginStart="12dp" android:orientation="vertical">
+                android:layout_weight="1" android:layout_marginStart="14dp"
+                android:orientation="vertical">
                 <TextView android:id="@+id/name"
                     android:layout_width="match_parent" android:layout_height="wrap_content"
-                    android:textSize="16sp" android:textStyle="bold" android:textColor="@color/ink"
+                    android:textSize="17sp" android:textStyle="bold" android:textColor="@color/ink"
                     android:maxLines="1" android:ellipsize="end" />
                 <TextView android:id="@+id/account"
                     android:layout_width="match_parent" android:layout_height="wrap_content"
-                    android:layout_marginTop="3dp"
-                    android:textSize="12sp" android:textColor="@color/ink_dim"
+                    android:layout_marginTop="4dp"
+                    android:textSize="13sp" android:textColor="@color/ink_dim"
                     android:maxLines="1" android:ellipsize="end" />
             </LinearLayout>
+
+            <ImageView android:layout_width="16dp" android:layout_height="16dp"
+                android:layout_marginStart="6dp"
+                android:src="@drawable/chevron_right" android:contentDescription="" />
         </LinearLayout>
 
-        <LinearLayout android:id="@+id/fields"
+        <LinearLayout android:id="@+id/groups"
             android:layout_width="match_parent" android:layout_height="wrap_content"
-            android:layout_marginTop="8dp"
-            android:orientation="vertical" android:background="@color/surface" />
-
-        <Button android:id="@+id/logout"
-            android:layout_width="match_parent" android:layout_height="wrap_content"
-            android:layout_marginTop="8dp"
-            android:minHeight="48dp"
-            android:background="@color/surface"
-            android:textColor="@color/danger" android:textSize="14sp"
-            android:text="退出登录" />
+            android:orientation="vertical" />
 
         <TextView android:id="@+id/status"
             android:layout_width="match_parent" android:layout_height="wrap_content"
             android:padding="12dp" android:textSize="11sp" android:textColor="@color/ink_dim2" />
-
     </LinearLayout>
 </ScrollView>

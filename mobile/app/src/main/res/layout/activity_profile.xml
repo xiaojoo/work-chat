@@ -1,0 +1,41 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 个人信息页：顶栏（返回 ‹ + 标题）+ 一组微信式行，行在代码里按接口字段拼出来 -->
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent" android:layout_height="match_parent"
+    android:orientation="vertical" android:background="@color/page_bg">
+
+    <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content"
+        android:orientation="horizontal" android:gravity="center_vertical"
+        android:minHeight="52dp" android:paddingStart="6dp" android:paddingEnd="14dp"
+        android:background="@color/shell">
+
+        <Button android:id="@+id/back" style="@style/BackBtn"
+            android:layout_width="44dp" android:layout_height="44dp"
+            android:text="‹" />
+
+        <TextView android:id="@+id/title"
+            android:layout_width="0dp" android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:textSize="17sp" android:textStyle="bold" android:textColor="@color/ink"
+            android:maxLines="1" android:ellipsize="end" android:text="个人信息" />
+    </LinearLayout>
+
+    <View android:layout_width="match_parent" android:layout_height="1dp"
+        android:background="@color/line" />
+
+    <ScrollView android:layout_width="match_parent" android:layout_height="0dp"
+        android:layout_weight="1" android:fillViewport="true">
+
+        <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content"
+            android:orientation="vertical">
+
+            <LinearLayout android:id="@+id/groups"
+                android:layout_width="match_parent" android:layout_height="wrap_content"
+                android:orientation="vertical" />
+
+            <TextView android:id="@+id/status"
+                android:layout_width="match_parent" android:layout_height="wrap_content"
+                android:padding="12dp" android:textSize="11sp" android:textColor="@color/ink_dim2" />
+        </LinearLayout>
+    </ScrollView>
+</LinearLayout>

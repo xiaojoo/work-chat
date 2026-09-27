@@ -1,0 +1,30 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 个人信息页第一行「头像」：右边放那张方头像是给人看的，不是给人点的
+     （后端只有 avatar 一个字符串字段，没有上传接口，所以不给箭头） -->
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent" android:layout_height="wrap_content"
+    android:orientation="vertical" android:background="@color/surface">
+
+    <LinearLayout
+        android:layout_width="match_parent" android:layout_height="wrap_content"
+        android:minHeight="52dp" android:orientation="horizontal" android:gravity="center_vertical"
+        android:paddingStart="16dp" android:paddingEnd="12dp">
+
+        <TextView android:id="@+id/label"
+            android:layout_width="wrap_content" android:layout_height="wrap_content"
+            android:minWidth="88dp"
+            android:textSize="16sp" android:textColor="@color/ink" android:text="头像" />
+
+        <View android:layout_width="0dp" android:layout_height="1dp" android:layout_weight="1" />
+
+        <TextView android:id="@+id/ava"
+            android:layout_width="44dp" android:layout_height="44dp"
+            android:gravity="center" android:textSize="17sp" android:textStyle="bold"
+            android:textColor="#FFFFFF" android:background="@drawable/ava_square" />
+    </LinearLayout>
+
+    <View android:id="@+id/line"
+        android:layout_width="match_parent" android:layout_height="1dp"
+        android:layout_marginStart="16dp"
+        android:background="@color/line_soft" />
+</LinearLayout>

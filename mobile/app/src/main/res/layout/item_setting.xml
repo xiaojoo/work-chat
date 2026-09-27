@@ -1,0 +1,37 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 微信设置页那种行：白底、左标题、右值+箭头、底部一条从文字起头的浅线。
+     分隔线左边缩进 16dp（线从文字起，不顶到卡片左缘），和桌面端 .member-info-row 同一做法 -->
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent" android:layout_height="wrap_content"
+    android:orientation="vertical" android:background="@color/surface">
+
+    <LinearLayout
+        android:id="@+id/tappable"
+        android:layout_width="match_parent" android:layout_height="wrap_content"
+        android:minHeight="52dp" android:orientation="horizontal" android:gravity="center_vertical"
+        android:background="?attr/selectableItemBackground"
+        android:paddingStart="16dp" android:paddingEnd="12dp">
+
+        <TextView android:id="@+id/label"
+            android:layout_width="wrap_content" android:layout_height="wrap_content"
+            android:minWidth="88dp"
+            android:textSize="16sp" android:textColor="@color/ink" />
+
+        <TextView android:id="@+id/value"
+            android:layout_width="0dp" android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:gravity="end"
+            android:textSize="15sp" android:textColor="@color/ink_dim"
+            android:maxLines="1" android:ellipsize="end" />
+
+        <ImageView android:id="@+id/chev"
+            android:layout_width="16dp" android:layout_height="16dp"
+            android:layout_marginStart="6dp"
+            android:src="@drawable/chevron_right" android:contentDescription="" />
+    </LinearLayout>
+
+    <View android:id="@+id/line"
+        android:layout_width="match_parent" android:layout_height="1dp"
+        android:layout_marginStart="16dp"
+        android:background="@color/line_soft" />
+</LinearLayout>
