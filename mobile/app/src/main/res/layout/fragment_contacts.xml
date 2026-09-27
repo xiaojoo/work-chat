@@ -21,9 +21,7 @@
 
             <androidx.recyclerview.widget.RecyclerView
                 android:id="@+id/list"
-                android:layout_width="match_parent" android:layout_height="match_parent"
-                android:paddingStart="8dp" android:paddingEnd="8dp"
-                android:clipToPadding="false" />
+                android:layout_width="match_parent" android:layout_height="match_parent" />
         </androidx.swiperefreshlayout.widget.SwipeRefreshLayout>
 
         <!-- 吸顶的那条和列表里真正的组头是同一副长相（head_line / 12sp / ink_dim），
