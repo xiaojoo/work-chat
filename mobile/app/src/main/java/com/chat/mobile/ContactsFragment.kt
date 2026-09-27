@@ -1,5 +1,6 @@
 package com.chat.mobile
 
+import android.content.Intent
 import android.os.Bundle
 import android.view.LayoutInflater
 import android.view.View
@@ -17,8 +18,10 @@ class ContactsFragment : Fragment() {
     private sealed interface Line
     private data class Head(val letter: String) : Line
     private data class Person(val f: Api.Friend) : Line
+    private data class GroupLine(val c: Api.Conversation) : Line
 
     private val lines = ArrayList<Line>()
+    private var allLines = ArrayList<Line>()
     private lateinit var list: RecyclerView
     private lateinit var status: TextView
     private lateinit var rail: LinearLayout
@@ -26,6 +29,7 @@ class ContactsFragment : Fragment() {
     private lateinit var bubble: TextView
     private lateinit var refresh: SwipeRefreshLayout
     private var friends = listOf<Api.Friend>()
+    private var groupConvs = listOf<Api.Conversation>()
 
     /** 索引条铺满 26+#，不是只摆"有人的那几个"：微信那一条是常驻全字母，
      *  只有 1 个联系人时也能看出这是一条 A-Z，而不是一排散字 */
@@ -92,7 +96,7 @@ class ContactsFragment : Fragment() {
         val letter = keys[if (hit >= 0) hit else keys.size - 1]
         var guard = 0
         while (lines.indexOfFirst { it is Head && it.letter == letter } < 0 &&
-            shownPeople < friends.size && guard++ < 40) loadMore()
+            lines.size < allLines.size && guard++ < 40) loadMore()
         jumpTo(letter)
     }
 
@@ -102,21 +106,22 @@ class ContactsFragment : Fragment() {
 
     private fun load() {
         val base = Cfg.apiBase(requireContext()); val tk = Cfg.token(requireContext())
+        val uid = Cfg.userId(requireContext())
         if (base.isEmpty() || tk.isEmpty()) { status.text = "还没登录"; refresh.isRefreshing = false; return }
         refresh.isRefreshing = true
         status.text = "加载中…"
         thread(name = "friends") {
-            try {
-                val got = Api(base, tk).friends()
-                activity?.runOnUiThread {
-                    refresh.isRefreshing = false
-                    if (isAdded) { friends = got; rebuild() }
-                }
-            } catch (e: Exception) {
-                activity?.runOnUiThread {
-                    refresh.isRefreshing = false
-                    if (isAdded) status.text = "拉取失败：${e.message}"
-                }
+            /* 群聊没有"我的群列表"这个口，但 /conversation/list 里 type=2 的就是我加入的群，
+               桌面端的群也是从这儿来的，所以不另开服务 */
+            val res = runCatching {
+                Api(base, tk).friends() to
+                    Api(base, tk).conversations(uid).filter { it.type == 2 }
+            }
+            activity?.runOnUiThread {
+                refresh.isRefreshing = false
+                if (!isAdded) return@runOnUiThread
+                res.onSuccess { (f, g) -> friends = f; groupConvs = g; rebuild() }
+                    .onFailure { status.text = "拉取失败：${it.message}" }
             }
         }
     }
@@ -132,6 +137,15 @@ class ContactsFragment : Fragment() {
             groups[k] = ArrayList(byLetter[k]!!.sortedWith { a, b -> Pinyin.compare(name(a), name(b)) })
         }
         lines.clear(); shownHeads = 0; shownPeople = 0
+        allLines = ArrayList()
+        if (groupConvs.isNotEmpty()) {
+            allLines.add(Head("群聊"))
+            groupConvs.forEach { allLines.add(GroupLine(it)) }
+        }
+        for ((letter, fs) in groups) {
+            allLines.add(Head(letter))
+            fs.forEach { allLines.add(Person(it)) }
+        }
         emit(PAGE)
         list.adapter?.notifyDataSetChanged()
         buildRail()
@@ -141,34 +155,26 @@ class ContactsFragment : Fragment() {
 
     private var groups = LinkedHashMap<String, ArrayList<Api.Friend>>()
 
-    /** 一行行摊平成 [组标题, 人, 人, 组标题, ...]，一次摊到 n 行。
-     *  每次都从头摊（不是往上追加）——之前那种"追加"会把已摊过的组再摊一遍，
-     *  联系人一多整列表就成对重复，只是当时只有 1 个联系人没触发到 */
+    /** 一次摊出前 n 行。整表 allLines 一次算好，这里只截前缀——
+     *  之前那种"往上追加"会把摊过的组再摊一遍，联系人一多整列表成对重复 */
     private fun emit(n: Int) {
         lines.clear()
-        var emitted = 0
-        outer@ for ((letter, fs) in groups) {
-            if (emitted >= n) break
-            lines.add(Head(letter)); emitted++
-            for (f in fs) {
-                if (emitted >= n) break@outer
-                lines.add(Person(f)); emitted++
-            }
-        }
+        lines.addAll(allLines.take(n))
         shownHeads = lines.count { it is Head }
-        shownPeople = lines.count { it is Person }
+        shownPeople = lines.count { it !is Head }
     }
 
     private fun loadMore() {
-        if (shownPeople >= friends.size) return
+        if (lines.size >= allLines.size) return
         val from = lines.size
         emit(lines.size + PAGE)
-        if (lines.size > from) list.adapter?.notifyItemRangeInserted(from, lines.size - from)
+        list.adapter?.notifyItemRangeInserted(from, lines.size - from)
         renderMeta()
     }
 
     private fun renderMeta() {
-        status.text = "${friends.size} 位联系人 · 已显示 $shownPeople（$shownHeads 组）· 接口无分页参数"
+        status.text = "${friends.size} 位联系人 · ${groupConvs.size} 个群聊 · " +
+            "已显示 $shownPeople/${allLines.size - shownHeads}（$shownHeads 组）· 接口无分页参数"
     }
 
     private fun name(f: Api.Friend) = f.nickname.ifEmpty { f.username }
@@ -237,6 +243,19 @@ class ContactsFragment : Fragment() {
                     v.sub.text = "@${ln.f.username}"
                     v.itemView.setOnClickListener {
                         android.widget.Toast.makeText(requireContext(), "和 $nm 的会话在「微信」页里开", android.widget.Toast.LENGTH_SHORT).show()
+                    }
+                }
+                /** 群聊这一档：桌面端的群本来就在会话列表里，这里给的是同一个入口，
+                 *  点了直接进 ChatActivity，不是又造一份数据 */
+                is GroupLine -> {
+                    val v = h as PersonVH
+                    val nm = ln.c.name.ifEmpty { "群聊 ${ln.c.id}" }
+                    v.ava.text = nm.take(1).uppercase()
+                    v.name.text = nm
+                    v.sub.text = "群聊" + if (ln.c.unread > 0) " · ${ln.c.unread} 条未读" else ""
+                    v.itemView.setOnClickListener {
+                        startActivity(Intent(requireContext(), ChatActivity::class.java)
+                            .putExtra("conv", ln.c.id).putExtra("name", nm))
                     }
                 }
             }
