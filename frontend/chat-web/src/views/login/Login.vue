@@ -281,4 +281,15 @@ function cancel() {
   .right { display: none; }
   .left { padding: 14px 22px; }
 }
+
+/* 手机宽度下的命中区（实测 392 真机：输入格 17px 高、显示密码 26x26、
+   记住我 59x19、忘记密码 56x19，都在拇指下限以下）。
+   单独开一档 430px，不并进上面那个 880 段——那是给平板/窄窗口用的，
+   把这几项塞进去会顺手改掉桌面窄窗时的尺寸 */
+@media (max-width: 430px) {
+  /* .fld 有 44px 高，但里面 input 只有内容那么高，点空白处放不进光标 */
+  .fld input { min-height: 30px; }
+  .eye { width: 30px; height: 30px; flex: 0 0 30px; }
+  .ck, .fgt { min-height: 30px; padding-left: 8px; padding-right: 8px; }
+}
 </style>

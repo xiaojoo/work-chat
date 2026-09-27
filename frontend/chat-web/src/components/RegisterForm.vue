@@ -107,4 +107,12 @@ defineExpose({ busy, submit })
 .hide { visibility: hidden; }
 .err.slot { margin-top: 14px; }
 .slot { margin-top: 0; }
+
+/* 注册表单归本组件：Login.vue 那份 scoped 的 .fld input 够不到这里
+   （实测注册面板 input 的 computed minHeight = auto，登录面板才是 30px）。
+   手机宽度下命中区同一条判据抬到 30px */
+@media (max-width: 430px) {
+  .fld input { min-height: 30px; }
+  .eye { width: 30px; height: 30px; flex: 0 0 30px; }
+}
 </style>
