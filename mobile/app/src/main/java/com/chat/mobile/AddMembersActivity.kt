@@ -65,7 +65,7 @@ class AddMembersActivity : EdgeBackActivity() {
                         v.ava.text = nm.take(1).uppercase()
                         v.name.text = nm
                         v.sub.text = listOf(r.p.position, r.p.username).filter { it.isNotEmpty() }.joinToString(" · ")
-                        v.line.visibility = View.VISIBLE
+                        v.line.visibility = if (rows.getOrNull(i + 1) is Dept) View.GONE else View.VISIBLE
                         v.itemView.setOnClickListener { confirm(r.p, nm) }
                     }
                 }

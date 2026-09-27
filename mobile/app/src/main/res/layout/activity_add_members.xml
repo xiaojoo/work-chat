@@ -22,12 +22,12 @@
     <View android:layout_width="match_parent" android:layout_height="1dp"
         android:background="@color/line" />
 
+    <!-- 行不留左右内边距：整行白底和组头那条灰带都铺到屏幕两边，
+         留 8dp 会让灰带比上面的白行窄一截，底边看着就不是直线了 -->
     <androidx.recyclerview.widget.RecyclerView
         android:id="@+id/list"
         android:layout_width="match_parent" android:layout_height="0dp"
-        android:layout_weight="1"
-        android:paddingStart="8dp" android:paddingEnd="8dp"
-        android:clipToPadding="false" />
+        android:layout_weight="1" />
 
     <TextView android:id="@+id/status"
         android:layout_width="match_parent" android:layout_height="wrap_content"
