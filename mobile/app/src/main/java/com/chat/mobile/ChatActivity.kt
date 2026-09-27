@@ -7,8 +7,13 @@ import android.view.View
 import android.view.ViewGroup
 import android.widget.Button
 import android.widget.EditText
+import android.widget.GridLayout
+import android.widget.ImageView
 import android.widget.LinearLayout
+import android.widget.PopupWindow
 import android.widget.TextView
+import android.widget.Toast
+import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
@@ -29,6 +34,10 @@ class ChatActivity : EdgeBackActivity() {
     private lateinit var state: TextView
     private val msgs = ArrayList<JSONObject>()
     private lateinit var adapter: Adapter
+    private var pop: android.widget.PopupWindow? = null
+
+    /** 服务端也按 2 分钟判，这里只是不把必然失败的入口摆出来（和桌面端同一个数） */
+    private val REVOKE_MS = 2 * 60 * 1000L
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -178,7 +187,95 @@ class ChatActivity : EdgeBackActivity() {
             val tail = if (self) 0xFF2B6BE8.toInt() else 0xFFF0F3F8.toInt()
             h.tailL.setColorFilter(tail, android.graphics.PorterDuff.Mode.SRC_IN)
             h.tailR.setColorFilter(tail, android.graphics.PorterDuff.Mode.SRC_IN)
+            /* 长按要挂在整行、不能挂在气泡上：气泡是 TextView，MIUI 的「文本识别」会先吃掉
+               TextView 自己的长按（实测弹出来的是系统的识别条，我们的菜单根本没出现）。
+               整行是 LinearLayout，没有这套内置处理。 */
+            h.bubble.setTextIsSelectable(false)
+            h.itemView.setOnLongClickListener { showMsgMenu(h.bubble, m, self); true }
         }
+    }
+
+    /** 长按一条消息 → 桌面端右键那十二项，这里改成五列一行的格子（微信那种双行排法）。
+     *  真能做的只有「复制」和「撤回」，其余按桌面端同样的口径画淡、点了不响应。 */
+    private fun showMsgMenu(anchor: View, m: JSONObject, self: Boolean) {
+        val isText = (m.optString("messageType").ifEmpty { "TEXT" }) == "TEXT"
+        val canRevoke = self && !mId(m).startsWith("local-") && mId(m).isNotEmpty() &&
+            System.currentTimeMillis() - tsOf(m) <= REVOKE_MS
+        val items = listOf(
+            MItem("复制", R.drawable.ic_m_copy, isText) { copyMsg(m) },
+            MItem("放大阅读", R.drawable.ic_m_zoom, false),
+            MItem("翻译", R.drawable.ic_m_translate, false),
+            MItem("搜一搜", R.drawable.ic_m_menusearch, false),
+            MItem("转发…", R.drawable.ic_m_forward, false),
+            MItem("收藏", R.drawable.ic_m_menustar, false),
+            MItem("多选", R.drawable.ic_m_multi, false),
+            MItem("提醒", R.drawable.ic_m_remind, false),
+            MItem("引用", R.drawable.ic_m_quote, false),
+            MItem("删除", R.drawable.ic_m_trash, false),
+            MItem("撤回", R.drawable.ic_m_undo, canRevoke) { confirmRevoke(m) }
+        )
+        val grid = layoutInflater.inflate(R.layout.popup_msg_menu, null) as GridLayout
+        items.forEach { it0 ->
+            val cell = layoutInflater.inflate(R.layout.item_msg_menu, grid, false)
+            cell.findViewById<ImageView>(R.id.ic).setImageResource(it0.icon)
+            cell.findViewById<TextView>(R.id.name).text = it0.name
+            cell.alpha = if (it0.on) 1f else 0.4f
+            if (it0.on) cell.setOnClickListener { pop?.dismiss(); it0.run() }
+            else cell.isClickable = false
+            grid.addView(cell, GridLayout.LayoutParams().apply {
+                width = 0
+                columnSpec = GridLayout.spec(GridLayout.UNDEFINED, 1f)
+                rowSpec = GridLayout.spec(GridLayout.UNDEFINED)
+            })
+        }
+        val p = PopupWindow(grid,
+            ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT, true)
+        p.isOutsideTouchable = true
+        p.elevation = 12f * resources.displayMetrics.density
+        pop = p
+        p.setOnDismissListener { pop = null }
+        /* 格子是五列 columnWeight 均分，用 UNSPECIFIED 去量会得到宽度 0 ——
+           弹出来就是一个看不见的窗。所以定宽 5×62dp，再交给 showAsDropDown 自己决定上下翻。 */
+        val w = (62 * 5 * resources.displayMetrics.density).toInt()
+        p.width = w
+        /* 以整行为参照居中（气泡贴左也贴右，跟着气泡走会顶出屏幕），
+           纵向交给 showAsDropDown：底下放不下它自己翻到上面 */
+        val row = anchor.parent as View
+        val a = IntArray(2); anchor.getLocationInWindow(a)
+        val r = IntArray(2); row.getLocationInWindow(r)
+        val xoff = (r[0] + row.width / 2 - a[0]) - w / 2
+        p.showAsDropDown(anchor, xoff, (8 * resources.displayMetrics.density).toInt())
+    }
+
+    private data class MItem(val name: String, val icon: Int, val on: Boolean, val run: () -> Unit = {})
+
+    /** 服务端回来的这条消息的 id：本地回显的那份是 local- 开头，没有可撤回的对象 */
+    private fun mId(m: JSONObject): String =
+        (m.opt("messageId") ?: m.opt("id"))?.toString() ?: ""
+
+    private fun tsOf(m: JSONObject): Long = try {
+        val t = m.optString("createTime")
+        if (t.isEmpty()) 0L else OffsetDateTime.parse(t).toInstant().toEpochMilli()
+    } catch (e: Exception) { 0L }
+
+    private fun copyMsg(m: JSONObject) {
+        val cm = getSystemService(CLIPBOARD_SERVICE) as android.content.ClipboardManager
+        cm.setPrimaryClip(android.content.ClipData.newPlainText("message", m.optString("content")))
+        Toast.makeText(this, "已复制", Toast.LENGTH_SHORT).show()
+    }
+
+    private fun confirmRevoke(m: JSONObject) {
+        AlertDialog.Builder(this)
+            .setTitle("撤回这条消息")
+            .setMessage("发出去不超过 2 分钟才让撤。撤回后这条在服务器上是 DELETED，两边界面都会变。")
+            .setNegativeButton("取消") { d, _ -> d.dismiss() }
+            .setPositiveButton("撤回") { _, _ ->
+                ws?.send("MESSAGE_DELETE", JSONObject()
+                    .put("conversationId", convId)
+                    .put("messageId", mId(m)))
+                Toast.makeText(this, "已发撤回", Toast.LENGTH_SHORT).show()
+            }
+            .show()
     }
 
     /** createTime 是带 Z 的 UTC（实测 2026-09-27T05:06:30.586Z 在手机上印成 05:06，

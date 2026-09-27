@@ -49,6 +49,8 @@
             android:paddingBottom="7dp"
             android:textSize="14sp"
             android:textColor="@color/ink"
+            android:gravity="center_vertical"
+            android:minHeight="34dp"
             android:maxWidth="260dp" />
 
         <ImageView

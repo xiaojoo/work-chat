@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 长按消息弹出的那一块：白底 + 一圈浅线 + 10 圆角（复用 menu_bg），五列一行、排两到三行 -->
+<GridLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@+id/grid"
+    android:layout_width="wrap_content" android:layout_height="wrap_content"
+    android:columnCount="5"
+    android:background="@drawable/menu_bg"
+    android:paddingStart="4dp" android:paddingEnd="4dp"
+    android:paddingTop="6dp" android:paddingBottom="6dp" />

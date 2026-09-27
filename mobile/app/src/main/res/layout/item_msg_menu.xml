@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 长按消息那排菜单的一格：图形在上、字在下，整格可点。
+     做不了的那几项字和图形都画淡（alpha 0.4），点了不响应——和桌面端 off 项同一口径 -->
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="0dp" android:layout_height="wrap_content"
+    android:layout_columnWeight="1"
+    android:minWidth="60dp" android:minHeight="62dp"
+    android:orientation="vertical" android:gravity="center"
+    android:background="?attr/selectableItemBackground"
+    android:paddingStart="6dp" android:paddingEnd="6dp"
+    android:paddingTop="8dp" android:paddingBottom="8dp">
+
+    <ImageView android:id="@+id/ic"
+        android:layout_width="22dp" android:layout_height="22dp"
+        android:contentDescription="" />
+
+    <TextView android:id="@+id/name"
+        android:layout_width="wrap_content" android:layout_height="wrap_content"
+        android:layout_marginTop="5dp"
+        android:textSize="11sp" android:textColor="@color/ink"
+        android:maxLines="1" />
+</LinearLayout>
