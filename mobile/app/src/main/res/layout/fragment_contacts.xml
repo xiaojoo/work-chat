@@ -26,10 +26,32 @@
                 android:clipToPadding="false" />
         </androidx.swiperefreshlayout.widget.SwipeRefreshLayout>
 
+        <!-- 吸顶的那条和列表里真正的组头是同一副长相（sec_bg / 11sp / ink_dim2），
+             钉住时看不出是另一块东西 -->
+        <TextView android:id="@+id/sticky"
+            android:layout_width="match_parent" android:layout_height="wrap_content"
+            android:layout_gravity="top"
+            android:layout_marginStart="8dp" android:layout_marginEnd="8dp"
+            android:layout_marginTop="4dp"
+            android:minHeight="24dp" android:gravity="center_vertical"
+            android:paddingStart="8dp" android:paddingEnd="8dp"
+            android:background="@drawable/sec_bg"
+            android:textSize="11sp" android:textColor="@color/ink_dim2"
+            android:visibility="gone" />
+
+        <!-- 微信那条 A-Z：整列铺满高度，手指可以顺着滑，字母跟着跳；
+             按中的那颗在中间吐一个气泡回显 -->
         <LinearLayout android:id="@+id/rail"
-            android:layout_width="wrap_content" android:layout_height="wrap_content"
-            android:layout_gravity="end|center_vertical"
-            android:orientation="vertical" android:paddingEnd="4dp" />
+            android:layout_width="28dp" android:layout_height="match_parent"
+            android:layout_gravity="end"
+            android:orientation="vertical" android:gravity="center_vertical" />
+
+        <TextView android:id="@+id/bubble"
+            android:layout_width="64dp" android:layout_height="64dp"
+            android:layout_gravity="center"
+            android:gravity="center" android:textSize="26sp" android:textStyle="bold"
+            android:textColor="@color/brand_strong" android:background="@drawable/bubble_letter"
+            android:visibility="gone" />
     </FrameLayout>
 
     <TextView android:id="@+id/status"

@@ -22,8 +22,14 @@ class ContactsFragment : Fragment() {
     private lateinit var list: RecyclerView
     private lateinit var status: TextView
     private lateinit var rail: LinearLayout
+    private lateinit var sticky: TextView
+    private lateinit var bubble: TextView
     private lateinit var refresh: SwipeRefreshLayout
     private var friends = listOf<Api.Friend>()
+
+    /** 索引条铺满 26+#，不是只摆"有人的那几个"：微信那一条是常驻全字母，
+     *  只有 1 个联系人时也能看出这是一条 A-Z，而不是一排散字 */
+    private val LETTERS = ('A'..'Z').map { it.toString() } + "#"
 
     /** 和会话列表同一条：/friend/list 没有 limit/offset，只能分批渲染 */
     private val PAGE = 30
@@ -37,6 +43,8 @@ class ContactsFragment : Fragment() {
         list = v.findViewById(R.id.list)
         status = v.findViewById(R.id.status)
         rail = v.findViewById(R.id.rail)
+        sticky = v.findViewById(R.id.sticky)
+        bubble = v.findViewById(R.id.bubble)
         refresh = v.findViewById(R.id.refresh)
         list.layoutManager = LinearLayoutManager(requireContext())
         list.adapter = Adapter()
@@ -44,12 +52,51 @@ class ContactsFragment : Fragment() {
         refresh.setColorSchemeColors(0xFF2B6BE8.toInt())
         list.addOnScrollListener(object : RecyclerView.OnScrollListener() {
             override fun onScrolled(rv: RecyclerView, dx: Int, dy: Int) {
-                if (dy <= 0) return
-                val lm = rv.layoutManager as LinearLayoutManager
-                if (lm.findLastVisibleItemPosition() >= lines.size - 5) loadMore()
+                if (dy <= 0) {
+                    val lm = rv.layoutManager as LinearLayoutManager
+                    if (lm.findLastVisibleItemPosition() >= lines.size - 5) loadMore()
+                }
+                renderSticky()
             }
         })
+        buildRail()
+        rail.setOnTouchListener { _, e -> onRailTouch(e) }
+        /* scrollToPositionWithOffset 不发 onScrolled，只挂滚动监听的话，
+           点索引条跳完组头吸不住，要等下一次手滑才更新——挂在布局上两条路径都覆盖 */
+        list.viewTreeObserver.addOnGlobalLayoutListener { renderSticky() }
     }
+
+    /** 手指顺着索引条滑：按下和拖动都算，抬起收掉回显。列表是分批渲染的，
+     *  所以先把目标那一组摊出来再跳，不然会跳到没有渲染的位置上 */
+    private fun onRailTouch(e: android.view.MotionEvent): Boolean {
+        when (e.actionMasked) {
+            android.view.MotionEvent.ACTION_DOWN, android.view.MotionEvent.ACTION_MOVE -> {
+                val h = rail.height - rail.paddingTop - rail.paddingBottom
+                if (h <= 0 || groups.isEmpty()) return true
+                val i = ((e.y - rail.paddingTop) / h * LETTERS.size).toInt().coerceIn(0, LETTERS.size - 1)
+                val letter = LETTERS[i]
+                bubble.text = letter
+                bubble.visibility = View.VISIBLE
+                jumpNearest(letter)
+            }
+            android.view.MotionEvent.ACTION_UP, android.view.MotionEvent.ACTION_CANCEL ->
+                bubble.visibility = View.GONE
+        }
+        return true
+    }
+
+    private fun jumpNearest(target: String) {
+        val keys = groups.keys.toList()
+        val ti = rank(target)
+        val hit = keys.indexOfFirst { rank(it) >= ti }
+        val letter = keys[if (hit >= 0) hit else keys.size - 1]
+        var guard = 0
+        while (lines.indexOfFirst { it is Head && it.letter == letter } < 0 &&
+            shownPeople < friends.size && guard++ < 40) loadMore()
+        jumpTo(letter)
+    }
+
+    private fun rank(letter: String): Int = LETTERS.indexOf(letter).let { if (it < 0) LETTERS.size else it }
 
     override fun onResume() { super.onResume(); if (friends.isEmpty()) load() }
 
@@ -74,23 +121,31 @@ class ContactsFragment : Fragment() {
         }
     }
 
-    /** 按拼音首字母分组，组内也按拼音排 */
+    /** 按拼音首字母分组，组内也按拼音排。
+     *  组的先后不能跟着比较器的自然序——JVM 那套 Collator 会把拉丁名排到中文名后面，
+     *  实测 admin 落到了 Z 之后，而索引条是 A-Z 的，组序必须跟着 A-Z 走，所以按 rank 重排一遍 */
     private fun rebuild() {
+        val byLetter = LinkedHashMap<String, ArrayList<Api.Friend>>()
+        for (f in friends) byLetter.getOrPut(Pinyin.initial(name(f))) { ArrayList() }.add(f)
         groups = LinkedHashMap()
-        for (f in friends.sortedWith { a, b -> Pinyin.compare(name(a), name(b)) }) {
-            groups.getOrPut(Pinyin.initial(name(f))) { ArrayList() }.add(f)
+        for (k in byLetter.keys.sortedBy { rank(it) }) {
+            groups[k] = ArrayList(byLetter[k]!!.sortedWith { a, b -> Pinyin.compare(name(a), name(b)) })
         }
         lines.clear(); shownHeads = 0; shownPeople = 0
-        appendUpTo(PAGE)
+        emit(PAGE)
         list.adapter?.notifyDataSetChanged()
-        buildRail(groups.keys.toList())
+        buildRail()
+        renderSticky()
         renderMeta()
     }
 
     private var groups = LinkedHashMap<String, ArrayList<Api.Friend>>()
 
-    /** 一行行摊平成 [组标题, 人, 人, 组标题, ...]，一次只摊 PAGE 行 */
-    private fun appendUpTo(n: Int) {
+    /** 一行行摊平成 [组标题, 人, 人, 组标题, ...]，一次摊到 n 行。
+     *  每次都从头摊（不是往上追加）——之前那种"追加"会把已摊过的组再摊一遍，
+     *  联系人一多整列表就成对重复，只是当时只有 1 个联系人没触发到 */
+    private fun emit(n: Int) {
+        lines.clear()
         var emitted = 0
         outer@ for ((letter, fs) in groups) {
             if (emitted >= n) break
@@ -107,7 +162,7 @@ class ContactsFragment : Fragment() {
     private fun loadMore() {
         if (shownPeople >= friends.size) return
         val from = lines.size
-        appendUpTo(lines.size + PAGE)
+        emit(lines.size + PAGE)
         if (lines.size > from) list.adapter?.notifyItemRangeInserted(from, lines.size - from)
         renderMeta()
     }
@@ -118,20 +173,40 @@ class ContactsFragment : Fragment() {
 
     private fun name(f: Api.Friend) = f.nickname.ifEmpty { f.username }
 
-    private fun buildRail(letters: List<String>) {
+    /** 分组标题吸顶：只有当这一组真正的组头完全滚出上沿之后才钉住它。
+     *  原来用"第一个可见项是不是组头"判断，组头露 1 个像素也算露着，结果滚到一半谁都不钉 */
+    private fun renderSticky() {
+        if (!::sticky.isInitialized || lines.isEmpty()) return
+        val lm = list.layoutManager as LinearLayoutManager
+        val first = lm.findFirstVisibleItemPosition()
+        if (first == RecyclerView.NO_POSITION) { sticky.visibility = View.GONE; return }
+        var letter: String? = null
+        for (j in minOf(first, lines.size - 1) downTo 0) {
+            val ln = lines[j]
+            if (ln is Head) { letter = ln.letter; break }
+        }
+        if (letter == null) { sticky.visibility = View.GONE; return }
+        val headIdx = lines.indexOfFirst { it is Head && it.letter == letter }
+        val headView = if (headIdx >= 0) lm.findViewByPosition(headIdx) else null
+        if (headView != null && headView.bottom > 0) { sticky.visibility = View.GONE; return }
+        sticky.text = letter
+        sticky.visibility = View.VISIBLE
+    }
+
+    /** 整列 26+# 常驻；这一组没人的字母画淡一点，但照样能点——点了跳到它后面最近的一组，
+     *  和系统快速滚动条一个行为，不摆一颗按了什么都不发生的字母 */
+    private fun buildRail() {
         rail.removeAllViews()
         val dm = resources.displayMetrics.density
-        for (l in letters) {
+        val itemH = (16 * dm).toInt()
+        for (l in LETTERS) {
             val tv = TextView(requireContext())
             tv.text = l
             tv.textSize = 11f
-            tv.setTextColor(0xFF8A93A6.toInt())
             tv.gravity = android.view.Gravity.CENTER
-            tv.isClickable = true
-            tv.layoutParams = LinearLayout.LayoutParams(
-                (14 * dm).toInt(), (12 * dm).toInt())
-            tv.setOnClickListener { jumpTo(l) }
-            rail.addView(tv)
+            tv.setTextColor(0xFF69788F.toInt())
+            tv.alpha = if (groups.containsKey(l)) 1f else 0.32f
+            rail.addView(tv, LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, itemH))
         }
     }
 
