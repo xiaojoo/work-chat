@@ -114,4 +114,8 @@ function jump(l) {
 .al-l:hover:not(:disabled) { background: var(--brand-soft); }
 .al-l:focus-visible { outline: 2px solid var(--brand); outline-offset: -1px; }
 .al-l:disabled { color: var(--nb-dim-2); cursor: default; }
+
+/* 索引列归本组件管，父页面那份 @media 够不到这里：scoped 样式只能命中子组件的根元素，
+   .al-rail 是根下面的内部节点。手机宽度下这条 14x12 的字母列拇指按不住，直接不出现 */
+@media (max-width: 430px) { .al-rail { display: none; } }
 </style>

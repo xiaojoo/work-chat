@@ -33,7 +33,9 @@
     </nav>
 
     <!-- ②③④ 三栏合起来是一张圆角卡片：靠外层底色透出 5px 右边/下边缝隙，栏与栏之间不再画线 -->
-    <div class="body-row">
+    <!-- 手机宽度下这张卡片只放一屏：开着会话就把列表整栏让给它（见文末 @media），
+         所以这里要把"有没有开着会话"传出去 -->
+    <div class="body-row" :class="{ 'conv-open': !!currentConversation }">
     <!-- ② 列表栏 -->
     <aside class="side">
       <header class="side-head">
@@ -136,6 +138,8 @@
     <!-- ③ 会话主区 -->
     <main class="main" :class="{ 'no-drawer': !drawerShown }">
       <header v-if="currentConversation" class="m-head">
+        <!-- 手机宽度下列表整栏被让出去了，回到列表的入口只能放这儿；桌面上这颗由 CSS 藏掉 -->
+        <button class="mh-back" type="button" aria-label="返回会话列表" title="返回列表" @click="backToList()">‹</button>
         <div class="mh-title">
           <span v-if="currentConversation?.type === 2" class="mh-hash">#</span>
           <span class="mh-name">{{ currentConversation?.name || '' }}</span>
@@ -2312,6 +2316,13 @@ async function chatFromFriendCard() {
   const f = friendCard.value
   friendCard.value = null
   if (f) await startChatWithFriend(f)
+}
+
+/* 手机宽度下会话占满整屏，回到列表就是把当前会话关掉。
+   localStorage 里那条要一起清，否则退回去再刷新，又被自动打开、列表还是看不着 */
+function backToList() {
+  currentConversation.value = null
+  localStorage.removeItem('chat_currentConversation')
 }
 
 // —— 组织架构 / 在线状态：创建群聊与添加用户两个弹窗的数据源 ——
@@ -4744,4 +4755,47 @@ async function openWithApp(r) {
 .rel-ico.pdf { background: var(--danger); }
 .rel-name { font-size: 12px; color: var(--nb-text); }
 .rel-size { font-size: 11px; color: var(--nb-dim-2); }
+
+/* ---- 手机宽度（≤430px）：三栏卡片收成"一屏只放一件事" ----
+   不是把三栏按比例缩小：390px 下 rail 56 + 列表 268 已经只剩 66px 给会话区，
+   输入框实测 29px 宽，等于没有。所以这里改成两屏切换，并让抽屉盖住整屏。 */
+.mh-back { display: none; }   /* 桌面上这颗返回不出现，由下面的媒体查询放出来 */
+
+@media (max-width: 430px) {
+  /* 卡片本身贴边：手机上没有"窗口里一块圆角面板"这回事 */
+  .body-row { position: relative; margin: 0; border-radius: 0; }
+
+  /* 列表满屏；点开某条之后整栏让位，会话占满 */
+  .body-row > .side { flex: 0 0 100%; width: 100%; min-width: 0; }
+  .body-row.conv-open > .side { display: none; }
+  .body-row.conv-open > .main { flex: 1 1 auto; min-width: 0; }
+
+  /* 返回键：30x30 命中区，反馈只换颜色不动几何 */
+  .mh-back {
+    display: grid; place-items: center; flex: 0 0 30px;
+    width: 30px; height: 30px; padding: 0; border: 1px solid transparent;
+    border-radius: 6px; background: none; color: var(--nb-dim);
+    font-size: 20px; line-height: 1; cursor: pointer;
+    transition: color .12s ease, background-color .12s ease;
+  }
+  .mh-back:hover, .mh-back:focus-visible { color: var(--brand); background: var(--brand-soft); }
+
+  /* 头部：叠放头像在手机上没地方摆，位置让给标题和操作键 */
+  .m-head { gap: 8px; padding: 10px 12px 8px; }
+  .mh-stack { display: none; }
+  .mh-btn { padding: 7px 12px; }
+
+  /* 抽屉盖住整屏（它原本 flex 0 0 268，并排会把会话再挤回 66px）。
+     里面有 .dw-close 那颗 ✕，所以进去出得来 */
+  .body-row > .drawer {
+    position: absolute; inset: 0; width: auto; flex: none;
+    z-index: 3; border-left: 0;
+  }
+
+  /* A–Z 那两条索引是桌面的 12+3px 节奏，拇指按不住；手机上不出现，
+     列表靠上面的搜索框找 */
+  .alr { display: none; }
+  .al-rail { display: none; }
+  .side-body.has-rail { padding-right: 8px; }
+}
 </style>
