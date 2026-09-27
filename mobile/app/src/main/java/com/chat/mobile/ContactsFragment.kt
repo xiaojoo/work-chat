@@ -171,8 +171,9 @@ class ContactsFragment : Fragment() {
     }
 
     private fun renderMeta() {
-        status.text = "${friends.size} 位联系人 · ${groupConvs.size} 个群聊 · " +
-            "已显示 $shownPeople/$friends.size（$shownHeads 组）· 接口无分页参数"
+        val total = friends.size
+        status.text = "$total 位联系人 · ${groupConvs.size} 个群聊 · " +
+            "已显示 $shownPeople/$total（$shownHeads 组）· 接口无分页参数"
     }
 
     private fun name(f: Api.Friend) = f.nickname.ifEmpty { f.username }
