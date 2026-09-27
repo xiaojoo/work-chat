@@ -4792,10 +4792,18 @@ async function openWithApp(r) {
     z-index: 3; border-left: 0;
   }
 
-  /* A–Z 那两条索引是桌面的 12+3px 节奏，拇指按不住；手机上不出现，
-     列表靠上面的搜索框找 */
+  /* A–Z 索引条是桌面的 12+3px 节奏，拇指按不住；手机上不出现，列表靠搜索框找。
+     联系人/群组那条（.al-rail）归 AlphaList 自己那份媒体查询管——scoped 样式够不到子组件内部节点 */
   .alr { display: none; }
-  .al-rail { display: none; }
   .side-body.has-rail { padding-right: 8px; }
+
+  /* 命中区抬到拇指下限（实测 390 下：搜索框 274x16、抽屉 ✕ 只有 11x27，
+     而抽屉被我改成整屏覆盖，那颗 ✕ 是唯一出口）。
+     ＋/⋯/页签 这些尺寸桌面上是他定过的，一处不动，只在 <=430px 生效 */
+  .ss-input { min-height: 30px; }
+  .side-act { width: 30px; height: 30px; flex: 0 0 30px; }
+  .row-more { width: 30px; height: 30px; flex: 0 0 30px; }
+  .mh-btn { min-height: 30px; }
+  .dwt, .dw-close { min-width: 30px; min-height: 30px; padding-left: 10px; padding-right: 10px; }
 }
 </style>
