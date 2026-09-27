@@ -1,6 +1,8 @@
 package com.chat.mobile
 
 import android.content.Intent
+import android.graphics.Canvas
+import android.graphics.Paint
 import android.os.Bundle
 import android.view.LayoutInflater
 import android.view.View
@@ -66,24 +68,62 @@ class ChatsFragment : Fragment() {
         attachSwipes()
     }
 
-    /** 左滑=删除（走同一颗确认框），右滑=标为已读/标为未读。
-     *  微信左滑是先露两个按钮再点，这里滑完直接回弹、动作各自再决定要不要真的移行走——
-     *  少一层"藏在行后面的按钮"，也就少一种点了看不见的命中区 */
+    /** 左滑=删除，右滑=标为已读/标为未读；两向都不弹框——滑到底就直接做。
+     *  滑开的那块空档刷成动作色、下沿写上这一滑要干什么（删除 / 已读 / 未读）：
+     *  松手之前就该看清动作目的，不用等做完再靠一句 toast 回想。
+     *  微信是先露两个按钮再点一次，这里少一层"藏在行后面的按钮"，也就少一种点了看不见的命中区 */
     private fun attachSwipes() {
+        val px = resources.displayMetrics.density
+        val danger = 0xFFD94860.toInt()      // 令牌 danger
+        val brand = 0xFF2B6BE8.toInt()       // 令牌 brand
+        val bg = android.graphics.Paint().apply { isAntiAlias = true }
+        val ink = android.graphics.Paint().apply {
+            isAntiAlias = true
+            textSize = 12f * px
+            color = 0xFFFFFFFF.toInt()
+        }
         val cb = object : ItemTouchHelper.SimpleCallback(0, ItemTouchHelper.LEFT or ItemTouchHelper.RIGHT) {
             override fun onMove(rv: RecyclerView, h: RecyclerView.ViewHolder, t: RecyclerView.ViewHolder) = false
+
+            override fun onChildDraw(c: Canvas, rv: RecyclerView, h: RecyclerView.ViewHolder,
+                                     dX: Float, dY: Float, state: Int, active: Boolean) {
+                if (state == ItemTouchHelper.ACTION_STATE_SWIPE && dX != 0f) {
+                    val row = h.itemView
+                    val del = dX < 0f
+                    // 空出来的那一条：往左滑露在右边，往右滑露在左边
+                    val l = if (del) row.right + dX else 0f
+                    val r = if (del) row.right.toFloat() else dX
+                    bg.color = if (del) danger else brand
+                    c.drawRect(l, row.top.toFloat(), r, row.bottom.toFloat(), bg)
+                    val label = if (del) "删除" else swipeLabel(h.bindingAdapterPosition)
+                    ink.textAlign = if (del) Paint.Align.RIGHT else Paint.Align.LEFT
+                    // 字贴着空档的外侧、下沿留 10dp；空档不够宽时被 clipRect 裁掉，不压到行文字上
+                    val tx = if (del) r - 16 * px else l + 16 * px
+                    val ty = row.bottom - 10 * px - ink.fontMetrics.bottom
+                    c.save()
+                    c.clipRect(l, row.top.toFloat(), r, row.bottom.toFloat())
+                    c.drawText(label, tx, ty, ink)
+                    c.restore()
+                }
+                super.onChildDraw(c, rv, h, dX, dY, state, active)
+            }
+
             override fun onSwiped(h: RecyclerView.ViewHolder, dir: Int) {
                 val pos = h.bindingAdapterPosition
                 if (pos == RecyclerView.NO_POSITION || pos >= rows.size) return
                 val c = rows[pos]
                 list.adapter?.notifyItemChanged(pos)
-                if (dir == ItemTouchHelper.LEFT) confirmDelete(c)
+                if (dir == ItemTouchHelper.LEFT) { doDelete(c); toast("已删除「${c.name}」") }
                 else if (unreadOf(c) > 0) { markRead(c); toast("已标为已读") }
                 else { unreadOverride[c.id] = 1; refreshRow(c); toast("已标为未读") }
             }
         }
         ItemTouchHelper(cb).attachToRecyclerView(list)
     }
+
+    /** 右滑这颗动作的名字跟着这一行的状态走：有未读=这一滑标已读，没未读=这一滑标未读 */
+    private fun swipeLabel(pos: Int): String =
+        rows.getOrNull(pos)?.let { if (unreadOf(it) > 0) "已读" else "未读" } ?: "未读"
 
     private fun toast(msg: String) =
         android.widget.Toast.makeText(requireContext(), msg, android.widget.Toast.LENGTH_SHORT).show()
