@@ -1,31 +1,28 @@
 <?xml version="1.0" encoding="utf-8"?>
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
     android:layout_width="match_parent" android:layout_height="match_parent"
-    android:orientation="vertical" android:background="@color/page_bg">
+    android:orientation="vertical" android:background="@color/nb_bg_3">
 
-    <FrameLayout android:layout_width="match_parent" android:layout_height="48dp"
-        android:background="@color/surface">
+    <FrameLayout android:layout_width="match_parent" android:layout_height="50dp"
+        android:background="@color/shell">
         <TextView android:id="@+id/title"
             android:layout_width="wrap_content" android:layout_height="wrap_content"
             android:layout_gravity="center"
-            android:text="工作台" android:textSize="17sp" android:textStyle="bold"
+            android:text="工作台" android:textSize="16sp" android:textStyle="bold"
             android:textColor="@color/ink" />
     </FrameLayout>
-
-    <View android:layout_width="match_parent" android:layout_height="1dp" android:background="@color/divider" />
 
     <androidx.recyclerview.widget.RecyclerView
         android:id="@+id/list"
         android:layout_width="match_parent" android:layout_height="wrap_content"
-        android:layout_marginTop="10dp"
+        android:layout_marginTop="8dp"
         android:background="@color/surface" />
 
-    <!-- 这块必须是显眼的，不是页脚小字：工作台四块后端都没有接口，
-         不说清楚就等于摆了一屏点不动的按钮 -->
+    <!-- 这块必须显眼，不是页脚小字：四块后端都没有接口，不说清楚就等于摆了一屏点不动的按钮 -->
     <TextView android:id="@+id/note"
         android:layout_width="match_parent" android:layout_height="wrap_content"
-        android:layout_marginTop="10dp"
-        android:padding="14dp" android:textSize="13sp" android:textColor="@color/ink_dim"
+        android:layout_marginTop="8dp" android:padding="12dp"
+        android:textSize="12sp" android:textColor="@color/ink_dim"
         android:background="@color/surface"
         android:text="@string/workbench_note" />
 

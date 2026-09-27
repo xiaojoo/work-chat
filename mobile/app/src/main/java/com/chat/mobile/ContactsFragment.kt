@@ -9,6 +9,7 @@ import android.widget.TextView
 import androidx.fragment.app.Fragment
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
+import androidx.swiperefreshlayout.widget.SwipeRefreshLayout
 import kotlin.concurrent.thread
 
 class ContactsFragment : Fragment() {
@@ -21,7 +22,13 @@ class ContactsFragment : Fragment() {
     private lateinit var list: RecyclerView
     private lateinit var status: TextView
     private lateinit var rail: LinearLayout
+    private lateinit var refresh: SwipeRefreshLayout
     private var friends = listOf<Api.Friend>()
+
+    /** 和会话列表同一条：/friend/list 没有 limit/offset，只能分批渲染 */
+    private val PAGE = 30
+    private var shownHeads = 0
+    private var shownPeople = 0
 
     override fun onCreateView(i: LayoutInflater, c: ViewGroup?, s: Bundle?): View =
         i.inflate(R.layout.fragment_contacts, c, false)
@@ -30,41 +37,83 @@ class ContactsFragment : Fragment() {
         list = v.findViewById(R.id.list)
         status = v.findViewById(R.id.status)
         rail = v.findViewById(R.id.rail)
+        refresh = v.findViewById(R.id.refresh)
         list.layoutManager = LinearLayoutManager(requireContext())
         list.adapter = Adapter()
+        refresh.setOnRefreshListener { load() }
+        refresh.setColorSchemeColors(0xFF2B6BE8.toInt())
+        list.addOnScrollListener(object : RecyclerView.OnScrollListener() {
+            override fun onScrolled(rv: RecyclerView, dx: Int, dy: Int) {
+                if (dy <= 0) return
+                val lm = rv.layoutManager as LinearLayoutManager
+                if (lm.findLastVisibleItemPosition() >= lines.size - 5) loadMore()
+            }
+        })
     }
 
-    override fun onResume() { super.onResume(); load() }
+    override fun onResume() { super.onResume(); if (friends.isEmpty()) load() }
 
     private fun load() {
         val base = Cfg.apiBase(requireContext()); val tk = Cfg.token(requireContext())
-        if (base.isEmpty() || tk.isEmpty()) { status.text = "还没登录"; return }
+        if (base.isEmpty() || tk.isEmpty()) { status.text = "还没登录"; refresh.isRefreshing = false; return }
+        refresh.isRefreshing = true
         status.text = "加载中…"
         thread(name = "friends") {
             try {
                 val got = Api(base, tk).friends()
-                activity?.runOnUiThread { if (isAdded) { friends = got; rebuild() } }
+                activity?.runOnUiThread {
+                    refresh.isRefreshing = false
+                    if (isAdded) { friends = got; rebuild() }
+                }
             } catch (e: Exception) {
-                activity?.runOnUiThread { if (isAdded) status.text = "拉取失败：${e.message}" }
+                activity?.runOnUiThread {
+                    refresh.isRefreshing = false
+                    if (isAdded) status.text = "拉取失败：${e.message}"
+                }
             }
         }
     }
 
     /** 按拼音首字母分组，组内也按拼音排 */
     private fun rebuild() {
-        lines.clear()
-        val grouped = LinkedHashMap<String, ArrayList<Api.Friend>>()
+        groups = LinkedHashMap()
         for (f in friends.sortedWith { a, b -> Pinyin.compare(name(a), name(b)) }) {
-            val l = Pinyin.initial(name(f))
-            grouped.getOrPut(l) { ArrayList() }.add(f)
+            groups.getOrPut(Pinyin.initial(name(f))) { ArrayList() }.add(f)
         }
-        for ((l, fs) in grouped) {
-            lines.add(Head(l))
-            fs.forEach { lines.add(Person(it)) }
-        }
+        lines.clear(); shownHeads = 0; shownPeople = 0
+        appendUpTo(PAGE)
         list.adapter?.notifyDataSetChanged()
-        buildRail(grouped.keys.toList())
-        status.text = "${friends.size} 位联系人"
+        buildRail(groups.keys.toList())
+        renderMeta()
+    }
+
+    private var groups = LinkedHashMap<String, ArrayList<Api.Friend>>()
+
+    /** 一行行摊平成 [组标题, 人, 人, 组标题, ...]，一次只摊 PAGE 行 */
+    private fun appendUpTo(n: Int) {
+        var emitted = 0
+        outer@ for ((letter, fs) in groups) {
+            if (emitted >= n) break
+            lines.add(Head(letter)); emitted++
+            for (f in fs) {
+                if (emitted >= n) break@outer
+                lines.add(Person(f)); emitted++
+            }
+        }
+        shownHeads = lines.count { it is Head }
+        shownPeople = lines.count { it is Person }
+    }
+
+    private fun loadMore() {
+        if (shownPeople >= friends.size) return
+        val from = lines.size
+        appendUpTo(lines.size + PAGE)
+        if (lines.size > from) list.adapter?.notifyItemRangeInserted(from, lines.size - from)
+        renderMeta()
+    }
+
+    private fun renderMeta() {
+        status.text = "${friends.size} 位联系人 · 已显示 $shownPeople（$shownHeads 组）· 接口无分页参数"
     }
 
     private fun name(f: Api.Friend) = f.nickname.ifEmpty { f.username }

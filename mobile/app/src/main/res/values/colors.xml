@@ -1,14 +1,26 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <!-- 配色不抄微信的绿：本工程自己的品牌色是 theme.css 里的 brand = 2b6be8，
-         微信那边只借版式和交互，不借色 -->
-    <color name="page_bg">#F2F2F2</color>
-    <color name="surface">#FFFFFF</color>
-    <color name="ink">#1F2430</color>
-    <color name="ink_dim">#8A93A6</color>
-    <color name="divider">#E7EAEF</color>
-    <color name="brand">#2B6BE8</color>
-    <color name="danger">#D94860</color>
-    <color name="tab_idle">#9AA3B2</color>
-    <color name="section_head_bg">#F2F2F2</color>
+    <!-- 一套色全部对齐桌面端 theme.css，不自己挑灰。
+         注释里写的是它在 web 侧对应的令牌名，改的时候两边一起看。 -->
+    <color name="nb_bg_0">#F4F6FA</color>      <!-- nb-bg-0    应用底 -->
+    <color name="nb_bg_1">#FFFFFF</color>      <!-- nb-bg-1    卡片/内容面 -->
+    <color name="nb_bg_3">#F0F3F8</color>      <!-- nb-bg-3    列表栏底、对方气泡 -->
+    <color name="shell">#E1E5EC</color>        <!-- nb-bg-shell 标题栏/图标栏（color-mix 算出来的） -->
+    <color name="ink">#1B2434</color>          <!-- nb-text -->
+    <color name="ink_dim">#69788F</color>      <!-- nb-dim -->
+    <color name="ink_dim2">#8A97AB</color>     <!-- nb-dim-2 -->
+    <color name="line">#E2E7F0</color>         <!-- nb-line -->
+    <color name="line_soft">#F1F3F8</color>    <!-- nb-line-soft = mix(line 50%, #fff) -->
+    <color name="brand">#2B6BE8</color>        <!-- brand -->
+    <color name="brand_strong">#1F56C4</color> <!-- brand-strong -->
+    <color name="brand_soft">#EAF1FF</color>   <!-- brand-soft -->
+    <color name="row_hover">#E0E4EC</color>    <!-- 行按下：mix(dim-2 16%, bg-3) -->
+    <color name="row_active">#D5E1FA</color>   <!-- 选中行：mix(brand 20%, bg-1) -->
+    <color name="danger">#D94860</color>       <!-- danger -->
+    <color name="ok">#1F9D55</color>           <!-- ok -->
+    <color name="warn">#B76E10</color>         <!-- warn -->
+    <color name="page_bg">@color/nb_bg_0</color>
+    <color name="surface">@color/nb_bg_1</color>
+    <color name="divider">@color/line</color>
+    <color name="tab_idle">@color/ink_dim2</color>
 </resources>

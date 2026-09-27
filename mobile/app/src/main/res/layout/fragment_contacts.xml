@@ -1,44 +1,39 @@
 <?xml version="1.0" encoding="utf-8"?>
-<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
     android:layout_width="match_parent" android:layout_height="match_parent"
-    android:background="@color/page_bg">
+    android:orientation="vertical" android:background="@color/nb_bg_3">
 
-    <LinearLayout
-        android:layout_width="match_parent" android:layout_height="match_parent"
-        android:orientation="vertical">
+    <FrameLayout android:layout_width="match_parent" android:layout_height="50dp"
+        android:background="@color/shell">
+        <TextView android:id="@+id/title"
+            android:layout_width="wrap_content" android:layout_height="wrap_content"
+            android:layout_gravity="center"
+            android:text="通讯录" android:textSize="16sp" android:textStyle="bold"
+            android:textColor="@color/ink" />
+    </FrameLayout>
 
-        <FrameLayout
-            android:layout_width="match_parent" android:layout_height="48dp"
-            android:background="@color/surface">
-            <TextView android:id="@+id/title"
-                android:layout_width="wrap_content" android:layout_height="wrap_content"
-                android:layout_gravity="center"
-                android:text="通讯录" android:textSize="17sp" android:textStyle="bold"
-                android:textColor="@color/ink" />
-        </FrameLayout>
+    <FrameLayout android:layout_width="match_parent" android:layout_height="0dp"
+        android:layout_weight="1">
 
-        <View android:layout_width="match_parent" android:layout_height="1dp" android:background="@color/divider" />
+        <androidx.swiperefreshlayout.widget.SwipeRefreshLayout
+            android:id="@+id/refresh"
+            android:layout_width="match_parent" android:layout_height="match_parent">
 
-        <androidx.recyclerview.widget.RecyclerView
-            android:id="@+id/list"
-            android:layout_width="match_parent" android:layout_height="0dp"
-            android:layout_weight="1"
-            android:background="@color/surface"
-            android:paddingEnd="24dp"
-            android:clipToPadding="false" />
+            <androidx.recyclerview.widget.RecyclerView
+                android:id="@+id/list"
+                android:layout_width="match_parent" android:layout_height="match_parent"
+                android:paddingStart="8dp" android:paddingEnd="8dp"
+                android:clipToPadding="false" />
+        </androidx.swiperefreshlayout.widget.SwipeRefreshLayout>
 
-        <TextView android:id="@+id/status"
-            android:layout_width="match_parent" android:layout_height="wrap_content"
-            android:padding="12dp" android:textSize="12sp" android:textColor="@color/ink_dim"
-            android:background="@color/surface" />
-    </LinearLayout>
+        <LinearLayout android:id="@+id/rail"
+            android:layout_width="wrap_content" android:layout_height="wrap_content"
+            android:layout_gravity="end|center_vertical"
+            android:orientation="vertical" android:paddingEnd="4dp" />
+    </FrameLayout>
 
-    <!-- 微信通讯录右侧那条字母索引：窄列、贴右缘。桌面端那条是 12+3px 的节奏，
-         手机上按同样的思路做，但每格给到 14dp 宽、行距撑到能连点 -->
-    <LinearLayout android:id="@+id/rail"
-        android:layout_width="wrap_content" android:layout_height="wrap_content"
-        android:layout_gravity="end|center_vertical"
-        android:orientation="vertical"
-        android:paddingEnd="4dp" />
+    <TextView android:id="@+id/status"
+        android:layout_width="match_parent" android:layout_height="wrap_content"
+        android:padding="10dp" android:textSize="11sp" android:textColor="@color/ink_dim2" />
 
-</FrameLayout>
+</LinearLayout>

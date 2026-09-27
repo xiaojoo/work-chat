@@ -43,6 +43,7 @@ tasks.withType<Test>().configureEach {
 dependencies {
     implementation("androidx.appcompat:appcompat:1.8.0")
     implementation("androidx.recyclerview:recyclerview:1.3.2")
+    implementation("androidx.swiperefreshlayout:swiperefreshlayout:1.1.0")
     implementation("com.squareup.okhttp3:okhttp:5.5.0")
     testImplementation("junit:junit:4.13.2")
     // 单测跑在 JVM 上，Android 自带的那份 org.json 在单测里是空壳（一调就 "not mocked"），

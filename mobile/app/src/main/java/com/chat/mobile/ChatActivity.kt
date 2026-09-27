@@ -143,7 +143,7 @@ class ChatActivity : AppCompatActivity() {
             val self = sender.isNotEmpty() && sender == myId
             h.bubble.text = m.optString("content")
             h.bubble.setBackgroundResource(if (self) R.drawable.bubble_self else R.drawable.bubble_other)
-            h.bubble.setTextColor(if (self) 0xFFFFFFFF.toInt() else 0xFF1F2430.toInt())
+            h.bubble.setTextColor(if (self) 0xFFFFFFFF.toInt() else 0xFF1B2434.toInt())
             h.row.gravity = if (self) Gravity.END else Gravity.START
             h.time.gravity = if (self) Gravity.END else Gravity.START
             h.time.text = pretty(m.optString("createTime"))
