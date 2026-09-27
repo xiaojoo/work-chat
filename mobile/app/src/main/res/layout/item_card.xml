@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent" android:layout_height="wrap_content"
+    android:orientation="vertical" android:background="@drawable/card_round">
+
+    <TextView android:id="@+id/cap"
+        android:layout_width="match_parent" android:layout_height="wrap_content"
+        android:paddingStart="16dp" android:paddingEnd="16dp"
+        android:paddingTop="14dp" android:paddingBottom="2dp"
+        android:textSize="13sp" android:textColor="@color/ink_dim2" />
+
+    <!-- 四列等宽，和微信那屏一样按列铺；不足四个的最后一格留空 -->
+    <GridLayout android:id="@+id/grid"
+        android:layout_width="match_parent" android:layout_height="wrap_content"
+        android:columnCount="4" android:paddingBottom="6dp" />
+</LinearLayout>

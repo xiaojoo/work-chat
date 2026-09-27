@@ -1,4 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
+<!-- 工作台：微信「服务」那一屏的形状——灰底上几张白卡片，每张一个灰标题 + 四列图标 -->
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
     android:layout_width="match_parent" android:layout_height="match_parent"
     android:orientation="vertical" android:background="@color/nb_bg_3">
@@ -12,18 +13,24 @@
             android:textColor="@color/ink" />
     </FrameLayout>
 
-    <androidx.recyclerview.widget.RecyclerView
-        android:id="@+id/list"
-        android:layout_width="match_parent" android:layout_height="wrap_content"
-        android:layout_marginTop="8dp"
-        android:background="@color/surface" />
+    <ScrollView android:layout_width="match_parent" android:layout_height="0dp"
+        android:layout_weight="1" android:fillViewport="true">
 
-    <!-- 这块必须显眼，不是页脚小字：四块后端都没有接口，不说清楚就等于摆了一屏点不动的按钮 -->
-    <TextView android:id="@+id/note"
-        android:layout_width="match_parent" android:layout_height="wrap_content"
-        android:layout_marginTop="8dp" android:padding="12dp"
-        android:textSize="12sp" android:textColor="@color/ink_dim"
-        android:background="@color/surface"
-        android:text="@string/workbench_note" />
+        <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content"
+            android:orientation="vertical" android:paddingStart="10dp" android:paddingEnd="10dp">
 
+            <LinearLayout android:id="@+id/cards"
+                android:layout_width="match_parent" android:layout_height="wrap_content"
+                android:orientation="vertical" />
+
+            <!-- 这块必须显眼，不是页脚小字：这些格子后端都没有接口，不说清楚就等于摆了一屏点不动的按钮 -->
+            <TextView android:id="@+id/note"
+                android:layout_width="match_parent" android:layout_height="wrap_content"
+                android:layout_marginTop="10dp" android:layout_marginBottom="12dp"
+                android:padding="14dp"
+                android:textSize="12sp" android:textColor="@color/ink_dim"
+                android:background="@drawable/card_round"
+                android:text="@string/workbench_note" />
+        </LinearLayout>
+    </ScrollView>
 </LinearLayout>

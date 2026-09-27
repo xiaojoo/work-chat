@@ -4,64 +4,79 @@ import android.os.Bundle
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
+import android.widget.GridLayout
+import android.widget.ImageView
+import android.widget.LinearLayout
 import android.widget.TextView
 import android.widget.Toast
 import androidx.fragment.app.Fragment
-import androidx.recyclerview.widget.LinearLayoutManager
-import androidx.recyclerview.widget.RecyclerView
 
 /**
- * 工作台做成微信「服务」那种分组行。
- * 四块内容在桌面端就是静态壳（Workbench.vue 从 src/mock/workbench 取数，
- * 文件里自己写着"后端还没有对应接口，所以按钮先置灰"），手机上不复制假数据：
- * 行照常列出来、写明没有接口，点了给一句原因，不做点了没反应的死控件。
+ * 工作台做成微信「服务」那一屏：灰底 + 白卡片 + 四列图标格子。
+ *
+ * 格子里的条目不是编的——就是桌面端 Workbench.vue 侧栏那三组 11 项
+ * （首页/我的任务/最近内容/收藏、项目/文档/素材/知识库、AI 助手/内容生成/内容分析），
+ * 图标描点也直接搬它那套 path，不另画一份，这样两边以后改图标只改一处能对上。
+ *
+ * 但这 11 项后端一个接口都没有（桌面端文件里自己写着"静态壳"），
+ * 所以点了给一句原因，不摆点了没反应的死格子；底部那句话也写明这件事。
  */
 class WorkFragment : Fragment() {
 
-    private data class Entry(val key: String, val name: String, val tile: String, val color: Int)
+    private data class Tile(val name: String, val icon: Int)
+    private data class Card(val cap: String, val tint: Int, val tiles: List<Tile>)
 
-    private val entries = listOf(
-        Entry("home", "首页看板", "看", 0xFF2B6BE8.toInt()),
-        Entry("tasks", "我的任务", "办", 0xFF3AAE77.toInt()),
-        Entry("docs", "项目文档", "档", 0xFFE08A1E.toInt()),
-        Entry("ai", "AI 助手", "AI", 0xFF8B5CF6.toInt()))
+    private val cards: List<Card> by lazy {
+        val brand = 0xFF2B6BE8.toInt()   // --brand
+        val ok = getColor(R.color.ok)
+        val warn = getColor(R.color.warn)
+        listOf(
+            Card("工作台", brand, listOf(
+                Tile("首页", R.drawable.ic_wb_home), Tile("我的任务", R.drawable.ic_wb_task),
+                Tile("最近内容", R.drawable.ic_wb_inbox), Tile("收藏", R.drawable.ic_wb_star))),
+            Card("内容", ok, listOf(
+                Tile("项目", R.drawable.ic_wb_folder), Tile("文档", R.drawable.ic_wb_doc),
+                Tile("素材", R.drawable.ic_wb_image), Tile("知识库", R.drawable.ic_wb_book))),
+            Card("AI", warn, listOf(
+                Tile("AI 助手", R.drawable.ic_wb_spark), Tile("内容生成", R.drawable.ic_wb_pen),
+                Tile("内容分析", R.drawable.ic_wb_chart)))
+        )
+    }
+
+    private fun getColor(id: Int) = requireContext().getColor(id)
 
     override fun onCreateView(i: LayoutInflater, c: ViewGroup?, s: Bundle?): View =
         i.inflate(R.layout.fragment_work, c, false)
 
     override fun onViewCreated(v: View, s: Bundle?) {
-        val list = v.findViewById<RecyclerView>(R.id.list)
-        list.layoutManager = LinearLayoutManager(requireContext())
-        list.adapter = Adapter()
-    }
-
-    private inner class Adapter : RecyclerView.Adapter<VH>() {
-        override fun onCreateViewHolder(p: ViewGroup, t: Int) =
-            VH(LayoutInflater.from(p.context).inflate(R.layout.item_service, p, false))
-
-        override fun getItemCount() = entries.size
-
-        override fun onBindViewHolder(h: VH, i: Int) {
-            val e = entries[i]
-            h.tile.text = e.tile
-            h.tile.setBackgroundColor(e.color)
-            h.name.text = e.name
-            h.desc.text = "后端还没有对应接口"
-            h.state.text = "未开放"
-            h.name.alpha = 0.55f
-            h.itemView.alpha = 0.75f
-            h.itemView.setOnClickListener {
-                Toast.makeText(requireContext(),
-                    "${e.name}：桌面端那四块目前是设计稿静态壳，接口还没做，所以这里先置灰",
-                    Toast.LENGTH_LONG).show()
+        val host = v.findViewById<LinearLayout>(R.id.cards)
+        val inf = LayoutInflater.from(requireContext())
+        cards.forEachIndexed { ci, card ->
+            val cv = inf.inflate(R.layout.item_card, host, false)
+            cv.findViewById<TextView>(R.id.cap).text = card.cap
+            val grid = cv.findViewById<GridLayout>(R.id.grid)
+            card.tiles.forEach { t ->
+                val tv = inf.inflate(R.layout.item_tile, grid, false)
+                val ic = tv.findViewById<ImageView>(R.id.ic)
+                ic.setImageResource(t.icon)
+                ic.setColorFilter(card.tint, android.graphics.PorterDuff.Mode.SRC_IN)
+                tv.findViewById<TextView>(R.id.name).text = t.name
+                tv.setOnClickListener {
+                    Toast.makeText(requireContext(),
+                        "${t.name}：桌面端那一块还是设计稿静态壳，后端没有对应接口，所以这里点不出内容",
+                        Toast.LENGTH_LONG).show()
+                }
+                grid.addView(tv, GridLayout.LayoutParams().apply {
+                    width = 0
+                    columnSpec = GridLayout.spec(GridLayout.UNDEFINED, 1f)
+                    rowSpec = GridLayout.spec(GridLayout.UNDEFINED)
+                })
             }
+            if (ci > 0) {
+                (cv.layoutParams as LinearLayout.LayoutParams).topMargin =
+                    (10 * resources.displayMetrics.density).toInt()
+            }
+            host.addView(cv)
         }
-    }
-
-    private class VH(v: View) : RecyclerView.ViewHolder(v) {
-        val tile: TextView = v.findViewById(R.id.tile)
-        val name: TextView = v.findViewById(R.id.name)
-        val desc: TextView = v.findViewById(R.id.desc)
-        val state: TextView = v.findViewById(R.id.state)
     }
 }
