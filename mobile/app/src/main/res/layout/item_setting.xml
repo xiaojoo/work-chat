@@ -30,8 +30,9 @@
             android:src="@drawable/chevron_right" android:contentDescription="" />
     </LinearLayout>
 
+    <!-- 0.5dp：这台机 dpr 2.75，1dp 实渲 3px，0.5dp 才落到 1px（和会话/通讯录/开关行同一口径） -->
     <View android:id="@+id/line"
-        android:layout_width="match_parent" android:layout_height="1dp"
+        android:layout_width="match_parent" android:layout_height="0.5dp"
         android:layout_marginStart="16dp"
         android:background="@color/line_soft" />
 </LinearLayout>
