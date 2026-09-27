@@ -28,6 +28,8 @@
             android:windowSoftInputMode="adjustResize" />
         <!-- 通讯录里「群聊」那一档点进去的那页 -->
         <activity android:name=".GroupListActivity" android:exported="false" />
+        <!-- 聊天页右上 ⋯ 进来的那页 -->
+        <activity android:name=".ChatInfoActivity" android:exported="false" />
     </application>
 
 </manifest>

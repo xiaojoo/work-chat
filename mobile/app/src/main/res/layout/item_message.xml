@@ -16,6 +16,20 @@
         android:orientation="horizontal"
         android:gravity="center_vertical">
 
+        <!-- 两侧头像，和桌面端 .msg-ava 一样：对方在左、自己在右，另一侧留空。
+             字母取会话名/自己昵称的首字，桌面端也是这么取的，不为这个再打一次用户接口 -->
+        <TextView
+            android:id="@+id/avaL"
+            android:layout_width="34dp"
+            android:layout_height="34dp"
+            android:layout_marginEnd="8dp"
+            android:gravity="center"
+            android:textSize="13sp"
+            android:textStyle="bold"
+            android:textColor="#FFFFFF"
+            android:background="@drawable/ava_square"
+            android:visibility="gone" />
+
         <TextView
             android:id="@+id/bubble"
             android:layout_width="wrap_content"
@@ -27,7 +41,19 @@
             android:paddingBottom="7dp"
             android:textSize="14sp"
             android:textColor="@color/ink"
-            android:maxWidth="280dp" />
+            android:maxWidth="260dp" />
+
+        <TextView
+            android:id="@+id/avaR"
+            android:layout_width="34dp"
+            android:layout_height="34dp"
+            android:layout_marginStart="8dp"
+            android:gravity="center"
+            android:textSize="13sp"
+            android:textStyle="bold"
+            android:textColor="#FFFFFF"
+            android:background="@drawable/ava_square"
+            android:visibility="gone" />
     </LinearLayout>
 
     <TextView

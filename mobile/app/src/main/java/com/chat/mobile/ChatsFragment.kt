@@ -90,7 +90,9 @@ class ChatsFragment : Fragment() {
 
     override fun onResume() {
         super.onResume()
-        if (rows.isEmpty()) load()
+        /* 从聊天信息页改了免打扰/置顶回来，这一页要跟着重排和换角标颜色——
+           同一份状态的每个入口都得自己刷新，不重打接口，只重摊本地那份 */
+        if (rows.isEmpty()) load() else filter()
     }
 
     private fun filter() {

@@ -1,5 +1,6 @@
 package com.chat.mobile
 
+import android.content.Intent
 import android.os.Bundle
 import android.view.Gravity
 import android.view.View
@@ -21,6 +22,7 @@ class ChatActivity : EdgeBackActivity() {
     private lateinit var convId: String
     private lateinit var convName: String
     private var myId = ""
+    private var mine = ""
     private var ws: Ws? = null
 
     private lateinit var list: RecyclerView
@@ -35,6 +37,7 @@ class ChatActivity : EdgeBackActivity() {
         convId = intent.getStringExtra("conv") ?: ""
         convName = intent.getStringExtra("name") ?: ""
         myId = Cfg.userId(this)
+        mine = Cfg.username(this)
 
         findViewById<TextView>(R.id.title).text = convName
         state = findViewById(R.id.state)
@@ -44,6 +47,9 @@ class ChatActivity : EdgeBackActivity() {
         list.adapter = adapter
 
         findViewById<Button>(R.id.back).setOnClickListener { finish() }
+        findViewById<Button>(R.id.more).setOnClickListener {
+            startActivity(Intent(this, ChatInfoActivity::class.java).putExtra("conv", convId))
+        }
 
         val input = findViewById<EditText>(R.id.input)
         findViewById<Button>(R.id.send).setOnClickListener {
@@ -147,6 +153,11 @@ class ChatActivity : EdgeBackActivity() {
             h.row.gravity = if (self) Gravity.END else Gravity.START
             h.time.gravity = if (self) Gravity.END else Gravity.START
             h.time.text = pretty(m.optString("createTime"))
+            val letter = (if (self) mine else convName).ifEmpty { "?" }.take(1).uppercase()
+            h.avaL.visibility = if (self) View.GONE else View.VISIBLE
+            h.avaR.visibility = if (self) View.VISIBLE else View.GONE
+            h.avaL.text = letter
+            h.avaR.text = letter
         }
     }
 
@@ -170,5 +181,7 @@ class ChatActivity : EdgeBackActivity() {
         val row: LinearLayout = v.findViewById(R.id.row)
         val bubble: TextView = v.findViewById(R.id.bubble)
         val time: TextView = v.findViewById(R.id.time)
+        val avaL: TextView = v.findViewById(R.id.avaL)
+        val avaR: TextView = v.findViewById(R.id.avaR)
     }
 }

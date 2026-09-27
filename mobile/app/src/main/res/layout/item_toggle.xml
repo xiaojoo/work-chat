@@ -1,0 +1,33 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 聊天信息页那种「左标题 / 右开关」的一行 -->
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent" android:layout_height="wrap_content"
+    android:orientation="vertical" android:background="@color/surface">
+
+    <LinearLayout android:id="@+id/tappable"
+        android:layout_width="match_parent" android:layout_height="wrap_content"
+        android:minHeight="52dp" android:orientation="horizontal" android:gravity="center_vertical"
+        android:background="?attr/selectableItemBackground"
+        android:paddingStart="16dp" android:paddingEnd="16dp">
+
+        <TextView android:id="@+id/label"
+            android:layout_width="0dp" android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:textSize="16sp" android:textColor="@color/ink" />
+
+        <FrameLayout android:id="@+id/track"
+            android:layout_width="40dp" android:layout_height="24dp"
+            android:background="@drawable/switch_track_off">
+            <View android:id="@+id/thumb"
+                android:layout_width="20dp" android:layout_height="20dp"
+                android:layout_gravity="start|center_vertical"
+                android:layout_marginStart="2dp"
+                android:background="@drawable/switch_thumb" />
+        </FrameLayout>
+    </LinearLayout>
+
+    <View android:id="@+id/line"
+        android:layout_width="match_parent" android:layout_height="1dp"
+        android:layout_marginStart="16dp"
+        android:background="@color/line_soft" />
+</LinearLayout>

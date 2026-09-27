@@ -32,6 +32,7 @@
                 android:id="@+id/title"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
+                android:gravity="center"
                 android:textSize="17sp"
                 android:textStyle="bold"
                 android:maxLines="1"
@@ -41,8 +42,18 @@
                 android:id="@+id/state"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
+                android:gravity="center"
                 android:textSize="12sp" />
         </LinearLayout>
+
+        <!-- 右上这颗对应微信聊天页的 ⋯，进去是「聊天信息」 -->
+        <Button
+            android:id="@+id/more"
+            style="@style/BackBtn"
+            android:layout_width="44dp"
+            android:layout_height="44dp"
+            android:textSize="20sp"
+            android:text="⋯" />
     </LinearLayout>
 
     <androidx.recyclerview.widget.RecyclerView
