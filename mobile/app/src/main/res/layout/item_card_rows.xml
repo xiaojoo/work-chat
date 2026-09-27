@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 和 item_card 同一张卡（同样的圆角、同样的小标题），但里面不摆 GridLayout：
+     带权重的 GridLayout 不满一行时会把整行宽度分给这一行里现有的几格，格子就被推到中间去，
+     永远贴左铺不开。这一张的 gridRows 是个竖排容器，代码里按 5 个一行切成横排，
+     每行 weightSum=5、每格权重 1，缺的格不补，于是最后一行也从左边铺。
+     只给聊天信息页的成员宫格用；工作台仍走 item_card 那份。 -->
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent" android:layout_height="wrap_content"
+    android:orientation="vertical" android:background="@drawable/card_round">
+
+    <TextView android:id="@+id/cap"
+        android:layout_width="match_parent" android:layout_height="wrap_content"
+        android:paddingStart="16dp" android:paddingEnd="16dp"
+        android:paddingTop="14dp" android:paddingBottom="2dp"
+        android:textSize="13sp" android:textColor="@color/ink_dim2" />
+
+    <LinearLayout android:id="@+id/gridRows"
+        android:layout_width="match_parent" android:layout_height="wrap_content"
+        android:orientation="vertical" android:paddingBottom="6dp" />
+</LinearLayout>

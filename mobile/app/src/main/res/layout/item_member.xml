@@ -1,10 +1,9 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- 聊天信息页顶上的成员宫格的一格：44 方头像 + 下面一行名字（和桌面端 .gs-cell 同一种排法）。
-     群主/管理员按桌面端的 .gs-tag 压在头像右下角，不拼进名字里——拼进去一列宽放不下，会被截成 probeA…。
-     名字框吃满整列（GridLayout 那一列的权重宽度），不是只跟头像一样宽。 -->
+<!-- 聊天信息页顶上的人：44 方头像 + 下面一行名字 + 压在头像右下角的角色角标（照桌面端 .gs-cell/.gs-tag）。
+     宽度由外面给：ChatInfoActivity 按 5 个一行切横排，每格权重 1，所以这里 root 的宽度只是占位。
+     名字框吃满整格，不跟头像一样宽——不然 "probeA" 会被截成 probeA…。 -->
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
     android:layout_width="0dp" android:layout_height="wrap_content"
-    android:layout_columnWeight="1"
     android:minHeight="78dp" android:orientation="vertical" android:gravity="center"
     android:paddingTop="8dp" android:paddingBottom="8dp">
 
