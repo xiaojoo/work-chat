@@ -76,4 +76,12 @@ class Api(private val base: String, private val token: String = "") {
             )
         }
     }
+
+    /** 群会话 id 带 g 前缀，后端要的是纯数字，和桌面端 api/conversation.js 同一条规则。
+     *  路径必须带 /api —— 这个类里所有调用都直连服务根地址，没有 axios 那层 baseURL。 */
+    fun clearUnread(conversationId: String, userId: String) {
+        val numeric = conversationId.removePrefix("g")
+        call("/api/conversation/unread/clear?userId=$userId",
+            JSONObject().put("conversationId", numeric).put("userId", userId).toString())
+    }
 }

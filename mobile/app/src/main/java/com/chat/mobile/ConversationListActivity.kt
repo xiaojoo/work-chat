@@ -64,6 +64,10 @@ class ConversationListActivity : AppCompatActivity() {
             // 未读数在这里必须是可见的：手机上是"看+回+收"，看不到未读这个端就没意义
             h.unread.text = if (c.unread > 0) (if (c.unread > 99) "99+" else c.unread.toString()) else ""
             h.unread.visibility = if (c.unread > 0) android.view.View.VISIBLE else android.view.View.GONE
+            h.itemView.setOnClickListener {
+                startActivity(android.content.Intent(this@ConversationListActivity, ChatActivity::class.java)
+                    .putExtra("conv", c.id).putExtra("name", c.name))
+            }
         }
     }
 
