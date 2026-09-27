@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 微信那块的底部动作面板：白底上圆角，整行可点，取消和上面之间隔一道灰缝。
+     不用 AlertDialog 的按钮排布——那个是"标题+两个按钮"，装不下三条动作 -->
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent" android:layout_height="wrap_content"
+    android:orientation="vertical"
+    android:background="@drawable/sheet_top_round">
+
+    <TextView android:id="@+id/actLogout" style="@style/SheetItem" android:text="退出登录" />
+    <View style="@style/SheetLine" />
+    <TextView android:id="@+id/actClose" style="@style/SheetItem" android:text="关闭微信" />
+
+    <View android:layout_width="match_parent" android:layout_height="8dp"
+        android:background="@color/nb_bg_3" />
+
+    <TextView android:id="@+id/actCancel" style="@style/SheetItem"
+        android:textColor="@color/ink_dim" android:text="取消" />
+</LinearLayout>

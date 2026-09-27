@@ -28,6 +28,25 @@
         <item name="android:textColor">@color/tab_tint</item>
     </style>
 
+    <!-- 底部面板的一行：整行可点、字居中、高度按拇指下限给到 54dp -->
+    <style name="SheetItem">
+        <item name="android:layout_width">match_parent</item>
+        <item name="android:layout_height">wrap_content</item>
+        <item name="android:minHeight">54dp</item>
+        <item name="android:gravity">center</item>
+        <item name="android:textSize">17sp</item>
+        <item name="android:textColor">@color/ink</item>
+        <item name="android:background">?attr/selectableItemBackground</item>
+        <item name="android:clickable">true</item>
+        <item name="android:focusable">true</item>
+    </style>
+
+    <style name="SheetLine">
+        <item name="android:layout_width">match_parent</item>
+        <item name="android:layout_height">1dp</item>
+        <item name="android:background">@color/line_soft</item>
+    </style>
+
     <!-- 顶栏那颗返回 ‹：无边框只留按下反馈。原生 Button 的灰底在浅灰顶栏上是一块明显的方疙瘩 -->
     <style name="BackBtn" parent="Widget.AppCompat.Button.Borderless">
         <item name="android:textColor">@color/ink</item>

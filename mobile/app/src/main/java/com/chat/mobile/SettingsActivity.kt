@@ -1,8 +1,14 @@
 package com.chat.mobile
 
+import android.app.Dialog
 import android.content.Intent
+import android.graphics.Color
+import android.graphics.drawable.ColorDrawable
 import android.os.Bundle
 import android.text.InputType
+import android.view.Gravity
+import android.view.ViewGroup
+import android.view.Window
 import android.widget.Button
 import android.widget.EditText
 import android.widget.LinearLayout
@@ -76,17 +82,29 @@ class SettingsActivity : EdgeBackActivity() {
             .show()
     }
 
+    /** 微信那块的底部面板：退出登录 / 关闭微信 / 取消。
+     *  退出只清本机令牌，关闭是退掉整个应用——两件事别合成一颗按钮 */
     private fun confirmLogout() {
-        AlertDialog.Builder(this)
-            .setTitle("退出登录")
-            .setMessage("退出后要重新输入账号密码，本机只清掉令牌，不改服务器上的资料。")
-            .setNegativeButton("取消") { d, _ -> d.dismiss() }
-            .setPositiveButton("退出") { _, _ ->
-                Cfg.clearToken(this)
-                startActivity(Intent(this, LoginActivity::class.java)
-                    .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK))
-                finish()
-            }
-            .show()
+        val sheet = Dialog(this)
+        sheet.requestWindowFeature(Window.FEATURE_NO_TITLE)
+        sheet.setContentView(R.layout.sheet_logout)
+        sheet.window?.apply {
+            setLayout(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT)
+            setGravity(Gravity.BOTTOM)
+            setBackgroundDrawable(ColorDrawable(Color.TRANSPARENT))
+        }
+        sheet.findViewById<TextView>(R.id.actLogout).setOnClickListener {
+            sheet.dismiss()
+            Cfg.clearToken(this)
+            startActivity(Intent(this, LoginActivity::class.java)
+                .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK))
+            finish()
+        }
+        sheet.findViewById<TextView>(R.id.actClose).setOnClickListener {
+            sheet.dismiss()
+            finishAffinity()
+        }
+        sheet.findViewById<TextView>(R.id.actCancel).setOnClickListener { sheet.dismiss() }
+        sheet.show()
     }
 }
