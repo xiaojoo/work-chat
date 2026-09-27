@@ -26,17 +26,15 @@
                 android:clipToPadding="false" />
         </androidx.swiperefreshlayout.widget.SwipeRefreshLayout>
 
-        <!-- 吸顶的那条和列表里真正的组头是同一副长相（sec_bg / 11sp / ink_dim2），
+        <!-- 吸顶的那条和列表里真正的组头是同一副长相（head_line / 12sp / ink_dim），
              钉住时看不出是另一块东西 -->
         <TextView android:id="@+id/sticky"
             android:layout_width="match_parent" android:layout_height="wrap_content"
             android:layout_gravity="top"
-            android:layout_marginStart="8dp" android:layout_marginEnd="8dp"
-            android:layout_marginTop="4dp"
-            android:minHeight="24dp" android:gravity="center_vertical"
-            android:paddingStart="8dp" android:paddingEnd="8dp"
-            android:background="@drawable/sec_bg"
-            android:textSize="11sp" android:textColor="@color/ink_dim2"
+            android:minHeight="28dp" android:gravity="center_vertical"
+            android:paddingStart="12dp" android:paddingEnd="12dp"
+            android:background="@drawable/head_line"
+            android:textSize="12sp" android:textColor="@color/ink_dim"
             android:visibility="gone" />
 
         <!-- 微信那条 A-Z：整列铺满高度，手指可以顺着滑，字母跟着跳；

@@ -1,10 +1,9 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- 分组小标题：对齐桌面端 .sec（灰底、11px、左右 8px 内缩） -->
+<!-- 分组小标题：灰底 + 一根下边框，不做圆角卡片 -->
 <TextView xmlns:android="http://schemas.android.com/apk/res/android"
     android:id="@+id/letter"
     android:layout_width="match_parent" android:layout_height="wrap_content"
-    android:minHeight="24dp" android:gravity="center_vertical"
-    android:layout_marginTop="4dp" android:layout_marginBottom="2dp"
-    android:paddingStart="8dp" android:paddingEnd="8dp"
-    android:background="@drawable/sec_bg"
-    android:textSize="11sp" android:textColor="@color/ink_dim2" />
+    android:minHeight="28dp" android:gravity="center_vertical"
+    android:paddingStart="12dp" android:paddingEnd="12dp"
+    android:background="@drawable/head_line"
+    android:textSize="12sp" android:textColor="@color/ink_dim" />

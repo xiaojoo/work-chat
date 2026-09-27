@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 分组小标题的底：整条灰底（和页面同色，所以看着像"没有背景"）+ 一根下边框。
+     不再画成圆角卡片——那样会和下面的联系人行抢同一层视觉 -->
+<layer-list xmlns:android="http://schemas.android.com/apk/res/android">
+    <item>
+        <shape android:shape="rectangle">
+            <solid android:color="@color/nb_bg_3" />
+        </shape>
+    </item>
+    <item android:bottom="-1dp" android:left="-1dp" android:right="-1dp">
+        <shape android:shape="rectangle">
+            <solid android:color="@android:color/transparent" />
+            <stroke android:width="1dp" android:color="@color/line" />
+        </shape>
+    </item>
+</layer-list>
