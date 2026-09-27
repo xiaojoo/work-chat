@@ -34,9 +34,10 @@
             android:background="@color/ok" android:visibility="gone" />
     </LinearLayout>
 
-    <!-- 一行一条，靠这根从文字起头的浅线分开，不再是两张卡片叠在一起 -->
+    <!-- 一行一条，靠这根从文字起头的浅线分开，不再是两张卡片叠在一起。
+         0.5dp 在这台机（dpr 2.75）落到 1px；原来 1dp 实渲 3px，压不住"底部那条边错位" -->
     <View android:id="@+id/line"
-        android:layout_width="match_parent" android:layout_height="1dp"
+        android:layout_width="match_parent" android:layout_height="0.5dp"
         android:layout_marginStart="64dp"
         android:background="@color/line_soft" />
 </LinearLayout>

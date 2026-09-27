@@ -65,7 +65,9 @@ class AddMembersActivity : EdgeBackActivity() {
                         v.ava.text = nm.take(1).uppercase()
                         v.name.text = nm
                         v.sub.text = listOf(r.p.position, r.p.username).filter { it.isNotEmpty() }.joinToString(" · ")
-                        v.line.visibility = if (rows.getOrNull(i + 1) is Dept) View.GONE else View.VISIBLE
+                        /* 下一行是组头就不画自己的线；最后一行下面没行了，也不画（和通讯录同一句规矩） */
+                        val next = rows.getOrNull(i + 1)
+                        v.line.visibility = if (next == null || next is Dept) View.GONE else View.VISIBLE
                         v.itemView.setOnClickListener { confirm(r.p, nm) }
                     }
                 }

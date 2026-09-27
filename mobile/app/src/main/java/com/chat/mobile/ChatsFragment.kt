@@ -243,6 +243,10 @@ class ChatsFragment : Fragment() {
             h.unread.visibility = if (u > 0) View.VISIBLE else View.GONE
             h.unread.setBackgroundResource(
                 if (flags.muted(c.id)) R.drawable.unread_badge_muted else R.drawable.unread_badge)
+            /* 最后一行不再画自己那根线：它下面没有另一行了，那根线（nb-line-soft 241,243,248）
+               和页面底色（nb-bg-3 240,243,248）只差 1，画出来就是底边一个 3px 的台阶——
+               线从 56dp 起头，所以左半截和右半截的白底收尾不在同一条 y 上 */
+            h.line.visibility = if (i == rows.size - 1) View.GONE else View.VISIBLE
             h.itemView.setOnClickListener {
                 startActivity(Intent(requireContext(), ChatActivity::class.java)
                     .putExtra("conv", c.id).putExtra("name", nm))
@@ -257,6 +261,7 @@ class ChatsFragment : Fragment() {
         val last: TextView = v.findViewById(R.id.last)
         val time: TextView = v.findViewById(R.id.time)
         val unread: TextView = v.findViewById(R.id.unread)
+        val line: View = v.findViewById(R.id.line)
     }
 
     companion object {

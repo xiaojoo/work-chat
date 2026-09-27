@@ -178,8 +178,13 @@ class ContactsFragment : Fragment() {
 
     private fun name(f: Api.Friend) = f.nickname.ifEmpty { f.username }
 
-    /** 组头自己带一根下边框，所以它上面那一行不能再画自己的线——否则两条线夹着一条灰带，看着像双线 */
-    private fun lineBefore(nextIsHead: Boolean) = if (nextIsHead) View.GONE else View.VISIBLE
+    /** 组头自己带一根下边框，所以它上面那一行不能再画自己的线——否则两条线夹着一条灰带，看着像双线。
+     *  最后一行下面也没有行了，同样不画：那根线（241,243,248）和页面底色（240,243,248）只差 1，
+     *  画出来就是列表底边一个台阶——线从文字起头，左半截和右半截收尾不在同一条 y 上 */
+    private fun lineBefore(next: Any?): Int = when {
+        next == null || next is Head -> View.GONE
+        else -> View.VISIBLE
+    }
 
     /** 分组标题吸顶：只有当这一组真正的组头完全滚出上沿之后才钉住它。
      *  原来用"第一个可见项是不是组头"判断，组头露 1 个像素也算露着，结果滚到一半谁都不钉 */
@@ -246,7 +251,7 @@ class ContactsFragment : Fragment() {
                     val v = h as EntryVH
                     v.label.text = "群聊"
                     v.count.text = ln.count.toString()
-                    v.line.visibility = lineBefore(lines.getOrNull(i + 1) is Head)
+                    v.line.visibility = lineBefore(lines.getOrNull(i + 1))
                     v.itemView.setOnClickListener {
                         startActivity(Intent(requireContext(), GroupListActivity::class.java))
                     }
@@ -257,7 +262,7 @@ class ContactsFragment : Fragment() {
                     v.ava.text = nm.take(1).uppercase()
                     v.name.text = nm
                     v.sub.text = "@${ln.f.username}"
-                    v.line.visibility = lineBefore(lines.getOrNull(i + 1) is Head)
+                    v.line.visibility = lineBefore(lines.getOrNull(i + 1))
                     v.itemView.setOnClickListener {
                         android.widget.Toast.makeText(requireContext(), "和 $nm 的会话在「微信」页里开", android.widget.Toast.LENGTH_SHORT).show()
                     }

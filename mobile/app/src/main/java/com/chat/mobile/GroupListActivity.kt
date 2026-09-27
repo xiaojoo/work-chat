@@ -37,6 +37,7 @@ class GroupListActivity : EdgeBackActivity() {
                 h.ava.text = nm.take(1).uppercase()
                 h.name.text = nm
                 h.sub.text = if (g.unread > 0) "${g.unread} 条未读" else "群聊"
+                h.line.visibility = if (i == groups.size - 1) View.GONE else View.VISIBLE
                 h.itemView.setOnClickListener {
                     startActivity(Intent(this@GroupListActivity, ChatActivity::class.java)
                         .putExtra("conv", g.id).putExtra("name", nm))
@@ -63,5 +64,6 @@ class GroupListActivity : EdgeBackActivity() {
         val ava: TextView = v.findViewById(R.id.ava)
         val name: TextView = v.findViewById(R.id.name)
         val sub: TextView = v.findViewById(R.id.sub)
+        val line: View = v.findViewById(R.id.line)
     }
 }
