@@ -66,9 +66,9 @@
         android:paddingTop="6dp"
         android:paddingBottom="6dp" />
 
-    <!-- 输入这一条：浅灰底 + 顶上一根发丝线，框是胶囊，发送是品牌蓝实心。
-         微信这条上还有语音/表情/＋三颗圆钮，手机端三样都没有能力（没录音、没表情面板、没附件上传），
-         所以不摆空壳 -->
+    <!-- 输入这一条照微信那排：输入框 / 表情 / ＋，最右留着「发送」（它是真发得出去的）。
+         最左那颗语音不摆——后端没有语音消息，摆了就是颗点了没反应的钮。
+         表情和 ＋ 各开下面那块面板，同一时刻只开一个。 -->
     <View
         android:layout_width="match_parent"
         android:layout_height="1dp"
@@ -96,18 +96,97 @@
             android:inputType="textShortMessage|textMultiLine|textCapSentences"
             android:hint="说点什么" />
 
+        <ImageView
+            android:id="@+id/emojiBtn"
+            android:layout_width="40dp" android:layout_height="40dp"
+            android:layout_marginStart="6dp"
+            android:padding="7dp"
+            android:src="@drawable/ic_emoji"
+            android:background="?android:attr/selectableItemBackgroundBorderless"
+            android:contentDescription="表情" />
+
+        <ImageView
+            android:id="@+id/plusBtn"
+            android:layout_width="40dp" android:layout_height="40dp"
+            android:layout_marginStart="2dp"
+            android:padding="7dp"
+            android:src="@drawable/ic_plus_circle"
+            android:background="?android:attr/selectableItemBackgroundBorderless"
+            android:contentDescription="文件" />
+
         <Button
             android:id="@+id/send"
             android:layout_width="wrap_content"
             android:layout_height="44dp"
             android:minWidth="68dp"
-            android:layout_marginStart="8dp"
+            android:layout_marginStart="6dp"
             android:background="@drawable/btn_brand"
             android:stateListAnimator="@null"
             android:textColor="#FFFFFF"
             android:textSize="15sp"
             android:textAllCaps="false"
             android:text="发送" />
+    </LinearLayout>
+
+    <!-- 面板：表情是一排可滚的字格，文件是两颗格子（相册 / 文件），都走系统选择器 -->
+    <LinearLayout
+        android:id="@+id/panel"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="vertical"
+        android:background="@color/nb_bg_3"
+        android:visibility="gone">
+
+        <ScrollView
+            android:id="@+id/emojiScroll"
+            android:layout_width="match_parent" android:layout_height="wrap_content"
+            android:maxHeight="200dp" android:visibility="gone">
+
+            <GridLayout android:id="@+id/emojiGrid"
+                android:layout_width="match_parent" android:layout_height="wrap_content"
+                android:columnCount="7" android:paddingStart="6dp" android:paddingEnd="6dp"
+                android:paddingTop="6dp" android:paddingBottom="6dp" />
+        </ScrollView>
+
+        <LinearLayout
+            android:id="@+id/fileRow"
+            android:layout_width="match_parent" android:layout_height="wrap_content"
+            android:orientation="horizontal" android:padding="14dp" android:visibility="gone">
+
+            <LinearLayout android:id="@+id/pickAlbum"
+                android:layout_width="0dp" android:layout_height="wrap_content"
+                android:layout_weight="1" android:orientation="vertical" android:gravity="center"
+                android:padding="10dp" android:background="?android:attr/selectableItemBackground">
+
+                <FrameLayout android:layout_width="52dp" android:layout_height="52dp"
+                    android:background="@drawable/tile_bg">
+                    <ImageView android:layout_width="26dp" android:layout_height="26dp"
+                        android:layout_gravity="center" android:src="@drawable/ic_wb_image"
+                        android:contentDescription="" />
+                </FrameLayout>
+
+                <TextView android:layout_width="wrap_content" android:layout_height="wrap_content"
+                    android:layout_marginTop="6dp" android:textSize="12sp"
+                    android:textColor="@color/ink_dim" android:text="相册" />
+            </LinearLayout>
+
+            <LinearLayout android:id="@+id/pickFile"
+                android:layout_width="0dp" android:layout_height="wrap_content"
+                android:layout_weight="1" android:orientation="vertical" android:gravity="center"
+                android:padding="10dp" android:background="?android:attr/selectableItemBackground">
+
+                <FrameLayout android:layout_width="52dp" android:layout_height="52dp"
+                    android:background="@drawable/tile_bg">
+                    <ImageView android:layout_width="26dp" android:layout_height="26dp"
+                        android:layout_gravity="center" android:src="@drawable/ic_wb_folder"
+                        android:contentDescription="" />
+                </FrameLayout>
+
+                <TextView android:layout_width="wrap_content" android:layout_height="wrap_content"
+                    android:layout_marginTop="6dp" android:textSize="12sp"
+                    android:textColor="@color/ink_dim" android:text="文件" />
+            </LinearLayout>
+        </LinearLayout>
     </LinearLayout>
 
 </LinearLayout>

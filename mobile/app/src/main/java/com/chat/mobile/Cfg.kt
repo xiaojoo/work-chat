@@ -18,6 +18,8 @@ object Cfg {
     // 后端四个服务里只有 chat-user(8081) 和消息网关(18082) 是手机端要直连的
     const val USER_PORT = 8081
     const val GW_PORT = 18082
+    /** 文件/图片上传走 chat-message 那个服务的 REST，不过网关（网关读帧上限 64KB） */
+    const val MSG_PORT = 8083
     /** 群成员 / 邀请在 chat-group 那个服务上，端口和 8081 不是一个，
      *  所以它得有自己的 base（桌面端是 vite 代理把 /api/group 转过去的，手机没有那层代理） */
     const val GROUP_PORT = 8084
@@ -60,6 +62,15 @@ object Cfg {
         val scheme = base.substringBefore("://")
         val host = base.substringAfter("://").substringBefore("/").substringBefore(":")
         return "$scheme://$host:$GROUP_PORT"
+    }
+
+    /** 消息服务（文件上传/下载）：还是同一个宿主、第三个端口 */
+    fun msgBase(ctx: Context): String {
+        val base = apiBase(ctx)
+        if (base.isEmpty()) return ""
+        val scheme = base.substringBefore("://")
+        val host = base.substringAfter("://").substringBefore("/").substringBefore(":")
+        return "$scheme://$host:$MSG_PORT"
     }
 
     fun token(ctx: Context): String =

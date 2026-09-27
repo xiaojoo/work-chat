@@ -195,9 +195,8 @@ class Api(private val base: String, private val token: String = "") {
         call("/api/group/${groupId.removePrefix("g")}/invite", JSONObject().put("userIds", ids).toString())
     }
 
-    /** 单聊转群聊走这一条：POST /api/group/create {name, memberIds:[...]}，返回新群的纯数字 id。
-     *  后端 createGroupWithMembers = 建群（我落成群主）+ 邀请这批人，并给每人绑好那条群会话，
-     *  所以建完直接就能用 "g"+id 打开，不用再查一遍会话列表。name 是 @NotBlank、上限 100。 */
+    /** POST /api/group/create {name, memberIds:[...]}，返回新群的纯数字 id。
+     *  后端 createGroupWithMembers = 建群（我落成群主）+ 邀请这批人，并给每人绑好群会话。 */
     fun createGroup(name: String, memberIds: List<String>): String {
         val ids = JSONArray().apply { memberIds.forEach { put(it.toLong()) } }
         val o = JSONObject(call("/api/group/create",
@@ -205,5 +204,51 @@ class Api(private val base: String, private val token: String = "") {
         val err = o.optString("error")
         if (err.isNotEmpty()) throw Failure(err)
         return o.opt("id")?.toString() ?: ""
+    }
+
+    /** 一条文件/图片消息的内容就是这一串 JSON 引用（桌面端 sendMediaFile 同形状）。
+     *  类型按 contentType 分：image/ 开头算 IMAGE，其余 FILE——和 web 侧 previewOf 一个口径。 */
+    data class FileRef(val fileId: String, val name: String, val size: Long, val contentType: String) {
+        fun content(): String = JSONObject().put("fileId", fileId).put("name", name)
+            .put("size", size).put("contentType", contentType).toString()
+        fun type(): String = if (contentType.startsWith("image/")) "IMAGE" else "FILE"
+        /** 列表/气泡上那句短预览：[图片] xxx.png / [文件] 报告.pdf */
+        fun preview(): String = (if (type() == "IMAGE") "[图片] " else "[文件] ") +
+            name.ifEmpty { "文件" }
+    }
+
+    /** 反过来：把一条消息内容解成文件引用；普通文本和老的 base64 附件都不是这个形状，返回 null。
+     *  放在 companion 里是因为渲染气泡时手里没有 Api 实例，这一步也不碰网络。 */
+    fun uploadFile(bytes: ByteArray, name: String, mime: String): FileRef {
+        val long = http.newBuilder()
+            .writeTimeout(120, TimeUnit.SECONDS).readTimeout(120, TimeUnit.SECONDS).build()
+        val part = okhttp3.MultipartBody.Part.createFormData(
+            "file", name, bytes.toRequestBody(mime.toMediaType()))
+        val body = okhttp3.MultipartBody.Builder().setType(okhttp3.MultipartBody.FORM)
+            .addPart(part).build()
+        val req = Request.Builder().url(base.trimEnd('/') + "/api/message/file/upload")
+            .addHeader("Authorization", "Bearer $token").post(body).build()
+        long.newCall(req).execute().use { resp ->
+            val text = resp.body?.string() ?: ""
+            if (!resp.isSuccessful) throw Failure("${resp.code} ${text.take(120)}")
+            val o = JSONObject(text)
+            val err = o.optString("error")
+            if (err.isNotEmpty()) throw Failure(err)
+            return FileRef(o.optString("fileId"), o.optString("name"),
+                o.optLong("size"), o.optString("contentType"))
+        }
+    }
+
+    companion object {
+        /** 把一条消息内容解成文件引用；普通文本和老的 base64 附件都不是这个形状，返回 null。
+         *  放 companion 是因为渲染气泡时手里没有 Api 实例，这一步也不碰网络。 */
+        fun fileRef(content: String): FileRef? {
+            val s = content.trim()
+            if (!s.startsWith("{") || !s.contains("\"fileId\"")) return null
+            val o = runCatching { JSONObject(s) }.getOrNull() ?: return null
+            val id = o.optString("fileId")
+            if (id.isEmpty()) return null
+            return FileRef(id, o.optString("name"), o.optLong("size"), o.optString("contentType"))
+        }
     }
 }

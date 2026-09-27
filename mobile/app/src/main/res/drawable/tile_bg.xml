@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 面板里那颗格子的白底：微信那屏是 60 见方白卡 + 圆角，这里 52dp、圆角 10dp -->
+<shape xmlns:android="http://schemas.android.com/apk/res/android" android:shape="rectangle">
+    <solid android:color="@color/surface" />
+    <corners android:radius="10dp" />
+</shape>

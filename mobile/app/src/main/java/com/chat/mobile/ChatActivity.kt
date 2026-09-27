@@ -95,6 +95,7 @@ class ChatActivity : EdgeBackActivity() {
             list.scrollToPosition(rows.size - 1)
             input.setText("")
         }
+        setupPanels(input)
 
         if (convId.isEmpty() || myId.isEmpty()) { state.text = "参数不全，回列表重进" ; return }
         // 进会话就清未读：桌面端是同一条规则（点开 = 已读）。
@@ -117,6 +118,119 @@ class ChatActivity : EdgeBackActivity() {
             runOnUiThread { ws?.send("LOAD_MESSAGES", JSONObject().put("conversationId", convId).put("limit", 50)) }
         }
     }
+
+    /** 面板开的是哪块：0=没开、1=表情、2=文件。同一时刻只开一块 */
+    private var panelKind = 0
+    private lateinit var panel: View
+    private lateinit var emojiScroll: View
+    private lateinit var fileRow: View
+
+    private fun setupPanels(input: EditText) {
+        panel = findViewById(R.id.panel)
+        emojiScroll = findViewById(R.id.emojiScroll)
+        fileRow = findViewById(R.id.fileRow)
+        buildEmojis(input)
+        findViewById<View>(R.id.emojiBtn).setOnClickListener { showPanel(if (panelKind == 1) 0 else 1) }
+        findViewById<View>(R.id.plusBtn).setOnClickListener { showPanel(if (panelKind == 2) 0 else 2) }
+        findViewById<View>(R.id.pickAlbum).setOnClickListener { pick("image/*", REQ_ALBUM) }
+        findViewById<View>(R.id.pickFile).setOnClickListener { pick("*/*", REQ_FILE) }
+    }
+
+    private fun showPanel(kind: Int) {
+        panelKind = kind
+        panel.visibility = if (kind == 0) View.GONE else View.VISIBLE
+        emojiScroll.visibility = if (kind == 1) View.VISIBLE else View.GONE
+        fileRow.visibility = if (kind == 2) View.VISIBLE else View.GONE
+    }
+
+    /** 表情就是往输入框里接一个字，不发出去——和微信那排一样 */
+    private fun buildEmojis(input: EditText) {
+        val grid = findViewById<GridLayout>(R.id.emojiGrid)
+        val px = resources.displayMetrics.density
+        val tv = android.util.TypedValue()
+        theme.resolveAttribute(android.R.attr.selectableItemBackground, tv, true)
+        EMOJI.forEach { e ->
+            val b = TextView(this)
+            b.text = e
+            b.textSize = 22f
+            b.gravity = Gravity.CENTER
+            b.isClickable = true
+            b.setBackgroundResource(tv.resourceId)
+            b.setOnClickListener { input.append(e) }
+            grid.addView(b, GridLayout.LayoutParams().apply {
+                width = (44 * px).toInt(); height = (44 * px).toInt()
+            })
+        }
+    }
+
+    private fun pick(mime: String, req: Int) {
+        val i = Intent(Intent.ACTION_OPEN_DOCUMENT).apply {
+            addCategory(Intent.CATEGORY_OPENABLE); type = mime
+        }
+        runCatching { startActivityForResult(i, req) }
+            .onFailure { shout("这台机没有可用的选择器：${it.message}") }
+    }
+
+    @Deprecated("Activity 的 onActivityResult，选择器只这一个入口，够用")
+    override fun onActivityResult(req: Int, res: Int, data: Intent?) {
+        super.onActivityResult(req, res, data)
+        if (res != RESULT_OK) return
+        val uri = data?.data ?: return
+        sendPicked(uri)
+    }
+
+    /** 选择器给的是 content:// ：名字要查 OpenableColumns，字节整个读进内存再 multipart 传。
+     *  后端限 20MB，超了回 413，那句在这边翻成人话。 */
+    private fun sendPicked(uri: android.net.Uri) {
+        val name = displayName(uri).ifEmpty { "文件" }
+        val mime = contentResolver.getType(uri) ?: "application/octet-stream"
+        state.text = "上传中…"
+        thread(name = "upload") {
+            val res = runCatching {
+                val bytes = contentResolver.openInputStream(uri)?.use { it.readBytes() }
+                    ?: error("读不到这个文件")
+                Api(Cfg.msgBase(this), Cfg.token(this)).uploadFile(bytes, name, mime)
+            }
+            runOnUiThread {
+                if (isFinishing) return@runOnUiThread
+                res.onSuccess { sendMedia(it) }
+                    .onFailure {
+                        state.text = ""
+                        shout(if (it.message?.startsWith("413") == true) "文件超过 20MB"
+                              else "上传失败：${it.message}")
+                    }
+            }
+        }
+    }
+
+    private fun displayName(uri: android.net.Uri): String {
+        contentResolver.query(uri, arrayOf(android.provider.OpenableColumns.DISPLAY_NAME), null, null, null)
+            ?.use { c -> if (c.moveToFirst()) return c.getString(0).orEmpty() }
+        return uri.lastPathSegment?.substringAfterLast('/').orEmpty()
+    }
+
+    /** 发一条文件/图片消息：内容存 JSON 引用、类型按 contentType 分 IMAGE/FILE，
+     *  和桌面端 sendMediaFile 同一形状。自己这条照样当场摆上（网关不回推给发送方） */
+    private fun sendMedia(ref: Api.FileRef) {
+        ws?.send("MESSAGE_SEND", JSONObject()
+            .put("conversationId", convId)
+            .put("messageType", ref.type())
+            .put("content", ref.content())
+            .put("extra", ""))
+        msgs.add(JSONObject()
+            .put("conversationId", convId)
+            .put("senderId", myId)
+            .put("messageType", ref.type())
+            .put("content", ref.content())
+            .put("createTime", OffsetDateTime.now(java.time.ZoneOffset.UTC).toString()))
+        rebuildRows(); adapter.notifyDataSetChanged()
+        list.scrollToPosition(rows.size - 1)
+        state.text = ""
+        showPanel(0)
+    }
+
+    private fun shout(msg: String) =
+        Toast.makeText(this, msg, Toast.LENGTH_LONG).show()
 
     private fun onFrame(m: JSONObject) {
         when (m.optString("type")) {
@@ -245,7 +359,10 @@ class ChatActivity : EdgeBackActivity() {
         // senderId 是 JSON 数字，getString 会抛；一律 get().toString()
         val sender = m.opt("senderId")?.toString() ?: ""
         val self = sender.isNotEmpty() && sender == myId
-        h.bubble.text = m.optString("content")
+        /* 文件/图片消息的内容是一串 JSON 引用，直接印出来就是一屏大括号——
+           按桌面端 previewOf 那句改成 [图片] xxx.png / [文件] 报告.pdf */
+        val raw = m.optString("content")
+        h.bubble.text = Api.fileRef(raw)?.preview() ?: raw
         h.bubble.setBackgroundResource(if (self) R.drawable.bubble_self else R.drawable.bubble_other)
         h.bubble.setTextColor(if (self) 0xFFFFFFFF.toInt() else 0xFF1B2434.toInt())
         /* 群聊才印发送人名；单聊不印（桌面端 .msg-who 也是这个口径）。
@@ -398,5 +515,17 @@ class ChatActivity : EdgeBackActivity() {
 
     private class TimeVH(v: View) : RecyclerView.ViewHolder(v) {
         val at: TextView = v.findViewById(R.id.at)
+    }
+
+    private companion object {
+        const val REQ_ALBUM = 41
+        const val REQ_FILE = 42
+        /** 常用那一小片，不是全量 Unicode：面板要能一屏滚完，且这些都是文本，后端存的就是字。
+         *  按码点列而不是把字面 emoji 写进源码——那串字节在编辑工具里会掉字（我先写过字面量，
+         *  结果源码里留下四个空串，面板上就是四个点了没反应的白格）。 */
+        val EMOJI: List<String> = ((0x1F600..0x1F619) + (0x1F641..0x1F643) +
+            listOf(0x1F44D, 0x1F44E, 0x1F44C, 0x1F64F, 0x1F44F, 0x1F4AA, 0x1F91D,
+                   0x2764, 0x1F494, 0x1F4AF, 0x1F389, 0x1F31F, 0x1F525, 0x2728, 0x1F381, 0x1F4B0))
+            .map { String(Character.toChars(it)) }
     }
 }
