@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 分组小标题：微信那种灰底单字母 -->
+<TextView xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@+id/letter"
+    android:layout_width="match_parent" android:layout_height="wrap_content"
+    android:minHeight="28dp" android:gravity="center_vertical"
+    android:paddingStart="14dp" android:paddingEnd="14dp"
+    android:background="@color/section_head_bg"
+    android:textSize="13sp" android:textColor="@color/ink_dim" />

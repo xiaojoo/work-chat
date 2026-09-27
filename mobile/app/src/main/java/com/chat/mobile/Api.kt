@@ -84,4 +84,41 @@ class Api(private val base: String, private val token: String = "") {
         call("/api/conversation/unread/clear?userId=$userId",
             JSONObject().put("conversationId", numeric).put("userId", userId).toString())
     }
+
+    data class Friend(val id: String, val username: String, val nickname: String, val avatar: String)
+
+    /** GET /api/friend/list 只认令牌，不接 userId 查询参数（桌面端 api/friend.js 就没传） */
+    fun friends(): List<Friend> {
+        val arr = JSONArray(call("/api/friend/list"))
+        return List(arr.length()) { i ->
+            val o = arr.getJSONObject(i)
+            // friendId 是 JSON 数字，一律 get().toString()
+            Friend(
+                id = o.opt("friendId")?.toString() ?: "",
+                username = str(o, "username"),
+                nickname = str(o, "nickname"),
+                avatar = str(o, "avatar"))
+        }
+    }
+
+    data class Profile(
+        val id: String, val username: String, val nickname: String, val avatar: String,
+        val department: String, val position: String, val email: String, val phone: String, val bio: String)
+
+    /** GET /api/user/{id}。remark、location 后端恒返回空串且没有任何写入路径，不收进这个类 */
+    fun profile(userId: String): Profile {
+        val o = JSONObject(call("/api/user/$userId"))
+        val err = o.optString("error")
+        if (err.isNotEmpty()) throw Failure(err)
+        return Profile(
+            id = o.opt("id")?.toString() ?: userId,
+            username = str(o, "username"),
+            nickname = str(o, "nickname"),
+            avatar = str(o, "avatar"),
+            department = str(o, "department"),
+            position = str(o, "position"),
+            email = str(o, "email"),
+            phone = str(o, "phone"),
+            bio = str(o, "bio"))
+    }
 }

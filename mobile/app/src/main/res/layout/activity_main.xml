@@ -1,0 +1,44 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:orientation="vertical"
+    android:background="@color/page_bg">
+
+    <FrameLayout
+        android:id="@+id/container"
+        android:layout_width="match_parent"
+        android:layout_height="0dp"
+        android:layout_weight="1" />
+
+    <!-- 微信那套底部导航：图标在上、两个字在下、选中只换色不动几何；
+         整条 56dp 高，单个 tab 命中区 96x56，都过拇指下限 -->
+    <LinearLayout
+        android:id="@+id/tabs"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="horizontal"
+        android:background="@color/surface">
+
+        <LinearLayout android:id="@+id/tab_chats" style="@style/TabItem" android:contentDescription="微信">
+            <ImageView style="@style/TabIcon" android:src="@drawable/ic_tab_chats" />
+            <TextView style="@style/TabLabel" android:text="微信" />
+        </LinearLayout>
+
+        <LinearLayout android:id="@+id/tab_contacts" style="@style/TabItem" android:contentDescription="通讯录">
+            <ImageView style="@style/TabIcon" android:src="@drawable/ic_tab_contacts" />
+            <TextView style="@style/TabLabel" android:text="通讯录" />
+        </LinearLayout>
+
+        <LinearLayout android:id="@+id/tab_work" style="@style/TabItem" android:contentDescription="工作台">
+            <ImageView style="@style/TabIcon" android:src="@drawable/ic_tab_work" />
+            <TextView style="@style/TabLabel" android:text="工作台" />
+        </LinearLayout>
+
+        <LinearLayout android:id="@+id/tab_me" style="@style/TabItem" android:contentDescription="我">
+            <ImageView style="@style/TabIcon" android:src="@drawable/ic_tab_me" />
+            <TextView style="@style/TabLabel" android:text="我" />
+        </LinearLayout>
+    </LinearLayout>
+
+</LinearLayout>

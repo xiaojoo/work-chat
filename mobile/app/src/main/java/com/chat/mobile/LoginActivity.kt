@@ -28,7 +28,7 @@ class LoginActivity : AppCompatActivity() {
         /* 有令牌就直接进列表：手机上是"看一眼"的端，每次冷启动都重打一遍口令等于没做。
            令牌过期会在列表页报"拉取失败"，那边有「退出」可以回到这里，不会出不去 */
         if (Cfg.token(this).isNotEmpty() && Cfg.userId(this).isNotEmpty()) {
-            startActivity(Intent(this, ConversationListActivity::class.java))
+            startActivity(Intent(this, MainActivity::class.java))
             finish()
             return
         }
@@ -52,7 +52,7 @@ class LoginActivity : AppCompatActivity() {
                     runOnUiThread {
                         submit.isEnabled = true
                         status.text = "登录成功 ${s.username}"
-                        startActivity(Intent(this, ConversationListActivity::class.java))
+                        startActivity(Intent(this, MainActivity::class.java))
                     }
                 } catch (e: Exception) {
                     runOnUiThread {

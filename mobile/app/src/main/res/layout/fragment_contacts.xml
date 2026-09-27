@@ -1,0 +1,44 @@
+<?xml version="1.0" encoding="utf-8"?>
+<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent" android:layout_height="match_parent"
+    android:background="@color/page_bg">
+
+    <LinearLayout
+        android:layout_width="match_parent" android:layout_height="match_parent"
+        android:orientation="vertical">
+
+        <FrameLayout
+            android:layout_width="match_parent" android:layout_height="48dp"
+            android:background="@color/surface">
+            <TextView android:id="@+id/title"
+                android:layout_width="wrap_content" android:layout_height="wrap_content"
+                android:layout_gravity="center"
+                android:text="通讯录" android:textSize="17sp" android:textStyle="bold"
+                android:textColor="@color/ink" />
+        </FrameLayout>
+
+        <View android:layout_width="match_parent" android:layout_height="1dp" android:background="@color/divider" />
+
+        <androidx.recyclerview.widget.RecyclerView
+            android:id="@+id/list"
+            android:layout_width="match_parent" android:layout_height="0dp"
+            android:layout_weight="1"
+            android:background="@color/surface"
+            android:paddingEnd="24dp"
+            android:clipToPadding="false" />
+
+        <TextView android:id="@+id/status"
+            android:layout_width="match_parent" android:layout_height="wrap_content"
+            android:padding="12dp" android:textSize="12sp" android:textColor="@color/ink_dim"
+            android:background="@color/surface" />
+    </LinearLayout>
+
+    <!-- 微信通讯录右侧那条字母索引：窄列、贴右缘。桌面端那条是 12+3px 的节奏，
+         手机上按同样的思路做，但每格给到 14dp 宽、行距撑到能连点 -->
+    <LinearLayout android:id="@+id/rail"
+        android:layout_width="wrap_content" android:layout_height="wrap_content"
+        android:layout_gravity="end|center_vertical"
+        android:orientation="vertical"
+        android:paddingEnd="4dp" />
+
+</FrameLayout>

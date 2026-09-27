@@ -9,4 +9,5 @@
     <string name="conversations_title">会话</string>
     <string name="reload">刷新</string>
     <string name="logout">退出</string>
+    <string name="workbench_note">这块是设计稿的静态壳：首页看板、我的任务、项目文档、AI 助手都还没有后端接口，所以四行先置灰、点了给一句原因，不摆假数据。桌面端同一份说明在 Workbench.vue 的 DEMO_NOTE。</string>
 </resources>

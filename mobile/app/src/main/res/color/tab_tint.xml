@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<selector xmlns:android="http://schemas.android.com/apk/res/android">
+    <!-- 底部 tab 图标随选中态换色，用 tint 而不是画两张图 -->
+    <item android:color="@color/brand" android:state_selected="true" />
+    <item android:color="@color/brand" android:state_checked="true" />
+    <item android:color="@color/brand" android:state_activated="true" />
+    <item android:color="@color/tab_idle" />
+</selector>

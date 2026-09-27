@@ -16,7 +16,8 @@
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
         </activity>
-        <activity android:name=".ConversationListActivity" android:exported="false" />
+        <!-- 主界面是底部四 tab 那个壳；exported=false，adb 起不了它，只能从登录页跳 -->
+        <activity android:name=".MainActivity" android:exported="false" />
         <activity android:name=".ChatActivity" android:exported="false"
             android:windowSoftInputMode="adjustResize" />
     </application>

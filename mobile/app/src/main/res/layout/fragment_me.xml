@@ -1,0 +1,50 @@
+<?xml version="1.0" encoding="utf-8"?>
+<ScrollView xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent" android:layout_height="match_parent"
+    android:background="@color/page_bg" android:fillViewport="true">
+
+    <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content"
+        android:orientation="vertical">
+
+        <!-- 微信「我」页顶部那张卡：大头像 + 名字 + 账号 -->
+        <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content"
+            android:orientation="horizontal" android:gravity="center_vertical"
+            android:background="@color/surface"
+            android:padding="20dp">
+            <TextView android:id="@+id/ava"
+                android:layout_width="60dp" android:layout_height="60dp"
+                android:gravity="center" android:textSize="26sp" android:textStyle="bold"
+                android:textColor="#FFFFFF" android:background="@color/brand" />
+            <LinearLayout android:layout_width="0dp" android:layout_height="wrap_content"
+                android:layout_weight="1" android:layout_marginStart="16dp" android:orientation="vertical">
+                <TextView android:id="@+id/name"
+                    android:layout_width="match_parent" android:layout_height="wrap_content"
+                    android:textSize="19sp" android:textStyle="bold" android:textColor="@color/ink"
+                    android:maxLines="1" android:ellipsize="end" />
+                <TextView android:id="@+id/account"
+                    android:layout_width="match_parent" android:layout_height="wrap_content"
+                    android:layout_marginTop="3dp"
+                    android:textSize="13sp" android:textColor="@color/ink_dim"
+                    android:maxLines="1" />
+            </LinearLayout>
+        </LinearLayout>
+
+        <LinearLayout android:id="@+id/fields"
+            android:layout_width="match_parent" android:layout_height="wrap_content"
+            android:layout_marginTop="10dp"
+            android:orientation="vertical" android:background="@color/surface" />
+
+        <Button android:id="@+id/logout"
+            android:layout_width="match_parent" android:layout_height="wrap_content"
+            android:layout_marginTop="10dp"
+            android:minHeight="52dp"
+            android:background="@color/surface"
+            android:textColor="@color/danger" android:textSize="16sp"
+            android:text="退出登录" />
+
+        <TextView android:id="@+id/status"
+            android:layout_width="match_parent" android:layout_height="wrap_content"
+            android:padding="14dp" android:textSize="12sp" android:textColor="@color/ink_dim" />
+
+    </LinearLayout>
+</ScrollView>
