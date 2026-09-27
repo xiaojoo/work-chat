@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 免打扰的会话：角标还在，但不再是告警的红。红色在这套色里是 danger，只该给"要看的" -->
+<shape xmlns:android="http://schemas.android.com/apk/res/android" android:shape="rectangle">
+    <solid android:color="@color/ink_dim2" />
+    <corners android:radius="9dp" />
+</shape>

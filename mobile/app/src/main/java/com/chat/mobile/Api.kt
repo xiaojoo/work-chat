@@ -86,8 +86,14 @@ class Api(private val base: String, private val token: String = "") {
             JSONObject().put("conversationId", numeric).put("userId", userId).toString())
     }
 
-    data class Friend(val id: String, val username: String, val nickname: String, val avatar: String)
+    /** 删会话：DELETE /api/conversation/{纯数字id}?userId= 。群会话同样要去掉 g 前缀。
+     *  这是这一排菜单里唯一真打到服务器的一条，其余（置顶/免打扰/不显示）后端没有字段。 */
+    fun deleteConversation(conversationId: String, userId: String) {
+        val numeric = conversationId.removePrefix("g")
+        call("/api/conversation/$numeric?userId=$userId", method = "DELETE")
+    }
 
+    data class Friend(val id: String, val username: String, val nickname: String, val avatar: String)
     /** GET /api/friend/list 只认令牌，不接 userId 查询参数（桌面端 api/friend.js 就没传） */
     fun friends(): List<Friend> {
         val arr = JSONArray(call("/api/friend/list"))
