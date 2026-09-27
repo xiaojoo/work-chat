@@ -97,9 +97,11 @@ class ChatsFragment : Fragment() {
                     c.drawRect(l, row.top.toFloat(), r, row.bottom.toFloat(), bg)
                     val label = if (del) "删除" else swipeLabel(h.bindingAdapterPosition)
                     ink.textAlign = if (del) Paint.Align.RIGHT else Paint.Align.LEFT
-                    // 字贴着空档的外侧、下沿留 10dp；空档不够宽时被 clipRect 裁掉，不压到行文字上
+                    // 字贴空档的外侧、**垂直居中**（行高 64dp，之前压在底边看着像掉下去了）；
+                    // 空档不够宽时被 clipRect 裁掉，不压到行文字上
                     val tx = if (del) r - 16 * px else l + 16 * px
-                    val ty = row.bottom - 10 * px - ink.fontMetrics.bottom
+                    val fm = ink.fontMetrics
+                    val ty = (row.top + row.bottom) / 2f - (fm.ascent + fm.descent) / 2f
                     c.save()
                     c.clipRect(l, row.top.toFloat(), r, row.bottom.toFloat())
                     c.drawText(label, tx, ty, ink)
@@ -190,6 +192,10 @@ class ChatsFragment : Fragment() {
     // ===== 长按：对应桌面端会话行的右键菜单 =====
     // 桌面端那六项里，独立窗口是桌面壳的能力、手机上没有；置顶/免打扰/不显示/标为未读后端没有字段，
     // 存在本机；只有删除真打接口。所以这一排里没有一项是点了不动的。
+    /** 手指按下的屏幕坐标（rawX/rawY 含状态栏），长按菜单按它定位 */
+    private var touchX = 0f
+    private var touchY = 0f
+
     private fun showMenu(anchor: View, c: Api.Conversation) {
         val items = listOf(
             if (flags.pinned(c.id)) "取消置顶" else "置顶该聊天",
@@ -208,6 +214,21 @@ class ChatsFragment : Fragment() {
             pop.dismiss()
             run(items[pos], c)
         }
+        /* ListPopupWindow 没有 showAtLocation（那是 PopupWindow 的口），但它默认就贴在锚点
+           行的左下沿——所以把偏移算成"手指点 - 行左下沿"，弹出来就是贴着手指那一点。
+           右边放不下就左移、下面放不下就翻到手指上方（5 条 × 44dp 是估高，只用来决定翻不翻）。
+           之前不写这两句偏移，弹框一直钉在行下方同一个位置，长按第二行它也从第一行底下冒出来。 */
+        val px = resources.displayMetrics.density
+        val where = IntArray(2); anchor.getLocationOnScreen(where)
+        val scrW = resources.displayMetrics.widthPixels
+        val scrH = resources.displayMetrics.heightPixels
+        var offX = touchX - where[0]
+        var offY = touchY - (where[1] + anchor.height)
+        if (touchX + pop.width > scrW - 8 * px) offX = scrW - 8 * px - pop.width - where[0]
+        val estH = items.size * 44 * px + 8 * px
+        if (touchY + estH > scrH - 8 * px) offY = touchY - estH - (where[1] + anchor.height)
+        pop.horizontalOffset = offX.toInt()
+        pop.verticalOffset = offY.toInt()
         pop.show()
     }
 
@@ -292,6 +313,14 @@ class ChatsFragment : Fragment() {
                     .putExtra("conv", c.id).putExtra("name", nm))
             }
             h.itemView.setOnLongClickListener { showMenu(it, c); true }
+            /* 长按不给坐标，所以自己记一下按下点——菜单要贴着手指这儿弹，
+               不是固定钉在行的下沿（他点的就是这句"在哪里长按就在哪里弹出"） */
+            h.itemView.setOnTouchListener { _, e ->
+                if (e.actionMasked == android.view.MotionEvent.ACTION_DOWN) {
+                    touchX = e.rawX; touchY = e.rawY
+                }
+                false
+            }
         }
     }
 
