@@ -65,11 +65,20 @@
         android:paddingTop="6dp"
         android:paddingBottom="6dp" />
 
+    <!-- 输入这一条：浅灰底 + 顶上一根发丝线，框是胶囊，发送是品牌蓝实心。
+         微信这条上还有语音/表情/＋三颗圆钮，手机端三样都没有能力（没录音、没表情面板、没附件上传），
+         所以不摆空壳 -->
+    <View
+        android:layout_width="match_parent"
+        android:layout_height="1dp"
+        android:background="@color/line" />
+
     <LinearLayout
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:orientation="horizontal"
         android:gravity="bottom"
+        android:background="@color/nb_bg_3"
         android:padding="8dp">
 
         <EditText
@@ -77,17 +86,26 @@
             android:layout_width="0dp"
             android:layout_height="wrap_content"
             android:layout_weight="1"
-            android:minHeight="48dp"
+            android:minHeight="44dp"
             android:maxLines="4"
+            android:background="@drawable/field_pill"
+            android:paddingStart="12dp" android:paddingEnd="12dp"
+            android:paddingTop="10dp" android:paddingBottom="10dp"
+            android:textSize="15sp"
             android:inputType="textShortMessage|textMultiLine|textCapSentences"
             android:hint="说点什么" />
 
         <Button
             android:id="@+id/send"
             android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:minHeight="48dp"
+            android:layout_height="44dp"
+            android:minWidth="68dp"
             android:layout_marginStart="8dp"
+            android:background="@drawable/btn_brand"
+            android:stateListAnimator="@null"
+            android:textColor="#FFFFFF"
+            android:textSize="15sp"
+            android:textAllCaps="false"
             android:text="发送" />
     </LinearLayout>
 

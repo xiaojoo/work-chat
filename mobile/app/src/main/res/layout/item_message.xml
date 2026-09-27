@@ -30,6 +30,14 @@
             android:background="@drawable/ava_square"
             android:visibility="gone" />
 
+        <ImageView
+            android:id="@+id/tailL"
+            android:layout_width="6dp"
+            android:layout_height="10dp"
+            android:src="@drawable/tail_left"
+            android:contentDescription=""
+            android:visibility="gone" />
+
         <TextView
             android:id="@+id/bubble"
             android:layout_width="wrap_content"
@@ -42,6 +50,14 @@
             android:textSize="14sp"
             android:textColor="@color/ink"
             android:maxWidth="260dp" />
+
+        <ImageView
+            android:id="@+id/tailR"
+            android:layout_width="6dp"
+            android:layout_height="10dp"
+            android:src="@drawable/tail_right"
+            android:contentDescription=""
+            android:visibility="gone" />
 
         <TextView
             android:id="@+id/avaR"

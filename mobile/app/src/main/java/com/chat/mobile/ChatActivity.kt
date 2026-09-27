@@ -52,7 +52,17 @@ class ChatActivity : EdgeBackActivity() {
         }
 
         val input = findViewById<EditText>(R.id.input)
-        findViewById<Button>(R.id.send).setOnClickListener {
+        val send = findViewById<Button>(R.id.send)
+        /* 没字的时候这颗是灰的：省得点一下什么都不发生，还以为按不动 */
+        send.isEnabled = false
+        input.addTextChangedListener(object : android.text.TextWatcher {
+            override fun beforeTextChanged(s: CharSequence?, a: Int, b: Int, c: Int) {}
+            override fun onTextChanged(s: CharSequence?, a: Int, b: Int, c: Int) {}
+            override fun afterTextChanged(s: android.text.Editable?) {
+                send.isEnabled = !s.toString().trim().isEmpty()
+            }
+        })
+        send.setOnClickListener {
             val text = input.text.toString().trim()
             if (text.isEmpty() || convId.isEmpty()) return@setOnClickListener
             // 网关的 MESSAGE_SEND 只认 conversationId / messageType / content / extra 四个键
@@ -158,6 +168,12 @@ class ChatActivity : EdgeBackActivity() {
             h.avaR.visibility = if (self) View.VISIBLE else View.GONE
             h.avaL.text = letter
             h.avaR.text = letter
+            // 尾巴和气泡同色，跟着一起翻边：对方在左指、自己在右指
+            h.tailL.visibility = if (self) View.GONE else View.VISIBLE
+            h.tailR.visibility = if (self) View.VISIBLE else View.GONE
+            val tail = if (self) 0xFF2B6BE8.toInt() else 0xFFF0F3F8.toInt()
+            h.tailL.setColorFilter(tail, android.graphics.PorterDuff.Mode.SRC_IN)
+            h.tailR.setColorFilter(tail, android.graphics.PorterDuff.Mode.SRC_IN)
         }
     }
 
@@ -183,5 +199,7 @@ class ChatActivity : EdgeBackActivity() {
         val time: TextView = v.findViewById(R.id.time)
         val avaL: TextView = v.findViewById(R.id.avaL)
         val avaR: TextView = v.findViewById(R.id.avaR)
+        val tailL: android.widget.ImageView = v.findViewById(R.id.tailL)
+        val tailR: android.widget.ImageView = v.findViewById(R.id.tailR)
     }
 }

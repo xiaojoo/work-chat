@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 气泡指向头像的那个小三角：左指（对方那侧）。颜色在绑定时按气泡上 -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="6dp" android:height="10dp"
+    android:viewportWidth="10" android:viewportHeight="18">
+    <path android:fillColor="#FFFFFF" android:pathData="M10,0 L0,9 L10,18 z" />
+</vector>
