@@ -2,5 +2,5 @@
 <shape xmlns:android="http://schemas.android.com/apk/res/android" android:shape="rectangle">
     <!-- 自己发的气泡：品牌蓝底白字，圆角和对方那颗一致 -->
     <solid android:color="@color/brand" />
-    <corners android:radius="6dp" />
+    <corners android:radius="4dp" />
 </shape>

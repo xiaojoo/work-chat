@@ -2,5 +2,5 @@
 <!-- 会话/联系人头像：桌面端 .ava 是 38px 方角 9px、brand 底白字 14px -->
 <shape xmlns:android="http://schemas.android.com/apk/res/android" android:shape="rectangle">
     <solid android:color="@color/brand" />
-    <corners android:radius="9dp" />
+    <corners android:radius="6dp" />
 </shape>
