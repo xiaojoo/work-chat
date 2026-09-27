@@ -21,7 +21,7 @@
     <View android:layout_width="match_parent" android:layout_height="1dp"
         android:background="@color/line" />
 
-    <!-- 成员能有很多（全公司那个群 14 人 = 4 列 4 行），不滚的话下面两条开关会被顶出屏幕且没有出口；
+    <!-- 成员能有很多（全公司那个群 14 人 = 一行 5 格 3 行），不滚的话下面两条开关会被顶出屏幕且没有出口；
          滚动结构和 activity_settings 那份一样：ScrollView 吃剩余高度，说明文字在滚动的内容里 -->
     <ScrollView android:layout_width="match_parent" android:layout_height="0dp"
         android:layout_weight="1" android:fillViewport="true">

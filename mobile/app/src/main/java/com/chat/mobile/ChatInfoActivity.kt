@@ -17,7 +17,7 @@ import kotlin.concurrent.thread
 /**
  * 聊天页右上角 ⋯ 进来的那一屏。
  *
- * 群聊时顶上先摆成员宫格（4 列一格，头像 + 名字，角色压在头像角上），最后一格是 ＝ 添加成员；
+ * 群聊时顶上先摆成员宫格（一行 5 格，头像 + 名字，角色压在头像角上），最后一格是 ＝ 添加成员；
  * 成员来自 GET :8084 /api/group/{id}/members，名字再逐个 GET :8081 /api/user/{id} 补，
  * 和桌面端「成员」页签读的是同一份。邀请走 POST /{id}/invite。
  *
@@ -88,11 +88,13 @@ class ChatInfoActivity : EdgeBackActivity() {
         else "这两条和会话列表长按那一项是同一份状态（存在本机）；后端没有对应字段。"
     }
 
-    /** 成员宫格：4 列一格（GridLayout columnCount=4），最后一格是 ＋ */
+    /** 成员宫格：一行 5 格，最后一格是 ＋ */
     private fun memberCard() {
         val card = LayoutInflater.from(this).inflate(R.layout.item_card, rows, false)
         card.findViewById<TextView>(R.id.cap).text = "群成员"
         val grid = card.findViewById<GridLayout>(R.id.grid)
+        // item_card 那份默认四列是工作台在用的，列数只在这儿改，不动共享布局
+        grid.columnCount = 5
         val inf = LayoutInflater.from(this)
         members.forEach { m ->
             val cell = inf.inflate(R.layout.item_member, grid, false)
