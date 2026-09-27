@@ -32,6 +32,8 @@
         <activity android:name=".ChatInfoActivity" android:exported="false" />
         <!-- 群成员宫格最后那颗 ＋ 点进来的一页 -->
         <activity android:name=".AddMembersActivity" android:exported="false" />
+        <!-- 聊天里点对方头像进来的那页（对应桌面端好友信息弹框） -->
+        <activity android:name=".PersonActivity" android:exported="false" />
     </application>
 
 </manifest>

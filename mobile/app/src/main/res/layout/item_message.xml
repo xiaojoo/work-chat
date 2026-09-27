@@ -1,7 +1,9 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!-- 消息行照桌面端 .msg：头像 34 方角、气泡圆角、行间距。
-     群聊才在气泡上方印发送人名（对应桌面端 .msg-who），单聊不印；
-     时间不再写在每条底下——桌面端是「第一条、或和上一条隔够 5 分钟」才插一条居中分隔，见 item_time.xml -->
+     群聊才在气泡上方印发送人名（对应桌面端 .msg-who），单聊不印。
+     名字是行内那一列的头，不是整行之上的一行——这样名字的顶边和头像的顶边在同一条线上（行改顶部对齐）。
+     尾巴仍然夹在气泡和头像之间、跟着气泡垂直居中：它和气泡同属 line 这一横排，不受名字影响。
+     时间不在每条底下，见 item_time.xml。 -->
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
     android:layout_width="match_parent"
     android:layout_height="wrap_content"
@@ -10,19 +12,6 @@
     android:paddingEnd="12dp"
     android:paddingTop="4dp"
     android:paddingBottom="12dp">
-
-    <TextView
-        android:id="@+id/who"
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:layout_marginBottom="3dp"
-        android:paddingStart="58dp"
-        android:paddingEnd="58dp"
-        android:textSize="11sp"
-        android:textColor="@color/ink_dim"
-        android:maxLines="1"
-        android:ellipsize="end"
-        android:visibility="gone" />
 
     <LinearLayout
         android:id="@+id/row"
@@ -44,36 +33,66 @@
             android:background="@drawable/ava_square"
             android:visibility="gone" />
 
-        <ImageView
-            android:id="@+id/tailL"
-            android:layout_width="6dp"
-            android:layout_height="10dp"
-            android:src="@drawable/tail_left"
-            android:contentDescription=""
-            android:visibility="gone" />
-
-        <TextView
-            android:id="@+id/bubble"
+        <!-- 名字 + 气泡这一列；有名字时整行顶部对齐，头像就和名字顶边平齐 -->
+        <LinearLayout
+            android:id="@+id/col"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:background="@drawable/bubble_other"
-            android:paddingStart="12dp"
-            android:paddingEnd="12dp"
-            android:paddingTop="7dp"
-            android:paddingBottom="7dp"
-            android:gravity="center_vertical"
-            android:minHeight="34dp"
-            android:textSize="14sp"
-            android:textColor="@color/ink"
-            android:maxWidth="260dp" />
+            android:orientation="vertical"
+            android:gravity="start">
 
-        <ImageView
-            android:id="@+id/tailR"
-            android:layout_width="6dp"
-            android:layout_height="10dp"
-            android:src="@drawable/tail_right"
-            android:contentDescription=""
-            android:visibility="gone" />
+            <TextView
+                android:id="@+id/who"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginBottom="3dp"
+                android:layout_marginTop="-2.5dp"
+                android:textSize="11sp"
+                android:textColor="@color/ink_dim"
+                android:includeFontPadding="false"
+                android:maxLines="1"
+                android:ellipsize="end"
+                android:visibility="gone" />
+
+            <LinearLayout
+                android:id="@+id/line"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:orientation="horizontal"
+                android:gravity="center_vertical">
+
+                <ImageView
+                    android:id="@+id/tailL"
+                    android:layout_width="6dp"
+                    android:layout_height="10dp"
+                    android:src="@drawable/tail_left"
+                    android:contentDescription=""
+                    android:visibility="gone" />
+
+                <TextView
+                    android:id="@+id/bubble"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:background="@drawable/bubble_other"
+                    android:paddingStart="12dp"
+                    android:paddingEnd="12dp"
+                    android:paddingTop="7dp"
+                    android:paddingBottom="7dp"
+                    android:gravity="center_vertical"
+                    android:minHeight="34dp"
+                    android:textSize="14sp"
+                    android:textColor="@color/ink"
+                    android:maxWidth="260dp" />
+
+                <ImageView
+                    android:id="@+id/tailR"
+                    android:layout_width="6dp"
+                    android:layout_height="10dp"
+                    android:src="@drawable/tail_right"
+                    android:contentDescription=""
+                    android:visibility="gone" />
+            </LinearLayout>
+        </LinearLayout>
 
         <TextView
             android:id="@+id/avaR"

@@ -248,9 +248,14 @@ class ChatActivity : EdgeBackActivity() {
         h.bubble.text = m.optString("content")
         h.bubble.setBackgroundResource(if (self) R.drawable.bubble_self else R.drawable.bubble_other)
         h.bubble.setTextColor(if (self) 0xFFFFFFFF.toInt() else 0xFF1B2434.toInt())
-        /* 这里必须带上 CENTER_VERTICAL：只给 END/START 会把 xml 里的垂直居中覆盖掉，
-           头像 34dp、气泡更高，于是尾巴和头像都贴到行的上沿，看着没对齐气泡中部 */
-        h.row.gravity = Gravity.CENTER_VERTICAL or (if (self) Gravity.END else Gravity.START)
+        /* 群聊才印发送人名；单聊不印（桌面端 .msg-who 也是这个口径）。
+           名字就在行内那一列的头，所以有名字时整行改成顶部对齐——名字的顶边就和头像的顶边一条线。
+           单聊那一行没名字，头像继续跟着气泡垂直居中（之前认可的样子不动）。
+           尾巴不受这两条影响：它和气泡同属 line 那一横排，那一排自己 center_vertical。 */
+        val who = if (isGroup) nameOf(sender) else ""
+        h.row.gravity = (if (who.isEmpty()) Gravity.CENTER_VERTICAL else Gravity.TOP) or
+            (if (self) Gravity.END else Gravity.START)
+        h.col.gravity = if (self) Gravity.END else Gravity.START
         val letter = (if (self) nameOf(myId) else nameOf(sender)).ifEmpty {
             (if (self) mine else convName)
         }.take(1).uppercase()
@@ -264,21 +269,29 @@ class ChatActivity : EdgeBackActivity() {
         val tail = if (self) 0xFF2B6BE8.toInt() else 0xFFF0F3F8.toInt()
         h.tailL.setColorFilter(tail, android.graphics.PorterDuff.Mode.SRC_IN)
         h.tailR.setColorFilter(tail, android.graphics.PorterDuff.Mode.SRC_IN)
-        /* 群聊才在气泡上方印发送人名；单聊不印（桌面端 .msg-who 也是这个口径）。
-           自己的那行右对齐，名字跟着气泡走 */
-        val who = if (isGroup) nameOf(sender) else ""
         h.who.text = who
         h.who.visibility = if (who.isEmpty()) View.GONE else View.VISIBLE
-        h.who.gravity = if (self) Gravity.END else Gravity.START
-        /* 名字要和气泡对齐，所以左右各让开「头像 34 + 间距 8 + 尾巴 6 + 内边距 12」= 60dp，
-           让哪一边跟着气泡那边走 */
-        val inset = (60 * resources.displayMetrics.density).toInt()
-        h.who.setPadding(if (self) 0 else inset, 0, if (self) inset else 0, 0)
+        /* 名字对齐的是气泡那个方块，方块外侧还压着 6dp 宽的尾巴，所以让开一个尾巴的宽度。
+           以前那个 60dp 是给「整行之上」那种排法让头像的，名字进了列里就不需要了 */
+        val tailW = (6 * resources.displayMetrics.density).toInt()
+        h.who.setPadding(if (self) 0 else tailW, 0, if (self) tailW else 0, 0)
         /* 长按要挂在整行、不能挂在气泡上：气泡是 TextView，MIUI 的「文本识别」会先吃掉
            TextView 自己的长按（实测弹出来的是系统的识别条，我们的菜单根本没出现）。
            整行是 LinearLayout，没有这套内置处理。 */
         h.bubble.setTextIsSelectable(false)
         h.itemView.setOnLongClickListener { showMsgMenu(h.bubble, m, self); true }
+        /* 点头像看这个人：对方 → 好友信息整页（桌面端 friendCard 那份字段）；
+           自己 → 我的资料那页，因为那页能改，好友信息页只能看 */
+        h.avaL.setOnClickListener { openPerson(sender, who.ifEmpty { nameOf(sender) }) }
+        h.avaR.setOnClickListener {
+            startActivity(Intent(this, ProfileActivity::class.java))
+        }
+    }
+
+    private fun openPerson(id: String, nm: String) {
+        if (id.isEmpty()) return
+        startActivity(Intent(this, PersonActivity::class.java)
+            .putExtra("user", id).putExtra("name", nm.ifEmpty { "用户${id.takeLast(4)}" }))
     }
 
     /** 长按一条消息 → 桌面端右键那十二项，这里改成五列一行的格子（微信那种双行排法）。
@@ -374,6 +387,7 @@ class ChatActivity : EdgeBackActivity() {
 
     private class VH(v: View) : RecyclerView.ViewHolder(v) {
         val row: LinearLayout = v.findViewById(R.id.row)
+        val col: LinearLayout = v.findViewById(R.id.col)
         val bubble: TextView = v.findViewById(R.id.bubble)
         val who: TextView = v.findViewById(R.id.who)
         val avaL: TextView = v.findViewById(R.id.avaL)

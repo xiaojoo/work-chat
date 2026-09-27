@@ -32,6 +32,7 @@ class ChatInfoActivity : EdgeBackActivity() {
     private lateinit var convId: String
     private var members = listOf<Api.Member>()
     private val names = java.util.concurrent.ConcurrentHashMap<String, String>()
+    private var myId = ""
 
     private val isGroup get() = convId.startsWith("g")
 
@@ -42,6 +43,7 @@ class ChatInfoActivity : EdgeBackActivity() {
         status = findViewById(R.id.status)
         findViewById<Button>(R.id.back).setOnClickListener { finish() }
         convId = intent.getStringExtra("conv") ?: ""
+        myId = Cfg.userId(this)
         flags = ConvFlags(this)
         render()
     }
@@ -106,7 +108,13 @@ class ChatInfoActivity : EdgeBackActivity() {
             tag.text = if (m.role == 2) "群主" else if (m.role == 1) "管理员" else ""
             tag.visibility = if (m.role >= 1) View.VISIBLE else View.INVISIBLE
             tag.setBackgroundResource(if (m.role == 2) R.drawable.tag_owner else R.drawable.tag_admin)
-            cell.isClickable = false
+            // 头像和聊天页那条头像同一个入口：点进去看这个人（自己那颗进可改的那页）
+            cell.isClickable = true
+            cell.setOnClickListener {
+                if (m.userId == myId) startActivity(Intent(this, ProfileActivity::class.java))
+                else startActivity(Intent(this, PersonActivity::class.java)
+                    .putExtra("user", m.userId).putExtra("name", nm))
+            }
             addCell(grid, cell)
         }
         val add = inf.inflate(R.layout.item_member, grid, false)

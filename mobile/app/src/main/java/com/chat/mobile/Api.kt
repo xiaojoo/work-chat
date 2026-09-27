@@ -93,6 +93,17 @@ class Api(private val base: String, private val token: String = "") {
         call("/api/conversation/$numeric?userId=$userId", method = "DELETE")
     }
 
+    /** POST /api/conversation/create，body 是 Map<String,Long> 所以 targetUserId 要发数字。
+     *  发起人从令牌里取（控制器签名是 Authentication），不靠查询参数。返回纯数字会话 id。
+     *  桌面端 api/conversation.js 的 startChatWithFriend 走的也是这一条：先查已有会话，没有才建。 */
+    fun createConversation(targetUserId: String): String {
+        val o = JSONObject(call("/api/conversation/create",
+            JSONObject().put("targetUserId", targetUserId.toLong()).toString()))
+        val err = o.optString("error")
+        if (err.isNotEmpty()) throw Failure(err)
+        return o.opt("conversationId")?.toString() ?: ""
+    }
+
     data class Friend(val id: String, val username: String, val nickname: String, val avatar: String)
     /** GET /api/friend/list 只认令牌，不接 userId 查询参数（桌面端 api/friend.js 就没传） */
     fun friends(): List<Friend> {
