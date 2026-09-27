@@ -1,14 +1,16 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- 分组小标题的底：整条灰底（和页面同色，所以看着像"没有背景"）+ 一根压在底边的 1dp 线。
+<!-- 分组小标题的底：整条灰底（和页面同色，所以看着像"没有背景"）+ 一根压在底边的线。
      原来想用负 inset 把另外三条边推出去，实测这台机上下两条都在（1090 和 1164 各一条 #E2E7F0），
-     负 inset 不认。改成 gravity=bottom + height=1dp 的一条实心线，位置是钉死的 -->
+     负 inset 不认。改成 gravity=bottom + 固定 height 的一条实心线，位置是钉死的。
+     height 0.5dp：这台机 dpr 2.75，1dp 实渲 3px，0.5dp 才落到 1px——和行分隔线同一口径。
+     这一份被通讯录的段头、吸顶那条、添加成员页的部门头共用，三处一起变细。 -->
 <layer-list xmlns:android="http://schemas.android.com/apk/res/android">
     <item>
         <shape android:shape="rectangle">
             <solid android:color="@color/nb_bg_3" />
         </shape>
     </item>
-    <item android:gravity="bottom" android:height="1dp">
+    <item android:gravity="bottom" android:height="0.5dp">
         <shape android:shape="rectangle">
             <solid android:color="@color/line" />
         </shape>
