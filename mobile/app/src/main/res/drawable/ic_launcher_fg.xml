@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 桌面图标前景：白气泡 + 三点。气泡那笔和页内导航用的 ic_tab_chats / 状态栏那颗
+     ic_stat_msg 是同一条 pathData，只是放大到自适应图标的安全区里（108dp 外圈会被桌面切掉，
+     所以图形只占中间 68dp）。三点用品牌蓝，落在白底上对比 8.6:1。 -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp" android:height="108dp"
+    android:viewportWidth="108" android:viewportHeight="108">
+    <!-- MIUI 的桌面会把 108 画布放大 ~1.48 倍再切圆角（上一版气泡占 63% 画布，
+         量到屏上占满 93% 的方块），所以图形只按 42% 画布来铺，切完才是想要的六成。 -->
+    <group android:scaleX="2.25" android:scaleY="2.25"
+        android:translateX="27" android:translateY="25.9">
+        <path android:fillColor="#FFFFFFFF"
+            android:pathData="M4,3h16a2,2 0 0 1 2,2v11a2,2 0 0 1 -2,2H9l-5,4v-4a2,2 0 0 1 -2,-2V5a2,2 0 0 1 2,-2z" />
+        <path android:fillColor="@color/brand"
+            android:pathData="M7.6,8.7a1.8,1.8 0 1,0 0,3.6a1.8,1.8 0 1,0 0,-3.6z" />
+        <path android:fillColor="@color/brand"
+            android:pathData="M12,8.7a1.8,1.8 0 1,0 0,3.6a1.8,1.8 0 1,0 0,-3.6z" />
+        <path android:fillColor="@color/brand"
+            android:pathData="M16.4,8.7a1.8,1.8 0 1,0 0,3.6a1.8,1.8 0 1,0 0,-3.6z" />
+    </group>
+</vector>

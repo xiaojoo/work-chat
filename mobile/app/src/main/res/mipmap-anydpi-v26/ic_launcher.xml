@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 自适应图标：桌面（MIUI）会把它切成圆角/圆形，前景和底各自留了安全区。
+     minSdk 26，所以只给 anydpi-v26 这一份，不再补各密度的旧 PNG。 -->
+<adaptive-icon xmlns:android="http://schemas.android.com/apk/res/android">
+    <background android:drawable="@drawable/ic_launcher_bg" />
+    <foreground android:drawable="@drawable/ic_launcher_fg" />
+</adaptive-icon>
