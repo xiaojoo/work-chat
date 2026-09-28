@@ -8,6 +8,7 @@ import android.view.ViewGroup
 import android.widget.Button
 import android.widget.EditText
 import android.widget.GridLayout
+import android.widget.HorizontalScrollView
 import android.widget.ImageView
 import android.widget.LinearLayout
 import android.widget.PopupWindow
@@ -121,7 +122,7 @@ class ChatActivity : EdgeBackActivity() {
     /** 面板开的是哪块：0=没开、1=表情、2=文件。同一时刻只开一块 */
     private var panelKind = 0
     private lateinit var panel: View
-    private lateinit var emojiScroll: View
+    private lateinit var emojiScroll: HorizontalScrollView
     private lateinit var plusGrid: GridLayout
     private lateinit var inputView: EditText
 
@@ -136,21 +137,17 @@ class ChatActivity : EdgeBackActivity() {
         findViewById<View>(R.id.plusBtn).setOnClickListener { showPanel(if (panelKind == 2) 0 else 2) }
         // 工具栏第二颗是相册的快捷入口，走的是 ＋ 面板里「相册」同一条路
         findViewById<View>(R.id.imageBtn).setOnClickListener { pick("image/*", REQ_ALBUM) }
-        /* 键盘和面板互斥：点输入框收面板并把键盘显式要回来；开面板反过来把键盘收下去。
-           键盘必须显式 showSoftInput——实测点一下已聚焦的空输入框，MIUI 不一定会自己把键盘
-           放回来（光标没动它就不显示），那样面板也就收不掉。
-           这里不挂 OnFocusChangeListener：气泡自己收起时窗口会把焦点回灌给输入框一次，
-           那条监听会把刚长按的面板顺手关掉（实测长按后 1.6 秒面板就没了）。 */
-        input.setOnClickListener {
-            if (panelKind != 0) showPanel(0)
-            requestKeyboard()
+        /* 键盘和面板互斥。
+           面板→键盘：showPanel 里 hideKeyboard()。
+           键盘→面板：手指按在输入框上那一刻（ACTION_DOWN）先把面板收掉，键盘交给系统自己起来。
+           试过另外两种，都不行：① OnClickListener —— 挂在 EditText 上实测不一定触发（点一下只是
+           放光标），结果键盘起来了面板没收；② 量内容区高度收缩判键盘 —— 收面板会改布局、
+           布局一改 MIUI 的键盘又缩回去，两个动作互为因果，最后面板关了键盘也没留住。
+           按下的顺序没有环：面板先没，键盘再起。 */
+        input.setOnTouchListener { _, e ->
+            if (e.action == android.view.MotionEvent.ACTION_DOWN && panelKind != 0) showPanel(0)
+            false
         }
-    }
-
-    private fun requestKeyboard() {
-        inputView.requestFocus()
-        getSystemService(android.view.inputmethod.InputMethodManager::class.java)
-            ?.showSoftInput(inputView, 0)
     }
 
     /** ＋ 面板八颗格子照图全摆。真接得通的只有两颗：相册（挑图）和文件（挑任意文件），
@@ -200,26 +197,53 @@ class ChatActivity : EdgeBackActivity() {
             ?.hideSoftInputFromWindow(inputView.windowToken, 0)
     }
 
-    /** 表情就是往输入框里接一个字，不发出去——和微信那排一样。
-     *  长按那一格在它头顶出个气泡，写这个表情的含义。
-     *  格子按列权重铺满整宽——原来每格定宽 44dp，7 列只吃到 880px，右边空着一条 200px 的死带。 */
+    /** 表情排成轮播：一页 4 行 × 7 列 = 28 个，页宽等于视口宽，装不下的往左右翻，松手吸附到整页。
+     *  点一下往输入框接一个字，长按那一格出含义气泡。
+     *  不满一行时右边补空占位——不补的话那一行的格子会被 weight 拉伸，格心就和满行对不上。 */
     private fun buildEmojis(input: EditText) {
-        val grid = findViewById<GridLayout>(R.id.emojiGrid)
+        val pages = findViewById<LinearLayout>(R.id.emojiPages)
         val px = resources.displayMetrics.density
-        EMOJI.forEach { (cp, meaning) ->
-            val glyph = String(Character.toChars(cp))
-            val b = TextView(this)
-            b.text = glyph
-            b.textSize = 22f
-            b.gravity = Gravity.CENTER
-            b.isClickable = true
-            b.setBackgroundResource(R.drawable.bg_cell)
-            b.setOnClickListener { input.append(glyph) }
-            b.setOnLongClickListener { showTip(b, glyph, meaning); true }
-            grid.addView(b, GridLayout.LayoutParams().apply {
-                width = 0; columnSpec = GridLayout.spec(GridLayout.UNDEFINED, 1f)
-                height = (44 * px).toInt()
-            })
+        val cell = (52 * px).toInt()
+        val handler = android.os.Handler(mainLooper)
+        EMOJI.chunked(4 * COLS).forEach { chunk ->
+            val page = LinearLayout(this).apply {
+                orientation = LinearLayout.VERTICAL
+                setPadding((6 * px).toInt(), 0, (6 * px).toInt(), 0)
+            }
+            chunk.chunked(COLS).forEach { rowItems ->
+                val row = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL }
+                rowItems.forEach { (cp, meaning) ->
+                    val glyph = String(Character.toChars(cp))
+                    val b = TextView(this)
+                    b.text = glyph
+                    b.textSize = 22f
+                    b.gravity = Gravity.CENTER
+                    b.isClickable = true
+                    b.setBackgroundResource(R.drawable.bg_cell)
+                    b.setOnClickListener { input.append(glyph) }
+                    b.setOnLongClickListener { showTip(b, glyph, meaning); true }
+                    row.addView(b, LinearLayout.LayoutParams(0, cell, 1f))
+                }
+                repeat(COLS - rowItems.size) {
+                    row.addView(View(this), LinearLayout.LayoutParams(0, cell, 1f))
+                }
+                page.addView(row, LinearLayout.LayoutParams(
+                    LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT))
+            }
+            pages.addView(page, LinearLayout.LayoutParams(
+                resources.displayMetrics.widthPixels, LinearLayout.LayoutParams.MATCH_PARENT))
+        }
+        emojiScroll.viewTreeObserver.addOnScrollChangedListener {
+            handler.removeCallbacks(snapToPage); handler.postDelayed(snapToPage, 130)
+        }
+    }
+
+    /** 松手吸附：把 scrollX 收到离得最近的那一页。到位后 target==scrollX，不会再自己触发 */
+    private val snapToPage = Runnable {
+        val w = emojiScroll.width
+        if (w > 0) {
+            val target = ((emojiScroll.scrollX + w / 2) / w) * w
+            if (emojiScroll.scrollX != target) emojiScroll.smoothScrollTo(target, 0)
         }
     }
 
@@ -624,6 +648,7 @@ class ChatActivity : EdgeBackActivity() {
     private companion object {
         const val REQ_ALBUM = 41
         const val REQ_FILE = 42
+        const val COLS = 7   // 表情一页一行几列（和面板 220dp 高配 4 行 52dp）
         /** 常用那一小片，不是全量 Unicode：面板要能一屏滚完，且这些都是文本，后端存的就是字。
          *  按码点列而不是把字面 emoji 写进源码——那串字节在编辑工具里会掉字（我先写过字面量，
          *  结果源码里留下四个空串，面板上就是四个点了没反应的白格）。

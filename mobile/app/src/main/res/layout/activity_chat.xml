@@ -191,19 +191,21 @@
         android:background="@color/nb_bg_3"
         android:visibility="gone">
 
-        <ScrollView
+        <!-- 两块面板同一高 220dp（＋ 那两行 96dp + 上下 14dp 内边距正好 220，表情照这个数钉死）。
+             表情排成轮播那样：一页 4 行 × 7 列 = 28 个，装不下的往左右翻，松手吸附到整页 -->
+        <HorizontalScrollView
             android:id="@+id/emojiScroll"
-            android:layout_width="match_parent" android:layout_height="wrap_content"
-            android:maxHeight="200dp" android:visibility="gone">
+            android:layout_width="match_parent" android:layout_height="220dp"
+            android:scrollbars="none" android:visibility="gone">
 
-            <GridLayout android:id="@+id/emojiGrid"
-                android:layout_width="match_parent" android:layout_height="wrap_content"
-                android:columnCount="7" android:paddingStart="6dp" android:paddingEnd="6dp"
+            <LinearLayout android:id="@+id/emojiPages"
+                android:layout_width="wrap_content" android:layout_height="match_parent"
+                android:orientation="horizontal"
                 android:paddingTop="6dp" android:paddingBottom="6dp" />
-        </ScrollView>
+        </HorizontalScrollView>
 
         <GridLayout android:id="@+id/plusGrid"
-            android:layout_width="match_parent" android:layout_height="wrap_content"
+            android:layout_width="match_parent" android:layout_height="220dp"
             android:columnCount="4" android:paddingStart="6dp" android:paddingEnd="6dp"
             android:paddingTop="14dp" android:paddingBottom="14dp" android:visibility="gone" />
     </LinearLayout>
