@@ -84,7 +84,11 @@ class NotifyService : Service() {
             .setContentText(state)
             .setContentIntent(open)
             .setOngoing(true)
-            .setForegroundServiceBehavior(NotificationCompat.FOREGROUND_SERVICE_IMMEDIATE)
+            /* DEFAULT = app 在前台时这条不显示，只有退到后台/锁屏才出现在下拉最底下。
+               （IMMEDIATE 是"立刻显示"，上一版写错了，所以你在应用里也看得到它。）
+               聊天类的前台服务不在系统"可以完全不显示通知"的豁免名单里（那份只有媒体播放、
+               投影、通话、定位、相机、已连接设备几类），所以后台那一条藏不掉——只能做到不抢戏。 */
+            .setForegroundServiceBehavior(NotificationCompat.FOREGROUND_SERVICE_DEFAULT)
             .build()
     }
 

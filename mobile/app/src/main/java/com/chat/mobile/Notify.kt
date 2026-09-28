@@ -93,7 +93,10 @@ object Notify {
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE)
     }
 
-    /** 汇总那颗：列表式列出每条会话的最新一句，点开进消息页。 */
+    /** 汇总那颗：列表式列出每条会话的最新一句，点开进消息页。
+     *  两处"组规则"必须和会话那颗对齐，否则通知只会静静躺在下拉里——不响、不弹横幅、锁屏也不给看：
+     *  - 平台在锁屏上**只画组里那颗汇总**，子颗被收掉，所以汇总自己也得 vis=PUBLIC；
+     *  - 出不出声由**汇总那颗的 groupAlertBehavior** 决定，写 SUMMARY 等于把子颗全部消音。 */
     fun summary(ctx: Context, rows: List<Pair<String, String>>, total: Int) {
         if (rows.isEmpty()) { nm(ctx).cancel(SUMMARY_ID); return }
         val inbox = NotificationCompat.InboxStyle()
@@ -110,7 +113,8 @@ object Notify {
                 PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE))
             .setGroup(GROUP)
             .setGroupSummary(true)
-            .setGroupAlertBehavior(NotificationCompat.GROUP_ALERT_SUMMARY)
+            .setGroupAlertBehavior(NotificationCompat.GROUP_ALERT_CHILDREN)
+            .setVisibility(NotificationCompat.VISIBILITY_PUBLIC)
             .setAutoCancel(true)
             .setNumber(total)
             .build()
