@@ -566,16 +566,21 @@ class ChatActivity : EdgeBackActivity() {
         p.elevation = 12f * resources.displayMetrics.density
         pop = p
         p.setOnDismissListener { pop = null }
-        /* 格子是五列 columnWeight 均分，用 UNSPECIFIED 去量会得到宽度 0 ——
-           弹出来就是一个看不见的窗。所以定宽 5×62dp，量高度也按这个宽去量。 */
+        /* 格子是五列 columnWeight 均分，用 WRAP_CONTENT / UNSPECIFIED 去量会得到宽度 0 ——
+           弹出来就是一个看不见的窗（上一版把 p.width 这行丢了，症状正是"长按没反应"）。
+           所以定宽 5×62dp，量高度也按这个宽去量。 */
         val d = resources.displayMetrics
         val w = (62 * 5 * d.density).toInt()
+        p.width = w
         val tipH = (6 * d.density).toInt()
         val gap = (2 * d.density).toInt()
         grid.measure(View.MeasureSpec.makeMeasureSpec(w, View.MeasureSpec.EXACTLY),
             View.MeasureSpec.makeMeasureSpec(0, View.MeasureSpec.UNSPECIFIED))
         val total = grid.measuredHeight + tipH
 
+        /* 判上下用**窗口内**坐标（和 decorView 的宽高同一套），
+           但 showAtLocation 吃的是**屏幕**坐标 —— 应用窗口顶在状态栏下面，
+           直接把窗口坐标喂给它会整体上移一个状态栏的高度，所以最后加窗口在屏幕上的偏移。 */
         val a = IntArray(2); anchor.getLocationInWindow(a)
         val row = anchor.parent as View
         val r = IntArray(2); row.getLocationInWindow(r)
@@ -589,7 +594,8 @@ class ChatActivity : EdgeBackActivity() {
             tip.visibility = View.VISIBLE
             (tip.layoutParams as LinearLayout.LayoutParams).marginStart = pl.tipMargin
         }
-        p.showAtLocation(window.decorView, Gravity.NO_GRAVITY, pl.x, pl.y)
+        val o = IntArray(2); window.decorView.getLocationOnScreen(o)
+        p.showAtLocation(window.decorView, Gravity.NO_GRAVITY, o[0] + pl.x, o[1] + pl.y)
     }
 
     private data class MItem(val name: String, val icon: Int, val on: Boolean, val run: () -> Unit = {})
