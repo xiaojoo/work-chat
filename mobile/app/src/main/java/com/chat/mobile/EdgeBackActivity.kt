@@ -10,7 +10,7 @@ import androidx.appcompat.app.AppCompatActivity
  * 只观察不拦截：起点必须落在左缘 24dp 内，横向位移超过 60dp 且明显大过纵向才算，
  * 不然会把列表滚动和气泡里的文字选择抢走。
  */
-open class EdgeBackActivity : AppCompatActivity() {
+open class EdgeBackActivity : ScaleActivity() {
 
     private var edgeX = -1f
     private var edgeY = -1f

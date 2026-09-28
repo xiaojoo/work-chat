@@ -92,4 +92,13 @@ object Cfg {
         ctx.getSharedPreferences(PREF, Context.MODE_PRIVATE).edit()
             .remove("token").remove("userId").remove("username").apply()
     }
+
+    /** 设置页「字体大小」那一档：1.0=标准、1.15=大、1.3=特大。存本机。 */
+    fun fontScale(ctx: Context): Float =
+        ctx.getSharedPreferences(PREF, Context.MODE_PRIVATE).getFloat("font_scale", 1f)
+
+    fun setFontScale(ctx: Context, value: Float) {
+        ctx.getSharedPreferences(PREF, Context.MODE_PRIVATE).edit()
+            .putFloat("font_scale", value).apply()
+    }
 }

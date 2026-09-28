@@ -8,7 +8,7 @@ import android.widget.EditText
 import android.widget.TextView
 import kotlin.concurrent.thread
 
-class LoginActivity : AppCompatActivity() {
+class LoginActivity : ScaleActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)

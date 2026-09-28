@@ -8,7 +8,7 @@ import java.time.DayOfWeek
 
 /** 微信那套底部四 tab：微信 / 通讯录 / 工作台 / 我。
  *  实例一次建好反复复用，切回去还能看到原来的滚动位置。 */
-class MainActivity : AppCompatActivity() {
+class MainActivity : ScaleActivity() {
 
     private val tabs by lazy {
         listOf(findViewById<LinearLayout>(R.id.tab_chats), findViewById(R.id.tab_contacts),

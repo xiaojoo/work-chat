@@ -51,6 +51,32 @@ object Rows {
         return v
     }
 
+    /** 「左标题 / 右开关」的一行（复用聊天信息页那个自绘开关，不用系统 Switch）。
+     *  enabled=false 时整行压淡、开关不给拨——摆出来但说清这颗现在是空的。 */
+    fun toggle(parent: LinearLayout, label: String, on: Boolean, enabled: Boolean,
+               onClick: (() -> Unit)?): View {
+        val ctx = parent.context
+        val v = LayoutInflater.from(ctx).inflate(R.layout.item_toggle, parent, false)
+        v.findViewById<TextView>(R.id.label).text = label
+        val track = v.findViewById<android.widget.FrameLayout>(R.id.track)
+        track.setBackgroundResource(
+            if (on) R.drawable.switch_track_on else R.drawable.switch_track_off)
+        (track.getChildAt(0) as View).layoutParams =
+            android.widget.FrameLayout.LayoutParams(dp(ctx, 20), dp(ctx, 20)).apply {
+                gravity = if (on) android.view.Gravity.END or android.view.Gravity.CENTER_VERTICAL
+                          else android.view.Gravity.START or android.view.Gravity.CENTER_VERTICAL
+                marginStart = dp(ctx, 2); marginEnd = dp(ctx, 2)
+            }
+        val tappable = v.findViewById<View>(R.id.tappable)
+        if (onClick == null || !enabled) {
+            v.alpha = 0.4f
+            tappable.isClickable = false
+            tappable.background = null
+        } else tappable.setOnClickListener { onClick() }
+        parent.addView(v)
+        return v
+    }
+
     /** 分组末尾那根线不要——微信的分组最后一行不画线，分组之间靠底色分开 */
     fun endGroup(parent: LinearLayout) {
         if (parent.childCount > 0) {

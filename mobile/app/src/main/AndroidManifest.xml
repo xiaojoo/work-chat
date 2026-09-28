@@ -22,6 +22,7 @@
             android:windowSoftInputMode="adjustResize" />
         <!-- 我页往下两屏：设置页、个人信息页。都只从应用内跳，不对外暴露 -->
         <activity android:name=".SettingsActivity" android:exported="false" />
+        <activity android:name=".FontSizeActivity" android:exported="false" />
         <activity android:name=".ProfileActivity" android:exported="false" />
         <!-- 改一个字段的整页 -->
         <activity android:name=".EditFieldActivity" android:exported="false"

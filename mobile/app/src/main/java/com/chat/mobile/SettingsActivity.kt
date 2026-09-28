@@ -48,10 +48,26 @@ class SettingsActivity : EdgeBackActivity() {
         Rows.endGroup(groups)
 
         Rows.gap(groups)
+        /* 「界面与显示」这一组照他那张图全摆出来。真做得动的只有字体大小：
+           深色那三项整个产品没有一套深色令牌（web 里 dark/prefers-color-scheme 命中 0，
+           手机端没有 values-night，colors.xml 23 条全是浅底），拨了就是我自己现编一套配色，
+           那是设计决定不是设置项，所以画淡不给拨；底部导航栏四页是结构，没有可配置的东西。 */
+        Rows.toggle(groups, "夜间模式跟随系统", on = false, enabled = false, null)
+        Rows.row(groups, "日间模式", "✓", onClick = null)
+            .findViewById<TextView>(R.id.value)?.setTextColor(getColor(R.color.brand))
+        Rows.row(groups, "夜间模式", "", onClick = null).apply { alpha = 0.4f }
+        Rows.row(groups, "字体大小", when (Cfg.fontScale(this)) {
+            1.15f -> "大"; 1.3f -> "特大"; else -> "标准"
+        }) { startActivity(Intent(this, FontSizeActivity::class.java)) }
+        Rows.row(groups, "主页底部导航栏设置", "", onClick = null).apply { alpha = 0.4f }
+        Rows.endGroup(groups)
+
+        Rows.gap(groups)
         Rows.row(groups, "退出登录", "", danger = true) { confirmLogout() }
         Rows.endGroup(groups)
 
-        status.text = "后端地址和网关端口都在项目配置里给（编译期 API_BASE），这一页不提供改的地方。"
+        status.text = "后端地址和网关端口都在项目配置里给（编译期 API_BASE），这一页不提供改的地方。" +
+            "深色那三项压淡：整套产品还没有深色配色令牌，拨了就是我替你编一套。"
     }
 
     /** 微信那块的底部面板：退出登录 / 关闭微信 / 取消。
