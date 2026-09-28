@@ -7,6 +7,13 @@ contextBridge.exposeInMainWorld('chatDesktop', {
   // 同名会互相顶号，所以不能像网页那样写死 'web'
   deviceId: () => ipcRenderer.invoke('chat:device-id'),
   notify: (payload) => ipcRenderer.send('chat:notify', payload),
+  // 托盘自绘菜单要画"当前是哪个状态"，所以渲染端状态一变就送过来
+  presence: (key) => ipcRenderer.send('chat:presence', key),
+  onTrayPresence: (cb) => {
+    const handler = (_e, key) => cb(key)
+    ipcRenderer.on('tray:presence', handler)
+    return () => ipcRenderer.removeListener('tray:presence', handler)
+  },
   // 「另存为」：字节在渲染端取好送过来，主进程弹系统对话框再写盘
   save: (payload) => ipcRenderer.invoke('chat:save', payload),
   // 文件点开：落到「文档路径」那个目录，再交系统默认应用打开
