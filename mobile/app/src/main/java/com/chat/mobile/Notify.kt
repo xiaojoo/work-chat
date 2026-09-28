@@ -28,7 +28,8 @@ object Notify {
     /** 渠道的优先级/震动**建好之后改不动**（系统按 id 记着用户设定），
      *  要加震动只能换 id 重建；旧那条删掉，不然设置里会同时躺着两颗"新消息"。 */
     const val CHAN_MSG = "chat-msg-v2"
-    private const val CHAN_MSG_OLD = "chat-msg"
+    /** v3 是"会话渠道"那次实验留下的：标记没生效，但渠道建出来了，不删会在设置里多一颗"新消息" */
+    private val CHAN_MSG_OLD = listOf("chat-msg", "chat-msg-v3")
     const val CHAN_SVC = "chat-svc"
     const val GROUP = "chat.messages"
     const val SVC_ID = 1
@@ -39,7 +40,7 @@ object Notify {
 
     fun ensureChannels(ctx: Context) {
         val m = ctx.getSystemService(NotificationManager::class.java)
-        m.deleteNotificationChannel(CHAN_MSG_OLD)
+        CHAN_MSG_OLD.forEach { m.deleteNotificationChannel(it) }
         m.createNotificationChannel(NotificationChannel(CHAN_MSG, "新消息",
             NotificationManager.IMPORTANCE_HIGH).apply {
                 description = "来新消息时弹横幅、响铃、震动，锁屏显示内容"
