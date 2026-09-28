@@ -79,7 +79,7 @@ class NotifyService : Service() {
             Intent(this, MainActivity::class.java),
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE)
         return NotificationCompat.Builder(this, Notify.CHAN_SVC)
-            .setSmallIcon(R.drawable.ic_stat_msg)
+            .setSmallIcon(R.drawable.ic_stat_chat)
             .setContentTitle("消息通道")
             .setContentText(state)
             .setContentIntent(open)

@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 状态栏 / 通知那颗小图标：两颗气泡，**故意不叠、中间留 0.8dp 缝**。
+     状态栏图标只吃 alpha 通道（系统重新染色成单色剪影），桌面那颗靠白色底衬隔开的做法在这里没有——
+     按桌面那版直接画并集，两颗会粘成一坨（22dp 上量过，判不出来）。
+     所以这颗单独排：左上蓝那颗、右下青那颗各自带尾巴，互不重叠。 -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="24dp" android:height="24dp"
+    android:viewportWidth="24" android:viewportHeight="24">
+    <path android:fillColor="#FFFFFFFF"
+        android:pathData="M4.4,2.4 H9.0 A2.8,2.8 0 0 1 11.8,5.2 V7.6 A2.8,2.8 0 0 1 9.0,10.4 L7.0,10.4 L2.8,13.4 L4.6,10.4 H4.4 A2.8,2.8 0 0 1 1.6,7.6 V5.2 A2.8,2.8 0 0 1 4.4,2.4 Z" />
+    <path android:fillColor="#FFFFFFFF"
+        android:pathData="M15.4,11.2 H20.0 A2.8,2.8 0 0 1 22.8,14.0 V16.4 A2.8,2.8 0 0 1 20.0,19.2 L18.6,19.2 L21.2,22.0 L16.0,19.2 H15.4 A2.8,2.8 0 0 1 12.6,16.4 V14.0 A2.8,2.8 0 0 1 15.4,11.2 Z" />
+</vector>

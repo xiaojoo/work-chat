@@ -84,7 +84,7 @@ object Notify {
         if (group) s.setGroupConversation(true).setConversationTitle(convName)
         s.addMessage(text, at, Person.Builder().setName(sender).build())
         val n = NotificationCompat.Builder(ctx, CHAN_MSG)
-            .setSmallIcon(R.drawable.ic_stat_msg)
+            .setSmallIcon(R.drawable.ic_stat_chat)
             .setStyle(s)
             .setContentTitle(convName).setContentText(text)
             .setContentIntent(openIntent(ctx, convId, convName))
@@ -118,7 +118,7 @@ object Notify {
         rows.take(5).forEach { (nm_, txt) -> inbox.addLine("$nm_：$txt") }
         inbox.setSummaryText(if (total > 0) "未读 $total 条" else "${rows.size} 条新消息")
         val n = NotificationCompat.Builder(ctx, CHAN_MSG)
-            .setSmallIcon(R.drawable.ic_stat_msg)
+            .setSmallIcon(R.drawable.ic_stat_chat)
             .setContentTitle(if (total > 0) "$total 条未读" else "新消息")
             .setContentText(rows.first().let { "${it.first}：${it.second}" })
             .setStyle(inbox)
