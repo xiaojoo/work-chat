@@ -72,14 +72,13 @@ class SettingsActivity : EdgeBackActivity() {
         Rows.row(groups, "字体大小", when (Cfg.fontScale(this)) {
             1.15f -> "大"; 1.3f -> "特大"; else -> "标准"
         }) { startActivity(Intent(this, FontSizeActivity::class.java)) }
-        Rows.row(groups, "主页底部导航栏设置", "", onClick = null).apply { alpha = 0.4f }
         Rows.endGroup(groups)
 
         Rows.gap(groups)
         Rows.row(groups, "退出登录", "", danger = true) { confirmLogout() }
         Rows.endGroup(groups)
 
-        status.text = "这三档和字号都存本机（后端没有对应字段）。底部导航四页是结构，没有可配置项，所以压淡。"
+        status.text = "这三档和字号都存本机（后端没有对应字段），杀掉重进还在。"
     }
 
     /** 存下来再交给 AppCompat：换肤真的发生时它会自己重建这一页。
