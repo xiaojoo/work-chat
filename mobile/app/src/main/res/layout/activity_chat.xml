@@ -193,7 +193,7 @@
 
         <!-- 两块面板同一高 220dp（＋ 那两行 96dp + 上下 14dp 内边距正好 220，表情照这个数钉死）。
              表情排成轮播那样：一页 4 行 × 7 列 = 28 个，装不下的往左右翻，松手吸附到整页 -->
-        <HorizontalScrollView
+        <com.chat.mobile.PageScroller
             android:id="@+id/emojiScroll"
             android:layout_width="match_parent" android:layout_height="220dp"
             android:scrollbars="none" android:visibility="gone">
@@ -202,7 +202,7 @@
                 android:layout_width="wrap_content" android:layout_height="match_parent"
                 android:orientation="horizontal"
                 android:paddingTop="6dp" android:paddingBottom="6dp" />
-        </HorizontalScrollView>
+        </com.chat.mobile.PageScroller>
 
         <GridLayout android:id="@+id/plusGrid"
             android:layout_width="match_parent" android:layout_height="220dp"

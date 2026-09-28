@@ -8,7 +8,6 @@ import android.view.ViewGroup
 import android.widget.Button
 import android.widget.EditText
 import android.widget.GridLayout
-import android.widget.HorizontalScrollView
 import android.widget.ImageView
 import android.widget.LinearLayout
 import android.widget.PopupWindow
@@ -122,7 +121,7 @@ class ChatActivity : EdgeBackActivity() {
     /** 面板开的是哪块：0=没开、1=表情、2=文件。同一时刻只开一块 */
     private var panelKind = 0
     private lateinit var panel: View
-    private lateinit var emojiScroll: HorizontalScrollView
+    private lateinit var emojiScroll: PageScroller
     private lateinit var plusGrid: GridLayout
     private lateinit var inputView: EditText
 
@@ -204,7 +203,6 @@ class ChatActivity : EdgeBackActivity() {
         val pages = findViewById<LinearLayout>(R.id.emojiPages)
         val px = resources.displayMetrics.density
         val cell = (52 * px).toInt()
-        val handler = android.os.Handler(mainLooper)
         EMOJI.chunked(4 * COLS).forEach { chunk ->
             val page = LinearLayout(this).apply {
                 orientation = LinearLayout.VERTICAL
@@ -233,18 +231,7 @@ class ChatActivity : EdgeBackActivity() {
             pages.addView(page, LinearLayout.LayoutParams(
                 resources.displayMetrics.widthPixels, LinearLayout.LayoutParams.MATCH_PARENT))
         }
-        emojiScroll.viewTreeObserver.addOnScrollChangedListener {
-            handler.removeCallbacks(snapToPage); handler.postDelayed(snapToPage, 130)
-        }
-    }
-
-    /** 松手吸附：把 scrollX 收到离得最近的那一页。到位后 target==scrollX，不会再自己触发 */
-    private val snapToPage = Runnable {
-        val w = emojiScroll.width
-        if (w > 0) {
-            val target = ((emojiScroll.scrollX + w / 2) / w) * w
-            if (emojiScroll.scrollX != target) emojiScroll.smoothScrollTo(target, 0)
-        }
+        emojiScroll.pageCount = pages.childCount
     }
 
     /** 表情含义的气泡。不用系统那套 tooltip——这台机（M2012K10C / MIUI）长按压根不出它，
