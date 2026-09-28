@@ -6,7 +6,6 @@ import android.graphics.Color
 import android.graphics.drawable.ColorDrawable
 import android.os.Bundle
 import android.view.Gravity
-import android.view.View
 import android.view.ViewGroup
 import android.view.Window
 import android.widget.Button
@@ -50,26 +49,26 @@ class SettingsActivity : EdgeBackActivity() {
         Rows.endGroup(groups)
 
         Rows.gap(groups)
-        /* 「界面与显示」这一组照他那张图。三项夜间模式和字体大小都是本机的事，
-           后端没有对应字段——所以存 SharedPreferences，杀掉重进还在。
-           开关=跟随系统；下面两行是手选，选任一个就把开关拨回关（跟随和手选不能同时成立）。 */
+        /* 「界面与显示」这一组照他那张图。三档夜间模式都是本机的事，后端没有对应字段——
+           所以存 SharedPreferences，杀掉重进还在。
+           三行共用同一颗开关的形状，同时只亮一颗：开关说的是"选中的这一档"，
+           不是"此刻屏幕亮不亮"——跟随系统且系统正在夜间时，下面两颗照样熄着。 */
         val nm = Cfg.nightMode(this)
-        val follow = nm == AppCompatDelegate.MODE_NIGHT_FOLLOW_SYSTEM
-        val nightNow = resources.configuration.uiMode and
-            android.content.res.Configuration.UI_MODE_NIGHT_MASK ==
-            android.content.res.Configuration.UI_MODE_NIGHT_YES
-        Rows.toggle(groups, "夜间模式跟随系统", on = follow, enabled = true, labelSp = 13f) {
-            setNight(if (follow) AppCompatDelegate.MODE_NIGHT_NO
-                     else AppCompatDelegate.MODE_NIGHT_FOLLOW_SYSTEM)
+        Rows.toggle(groups, "跟随系统",
+            on = nm == AppCompatDelegate.MODE_NIGHT_FOLLOW_SYSTEM,
+            enabled = true, labelSp = 13f) {
+            setNight(AppCompatDelegate.MODE_NIGHT_FOLLOW_SYSTEM)
         }
-        val dayOn = if (follow) !nightNow else nm == AppCompatDelegate.MODE_NIGHT_NO
-        val nightOn = if (follow) nightNow else nm == AppCompatDelegate.MODE_NIGHT_YES
-        mark(Rows.row(groups, "日间模式", if (dayOn) "✓" else "") {
+        Rows.toggle(groups, "日间模式",
+            on = nm == AppCompatDelegate.MODE_NIGHT_NO,
+            enabled = true, labelSp = 13f) {
             setNight(AppCompatDelegate.MODE_NIGHT_NO)
-        }, dayOn)
-        mark(Rows.row(groups, "夜间模式", if (nightOn) "✓" else "") {
+        }
+        Rows.toggle(groups, "夜间模式",
+            on = nm == AppCompatDelegate.MODE_NIGHT_YES,
+            enabled = true, labelSp = 13f) {
             setNight(AppCompatDelegate.MODE_NIGHT_YES)
-        }, nightOn)
+        }
         Rows.row(groups, "字体大小", when (Cfg.fontScale(this)) {
             1.15f -> "大"; 1.3f -> "特大"; else -> "标准"
         }) { startActivity(Intent(this, FontSizeActivity::class.java)) }
@@ -83,15 +82,13 @@ class SettingsActivity : EdgeBackActivity() {
         status.text = "这三档和字号都存本机（后端没有对应字段）。底部导航四页是结构，没有可配置项，所以压淡。"
     }
 
-    /** 选中那档的 ✓ 用品牌蓝，没选中的空着 */
-    private fun mark(v: View, on: Boolean) {
-        if (on) v.findViewById<TextView>(R.id.value)?.setTextColor(getColor(R.color.brand))
-    }
-
-    /** 存下来再交给 AppCompat：它会自己把在显示的页面重建，不用我手动 recreate */
+    /** 存下来再交给 AppCompat：换肤真的发生时它会自己重建这一页。
+     *  但「跟随系统→日间」在系统本来就是浅色的时候不换肤，AppCompat 不重建，
+     *  三颗开关会停在按下去之前的样子——所以自己重画一遍。 */
     private fun setNight(mode: Int) {
         Cfg.setNightMode(this, mode)
         AppCompatDelegate.setDefaultNightMode(mode)
+        render()
     }
 
     /** 微信那块的底部面板：退出登录 / 关闭微信 / 取消。
