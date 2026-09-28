@@ -25,23 +25,37 @@ import org.json.JSONObject
  */
 object Notify {
 
-    const val CHAN_MSG = "chat-msg"
+    /** 渠道的优先级/震动**建好之后改不动**（系统按 id 记着用户设定），
+     *  要加震动只能换 id 重建；旧那条删掉，不然设置里会同时躺着两颗"新消息"。 */
+    const val CHAN_MSG = "chat-msg-v2"
+    private const val CHAN_MSG_OLD = "chat-msg"
     const val CHAN_SVC = "chat-svc"
     const val GROUP = "chat.messages"
     const val SVC_ID = 1
     private const val SUMMARY_ID = 0x7A01
 
+    /** 两下短振：60ms 振 / 80ms 停 / 60ms 振，不循环 */
+    private val VIBE = longArrayOf(0, 60, 80, 60)
+
     fun ensureChannels(ctx: Context) {
         val m = ctx.getSystemService(NotificationManager::class.java)
+        m.deleteNotificationChannel(CHAN_MSG_OLD)
         m.createNotificationChannel(NotificationChannel(CHAN_MSG, "新消息",
             NotificationManager.IMPORTANCE_HIGH).apply {
-                description = "来新消息时弹横幅、响铃，锁屏显示内容"
+                description = "来新消息时弹横幅、响铃、震动，锁屏显示内容"
                 setShowBadge(true)
                 lockscreenVisibility = Notification.VISIBILITY_PUBLIC
+                enableVibration(true)
+                /** 波形只能用旧的那个 setter：这台 MIUI 14 的 framework.jar 里没有
+                 *  `NotificationChannel.setVibrationEffect(VibrationEffect)`，
+                 *  用 `vibrationEffect = ...` 会在 MainActivity.onCreate 里直接 NoSuchMethodError 崩掉整个 app
+                 *  （21:57/21:58 两次崩溃日志为证）。包一层是防着 MIUI 连旧的也改掉——那样至少通知还在。 */
+                @Suppress("DEPRECATION")
+                runCatching { vibrationPattern = VIBE }
             })
         m.createNotificationChannel(NotificationChannel(CHAN_SVC, "消息通道",
             NotificationManager.IMPORTANCE_MIN).apply {
-                description = "后台那条长连接，不响不弹横幅"
+                description = "后台那条长连接，不响不弹横幅、不震动"
                 setShowBadge(false)
             })
     }
