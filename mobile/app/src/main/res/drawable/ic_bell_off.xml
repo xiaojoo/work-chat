@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 免打扰那颗铃铛：描边同图标那一族（1.7），颜色用时间那颗灰（ink-dim-2），
+     摆在时间左边、和同一行文字一起居中。后端没有这一列，是本机 SharedPreferences 里的 flag -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="14dp" android:height="14dp"
+    android:viewportWidth="24" android:viewportHeight="24">
+    <path android:fillColor="#00000000" android:strokeColor="@color/ink_dim2" android:strokeWidth="1.7"
+        android:strokeLineJoin="round" android:strokeLineCap="round"
+        android:pathData="M12 4.5a4.5 4.5 0 0 1 4.5 4.5v3.2l1.6 2.6H5.9l1.6-2.6V9A4.5 4.5 0 0 1 12 4.5z M10.2 17.4a1.8 1.8 0 0 0 3.6 0" />
+    <path android:fillColor="#00000000" android:strokeColor="@color/ink_dim2" android:strokeWidth="1.7"
+        android:strokeLineCap="round" android:pathData="M4.6 3.6l14.8 16.8" />
+</vector>

@@ -29,26 +29,39 @@
                     android:layout_weight="1"
                     android:textSize="14sp" android:textColor="@color/ink"
                     android:maxLines="1" android:ellipsize="end" />
+                <!-- 免打扰：铃铛在时间左边（后端没有这一列，是本机 flag，见 ConvFlags） -->
+                <ImageView android:id="@+id/muted"
+                    android:layout_width="14dp" android:layout_height="14dp"
+                    android:layout_marginStart="4dp"
+                    android:src="@drawable/ic_bell_off"
+                    android:contentDescription="已开免打扰"
+                    android:visibility="gone" />
                 <TextView android:id="@+id/time"
                     android:layout_width="wrap_content" android:layout_height="wrap_content"
                     android:layout_marginStart="6dp"
                     android:textSize="11sp" android:textColor="@color/ink_dim2" />
             </LinearLayout>
-            <TextView android:id="@+id/last"
-                android:layout_width="match_parent" android:layout_height="wrap_content"
+            <!-- 未读那颗挪到这一行的最右 = 时间正下方（微信红点就在这一块），
+                 includeFontPadding 关掉，不然 11sp 的字在这台机落不进 18dp 的盒子里 -->
+            <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content"
                 android:layout_marginTop="2dp"
-                android:textSize="12sp" android:textColor="@color/ink_dim"
-                android:maxLines="1" android:ellipsize="end" />
+                android:orientation="horizontal" android:gravity="center_vertical">
+                <TextView android:id="@+id/last"
+                    android:layout_width="0dp" android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    android:textSize="12sp" android:textColor="@color/ink_dim"
+                    android:maxLines="1" android:ellipsize="end" />
+                <TextView android:id="@+id/unread"
+                    android:layout_width="wrap_content" android:layout_height="18dp"
+                    android:layout_marginStart="8dp"
+                    android:background="@drawable/unread_badge"
+                    android:minWidth="18dp" android:gravity="center"
+                    android:paddingStart="5dp" android:paddingEnd="5dp"
+                    android:includeFontPadding="false"
+                    android:textColor="#FFFFFF" android:textSize="11sp" android:textStyle="bold"
+                    android:visibility="gone" />
+            </LinearLayout>
         </LinearLayout>
-
-        <TextView android:id="@+id/unread"
-            android:layout_width="wrap_content" android:layout_height="18dp"
-            android:layout_marginStart="8dp"
-            android:background="@drawable/unread_badge"
-            android:minWidth="18dp" android:gravity="center"
-            android:paddingStart="5dp" android:paddingEnd="5dp"
-            android:textColor="#FFFFFF" android:textSize="11sp" android:textStyle="bold"
-            android:visibility="gone" />
     </LinearLayout>
 
     <View android:id="@+id/line"
