@@ -19,10 +19,8 @@
             android:layout_width="70dp" android:background="@color/danger" android:text="删除" />
     </LinearLayout>
 
-    <!-- 右滑露出：只有"标为已读/未读"这一颗，84dp 行程 -->
-    <TextView android:id="@+id/actReadR" style="@style/SwipeAct"
-        android:layout_width="84dp" android:layout_gravity="start"
-        android:background="@color/brand" android:text="标为已读" />
+    <!-- 右滑这一向按他这句撤了："右边滑动，效果不要了，不要标为未读的右边那个选项"
+         —— 右滑那颗和左滑中间那颗是同一个动作，重复，所以整向去掉。 -->
 
     <LinearLayout android:id="@+id/slide"
         android:layout_width="match_parent" android:layout_height="wrap_content"

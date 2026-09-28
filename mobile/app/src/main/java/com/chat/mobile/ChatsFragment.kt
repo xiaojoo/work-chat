@@ -236,7 +236,7 @@ class ChatsFragment : Fragment() {
     }
 
     /** 滑开露出定宽按钮：ItemTouchHelper 是"滑到底就提交"，停不住也点不了，所以这里自己接管。
-     *  行程封顶在按钮总宽（左滑 224dp、右滑 84dp），松手过半停在全开、否则弹回。一次只开一行。 */
+     *  只有左滑这一向，行程封顶在按钮总宽 224dp；松手过半停在全开、否则弹回。一次只开一行。 */
     private var openSlide: View? = null
 
     /** 收回去：只把这一行的内容层平移回 0 */
@@ -257,16 +257,13 @@ class ChatsFragment : Fragment() {
     private fun bindSwipe(h: VH, c: Api.Conversation, nm: String) {
         val px = resources.displayMetrics.density
         val maxL = 224 * px
-        val maxR = 84 * px
         val slop = android.view.ViewConfiguration.get(requireContext()).scaledTouchSlop
         h.slide.translationX = 0f
         val read = if (unreadOf(c) > 0) "标为已读" else "标为未读"
         h.actPin.text = if (flags.pinned(c.id)) "取消置顶" else "置顶"
         h.actRead.text = read
-        h.actReadR.text = read
         h.actPin.setOnClickListener { closeSlide(h.slide); flags.togglePinned(c.id); filter() }
         h.actRead.setOnClickListener { closeSlide(h.slide); doRead(c) }
-        h.actReadR.setOnClickListener { closeSlide(h.slide); doRead(c) }
         h.actDel.setOnClickListener { closeSlide(h.slide); doDelete(c); toast("已删除「${c.name}」") }
         var x0 = 0f; var y0 = 0f; var t0 = 0f; var drag = false
         h.slide.setOnTouchListener { v, e ->
@@ -286,16 +283,14 @@ class ChatsFragment : Fragment() {
                         v.cancelLongPress()
                         v.parent?.requestDisallowInterceptTouchEvent(true)
                     }
-                    if (drag) v.translationX = (t0 + dx).coerceIn(-maxL, maxR)
+                    if (drag) v.translationX = (t0 + dx).coerceIn(-maxL, 0f)
                 }
                 else -> {
                     if (drag) {
                         val t = v.translationX
                         val openL = t < -maxL * 0.35f
-                        val openR = t > maxR * 0.35f
-                        v.animate().translationX(if (openL) -maxL else if (openR) maxR else 0f)
-                            .setDuration(140).start()
-                        openSlide = if (openL || openR) v else null
+                        v.animate().translationX(if (openL) -maxL else 0f).setDuration(140).start()
+                        openSlide = if (openL) v else null
                     }
                     drag = false
                 }
@@ -440,7 +435,6 @@ class ChatsFragment : Fragment() {
         val actPin: TextView = v.findViewById(R.id.actPin)
         val actRead: TextView = v.findViewById(R.id.actRead)
         val actDel: TextView = v.findViewById(R.id.actDel)
-        val actReadR: TextView = v.findViewById(R.id.actReadR)
     }
 
     companion object {
