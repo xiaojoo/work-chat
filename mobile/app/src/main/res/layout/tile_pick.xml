@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- ＋ 面板里的一颗格子：白方块 + 图形 + 下面一行名字（照微信那八颗的样子）。
+     接不了接口的那几颗由代码把整格 alpha 压到 0.4 并且不可点——全摆出来但说清哪几颗是空的 -->
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="0dp" android:layout_height="wrap_content"
+    android:orientation="vertical" android:gravity="center"
+    android:paddingTop="10dp" android:paddingBottom="10dp">
+
+    <FrameLayout android:layout_width="52dp" android:layout_height="52dp"
+        android:background="@drawable/tile_bg">
+        <ImageView android:id="@+id/tic"
+            android:layout_width="26dp" android:layout_height="26dp"
+            android:layout_gravity="center" android:contentDescription="" />
+    </FrameLayout>
+
+    <TextView android:id="@+id/tname"
+        android:layout_width="wrap_content" android:layout_height="wrap_content"
+        android:layout_marginTop="6dp" android:textSize="12sp"
+        android:textColor="@color/ink_dim" />
+</LinearLayout>

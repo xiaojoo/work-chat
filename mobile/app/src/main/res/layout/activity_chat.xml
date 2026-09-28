@@ -66,35 +66,56 @@
         android:paddingTop="6dp"
         android:paddingBottom="6dp" />
 
-    <!-- 输入这一条照微信那排：输入框 / 表情 / ＋，最右留着「发送」（它是真发得出去的）。
-         最左那颗语音不摆——后端没有语音消息，摆了就是颗点了没反应的钮。
-         表情和 ＋ 各开下面那块面板，同一时刻只开一个。 -->
+    <!-- 输入这一条照微信那排：语音 / 输入框（右端一个麦克风）/ 表情 / ＋，最右留着「发送」。
+         语音和麦克风后端没有接口，所以画出来是灰的、点不动——和长按菜单"十项全摆八项灰"同一口径。 -->
     <View
         android:layout_width="match_parent"
-        android:layout_height="1dp"
+        android:layout_height="0.5dp"
         android:background="@color/line" />
 
     <LinearLayout
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:orientation="horizontal"
-        android:gravity="bottom"
+        android:gravity="center_vertical"
         android:background="@color/nb_bg_3"
         android:padding="8dp">
 
-        <EditText
-            android:id="@+id/input"
-            android:layout_width="0dp"
-            android:layout_height="wrap_content"
-            android:layout_weight="1"
-            android:minHeight="44dp"
-            android:maxLines="4"
-            android:background="@drawable/field_pill"
-            android:paddingStart="12dp" android:paddingEnd="12dp"
-            android:paddingTop="10dp" android:paddingBottom="10dp"
-            android:textSize="15sp"
-            android:inputType="textShortMessage|textMultiLine|textCapSentences"
-            android:hint="说点什么" />
+        <ImageView
+            android:id="@+id/voiceBtn"
+            android:layout_width="40dp" android:layout_height="40dp"
+            android:padding="7dp"
+            android:src="@drawable/ic_voice"
+            android:alpha="0.4"
+            android:contentDescription="语音（后端没有语音消息）" />
+
+        <!-- 输入框 + 框内右端那颗麦克风 -->
+        <FrameLayout
+            android:layout_width="0dp" android:layout_height="wrap_content"
+            android:layout_weight="1" android:layout_marginStart="6dp">
+
+            <EditText
+                android:id="@+id/input"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:minHeight="44dp"
+                android:maxLines="4"
+                android:background="@drawable/field_pill"
+                android:paddingStart="12dp" android:paddingEnd="40dp"
+                android:paddingTop="10dp" android:paddingBottom="10dp"
+                android:textSize="15sp"
+                android:inputType="textShortMessage|textMultiLine|textCapSentences"
+                android:hint="说点什么" />
+
+            <ImageView
+                android:id="@+id/micBtn"
+                android:layout_width="26dp" android:layout_height="26dp"
+                android:layout_gravity="end|center_vertical"
+                android:layout_marginEnd="8dp"
+                android:src="@drawable/ic_mic"
+                android:alpha="0.4"
+                android:contentDescription="语音输入（后端没有这个接口）" />
+        </FrameLayout>
 
         <ImageView
             android:id="@+id/emojiBtn"
@@ -112,14 +133,14 @@
             android:padding="7dp"
             android:src="@drawable/ic_plus_circle"
             android:background="?android:attr/selectableItemBackgroundBorderless"
-            android:contentDescription="文件" />
+            android:contentDescription="添加" />
 
         <Button
             android:id="@+id/send"
             android:layout_width="wrap_content"
             android:layout_height="44dp"
-            android:minWidth="68dp"
-            android:layout_marginStart="6dp"
+            android:minWidth="60dp"
+            android:layout_marginStart="4dp"
             android:background="@drawable/btn_brand"
             android:stateListAnimator="@null"
             android:textColor="#FFFFFF"
@@ -128,7 +149,7 @@
             android:text="发送" />
     </LinearLayout>
 
-    <!-- 面板：表情是一排可滚的字格，文件是两颗格子（相册 / 文件），都走系统选择器 -->
+    <!-- 面板：表情是一排字格；＋ 那八颗格子按图全摆，接不了接口的画淡、点不动 -->
     <LinearLayout
         android:id="@+id/panel"
         android:layout_width="match_parent"
@@ -148,45 +169,10 @@
                 android:paddingTop="6dp" android:paddingBottom="6dp" />
         </ScrollView>
 
-        <LinearLayout
-            android:id="@+id/fileRow"
+        <GridLayout android:id="@+id/plusGrid"
             android:layout_width="match_parent" android:layout_height="wrap_content"
-            android:orientation="horizontal" android:padding="14dp" android:visibility="gone">
-
-            <LinearLayout android:id="@+id/pickAlbum"
-                android:layout_width="0dp" android:layout_height="wrap_content"
-                android:layout_weight="1" android:orientation="vertical" android:gravity="center"
-                android:padding="10dp" android:background="?android:attr/selectableItemBackground">
-
-                <FrameLayout android:layout_width="52dp" android:layout_height="52dp"
-                    android:background="@drawable/tile_bg">
-                    <ImageView android:layout_width="26dp" android:layout_height="26dp"
-                        android:layout_gravity="center" android:src="@drawable/ic_wb_image"
-                        android:contentDescription="" />
-                </FrameLayout>
-
-                <TextView android:layout_width="wrap_content" android:layout_height="wrap_content"
-                    android:layout_marginTop="6dp" android:textSize="12sp"
-                    android:textColor="@color/ink_dim" android:text="相册" />
-            </LinearLayout>
-
-            <LinearLayout android:id="@+id/pickFile"
-                android:layout_width="0dp" android:layout_height="wrap_content"
-                android:layout_weight="1" android:orientation="vertical" android:gravity="center"
-                android:padding="10dp" android:background="?android:attr/selectableItemBackground">
-
-                <FrameLayout android:layout_width="52dp" android:layout_height="52dp"
-                    android:background="@drawable/tile_bg">
-                    <ImageView android:layout_width="26dp" android:layout_height="26dp"
-                        android:layout_gravity="center" android:src="@drawable/ic_wb_folder"
-                        android:contentDescription="" />
-                </FrameLayout>
-
-                <TextView android:layout_width="wrap_content" android:layout_height="wrap_content"
-                    android:layout_marginTop="6dp" android:textSize="12sp"
-                    android:textColor="@color/ink_dim" android:text="文件" />
-            </LinearLayout>
-        </LinearLayout>
+            android:columnCount="4" android:paddingStart="6dp" android:paddingEnd="6dp"
+            android:paddingTop="14dp" android:paddingBottom="14dp" android:visibility="gone" />
     </LinearLayout>
 
 </LinearLayout>

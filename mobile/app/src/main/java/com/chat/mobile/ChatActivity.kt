@@ -123,24 +123,58 @@ class ChatActivity : EdgeBackActivity() {
     private var panelKind = 0
     private lateinit var panel: View
     private lateinit var emojiScroll: View
-    private lateinit var fileRow: View
+    private lateinit var plusGrid: GridLayout
 
     private fun setupPanels(input: EditText) {
         panel = findViewById(R.id.panel)
         emojiScroll = findViewById(R.id.emojiScroll)
-        fileRow = findViewById(R.id.fileRow)
+        plusGrid = findViewById(R.id.plusGrid)
         buildEmojis(input)
+        buildPlus()
         findViewById<View>(R.id.emojiBtn).setOnClickListener { showPanel(if (panelKind == 1) 0 else 1) }
         findViewById<View>(R.id.plusBtn).setOnClickListener { showPanel(if (panelKind == 2) 0 else 2) }
-        findViewById<View>(R.id.pickAlbum).setOnClickListener { pick("image/*", REQ_ALBUM) }
-        findViewById<View>(R.id.pickFile).setOnClickListener { pick("*/*", REQ_FILE) }
+    }
+
+    /** ＋ 面板八颗格子照图全摆。真接得通的只有两颗：相册（挑图）和文件（挑任意文件），
+     *  都走系统选择器再上传；其余六颗后端没有对应消息类型，画淡 0.4、不给点，
+     *  和长按菜单"十项全摆八项灰"是同一口径。 */
+    private fun buildPlus() {
+        val px = resources.displayMetrics.density
+        val tiles = listOf(
+            "相册" to R.drawable.ic_wb_image, "拍摄" to R.drawable.ic_camera,
+            "位置" to R.drawable.ic_pin, "语音输入" to R.drawable.ic_mic,
+            "收藏" to R.drawable.ic_cube, "个人名片" to R.drawable.ic_person,
+            "文件" to R.drawable.ic_wb_folder, "音乐" to R.drawable.ic_music)
+        val real = mapOf(
+            "相册" to { pick("image/*", REQ_ALBUM) },
+            "文件" to { pick("*/*", REQ_FILE) })
+        val tv = android.util.TypedValue()
+        theme.resolveAttribute(android.R.attr.selectableItemBackground, tv, true)
+        tiles.forEach { (name, icon) ->
+            val cell = layoutInflater.inflate(R.layout.tile_pick, plusGrid, false)
+            cell.findViewById<ImageView>(R.id.tic).setImageResource(icon)
+            cell.findViewById<TextView>(R.id.tname).text = name
+            val act = real[name]
+            if (act == null) {
+                cell.alpha = 0.4f
+                cell.isClickable = false
+            } else {
+                cell.isClickable = true
+                cell.setBackgroundResource(tv.resourceId)
+                cell.setOnClickListener { act() }
+            }
+            plusGrid.addView(cell, GridLayout.LayoutParams().apply {
+                width = 0; columnSpec = GridLayout.spec(GridLayout.UNDEFINED, 1f)
+                height = (96 * px).toInt()
+            })
+        }
     }
 
     private fun showPanel(kind: Int) {
         panelKind = kind
         panel.visibility = if (kind == 0) View.GONE else View.VISIBLE
         emojiScroll.visibility = if (kind == 1) View.VISIBLE else View.GONE
-        fileRow.visibility = if (kind == 2) View.VISIBLE else View.GONE
+        plusGrid.visibility = if (kind == 2) View.VISIBLE else View.GONE
     }
 
     /** 表情就是往输入框里接一个字，不发出去——和微信那排一样 */
