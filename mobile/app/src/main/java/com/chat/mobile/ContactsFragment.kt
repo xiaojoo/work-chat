@@ -54,7 +54,7 @@ class ContactsFragment : Fragment() {
         list.layoutManager = LinearLayoutManager(requireContext())
         list.adapter = Adapter()
         refresh.setOnRefreshListener { load() }
-        refresh.setColorSchemeColors(0xFF2B6BE8.toInt())
+        refresh.setColorSchemeColors(requireContext().getColor(R.color.brand))
         list.addOnScrollListener(object : RecyclerView.OnScrollListener() {
             override fun onScrolled(rv: RecyclerView, dx: Int, dy: Int) {
                 if (dy <= 0) {
@@ -247,7 +247,7 @@ class ContactsFragment : Fragment() {
             tv.text = l
             tv.textSize = 13f
             tv.gravity = android.view.Gravity.CENTER
-            tv.setTextColor(0xFF69788F.toInt())
+            tv.setTextColor(requireContext().getColor(R.color.ink_dim))
             tv.alpha = if (groups.containsKey(l)) 1f else 0.32f
             rail.addView(tv, LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, itemH))
         }

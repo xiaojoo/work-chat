@@ -69,7 +69,7 @@ class ChatsFragment : Fragment() {
             override fun afterTextChanged(t: android.text.Editable?) {}
         })
         refresh.setOnRefreshListener { load() }
-        refresh.setColorSchemeColors(0xFF2B6BE8.toInt())
+        refresh.setColorSchemeColors(requireContext().getColor(R.color.brand))
         list.addOnScrollListener(object : RecyclerView.OnScrollListener() {
             override fun onScrolled(rv: RecyclerView, dx: Int, dy: Int) {
                 if (dy <= 0) return

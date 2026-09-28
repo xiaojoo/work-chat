@@ -479,7 +479,7 @@ class ChatActivity : EdgeBackActivity() {
         val raw = m.optString("content")
         h.bubble.text = Api.fileRef(raw)?.preview() ?: raw
         h.bubble.setBackgroundResource(if (self) R.drawable.bubble_self else R.drawable.bubble_other)
-        h.bubble.setTextColor(if (self) 0xFFFFFFFF.toInt() else 0xFF1B2434.toInt())
+        h.bubble.setTextColor(if (self) 0xFFFFFFFF.toInt() else getColor(R.color.ink))
         /* 群聊才印发送人名；单聊不印（桌面端 .msg-who 也是这个口径）。
            名字就在行内那一列的头，所以有名字时整行改成顶部对齐——名字的顶边就和头像的顶边一条线。
            单聊那一行没名字，头像继续跟着气泡垂直居中（之前认可的样子不动）。
@@ -498,7 +498,7 @@ class ChatActivity : EdgeBackActivity() {
         // 尾巴和气泡同色，跟着一起翻边：对方在左指、自己在右指
         h.tailL.visibility = if (self) View.GONE else View.VISIBLE
         h.tailR.visibility = if (self) View.VISIBLE else View.GONE
-        val tail = if (self) 0xFF2B6BE8.toInt() else 0xFFF0F3F8.toInt()
+        val tail = if (self) getColor(R.color.brand) else getColor(R.color.nb_bg_3)
         h.tailL.setColorFilter(tail, android.graphics.PorterDuff.Mode.SRC_IN)
         h.tailR.setColorFilter(tail, android.graphics.PorterDuff.Mode.SRC_IN)
         h.who.text = who
