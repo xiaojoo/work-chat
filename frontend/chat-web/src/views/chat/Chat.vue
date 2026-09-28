@@ -65,21 +65,31 @@
         <template v-if="activeTab === 'chat'">
           <template v-for="sec in convSections" :key="sec.title">
             <div v-if="sec.list.length" class="sec"><span>{{ sec.title }}</span></div>
-            <div v-for="conv in sec.list" :key="conv.id" class="row" :data-al="convInitial(conv)"
+            <div v-for="conv in sec.list" :key="conv.id" class="row conv-row" :data-al="convInitial(conv)"
                  :class="{ active: currentConversation?.id === conv.id }"
                  @click="selectConversation(conv)" @contextmenu.prevent.stop="openConvMenu($event, conv)">
               <div class="ava" :class="{ group: conv.type === 2 }">
                 <img v-if="conv.avatar" :src="conv.avatar" alt="" />
                 <span v-else>{{ conv.name?.charAt(0)?.toUpperCase() }}</span>
               </div>
-              <div class="row-main">
-                <div class="row-top">
-                  <span class="row-name">{{ conv.name }}</span>
-                  <span class="row-time">{{ formatConvTime(conv.lastMessageTime) }}</span>
-                </div>
-                <div class="row-last">{{ getConvLastMessage(conv) }}</div>
-              </div>
-              <div v-if="conv.unreadCount > 0" class="row-badge">{{ conv.unreadCount > 99 ? '99+' : conv.unreadCount }}</div>
+              <!-- 右侧是一列：第一行和会话名同一基线（免打扰铃铛 + 时间），第二行是未读角标。
+                   做成 3 列 2 行的网格而不是 flex，是为了让这两行和左边的名字/摘要共用行轨，
+                   对齐由结构保证，不用凑像素 -->
+              <span class="row-name">{{ conv.name }}</span>
+              <span class="row-flags">
+                <!-- 免打扰：照他给的那张参考图手画的 SVG。icon-park 的 Mute 斜杠是 45°、
+                     且两端不探出铃身，和参考图不是一回事 -->
+                <svg v-if="conv._muted" class="row-mute" width="12" height="12" viewBox="0 0 24 24" fill="none"
+                     stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                  <path d="M3.2 17.4V11.2C3.2 6.6 6.4 3.4 12 3.4s8.8 3.2 8.8 7.8v6.2" />
+                  <path d="M1.8 17.4h20.4" />
+                  <path d="M9.4 20c1 1.4 4.2 1.4 5.2 0" />
+                  <path d="M2 2 22 21" />
+                </svg>
+                <span class="row-time">{{ formatConvTime(conv.lastMessageTime) }}</span>
+              </span>
+              <div class="row-last">{{ getConvLastMessage(conv) }}</div>
+              <span v-if="conv.unreadCount > 0" class="row-badge" :class="{ ell: conv.unreadCount > 99 }">{{ conv.unreadCount > 99 ? '…' : conv.unreadCount }}</span>
             </div>
           </template>
           <div v-if="!filteredConversations.length" class="list-empty">暂无会话</div>
@@ -1228,6 +1238,8 @@ function setPresence(key) {
     return
   }
   localStorage.setItem('chat_presence', key)
+  // 托盘那份自绘菜单要画勾选，状态一变就同步给主进程
+  window.chatDesktop?.presence?.(key)
   if (!connected.value) connect(userStore.accessToken)
   sendWhenConnected('PRESENCE_SET', { status: key }, 8000)
     .catch(() => toast('状态没发出去：连接未就绪', 'error'))
@@ -1413,6 +1425,13 @@ onMounted(async () => {
     })
   }
 
+  // 托盘自绘菜单点了状态：走这里同一套 setPresence，"离线"仍然是断连，和 ☰ 菜单同一条路
+  if (window.chatDesktop?.onTrayPresence) {
+    offTrayPresence = window.chatDesktop.onTrayPresence(k => setPresence(k))
+  }
+  // 主进程那份要画勾选的状态，启动时先对一次账
+  window.chatDesktop?.presence?.(presence.value)
+
   await Promise.all([loadConversations(), loadFriends(), loadGroups(), loadMyName(), loadOrg(), refreshOnline()])
 
   // 恢复上次打开的会话（等待 WebSocket 连接）
@@ -1438,7 +1457,10 @@ onMounted(async () => {
         // 窗口不在前台或不是当前会话时交给系统通知；网页端 notifyDesktop 是空操作
         if (document.hidden || !currentConversation.value
             || String(data.conversationId) !== String(currentConversation.value.id)) {
-          notifyDesktop('收到新消息', String(data.content || ''))
+          // 标题给会话名（单聊=对方名、群聊=群名），正文走 previewOf 而不是原文：
+          // 图片/文件的 content 是对象 JSON，直接塞进气泡就是一串 {"url":...}
+          const fromConv = conversations.value.find(c => String(c.id) === String(data.conversationId))
+          notifyDesktop(fromConv?.name || '收到新消息', previewOf(data.content))
         }
         // 如果是当前会话的消息，追加到列表
         if (currentConversation.value && String(data.conversationId) === String(currentConversation.value.id)) {
@@ -1549,6 +1571,7 @@ onUnmounted(() => {
   disconnect()
   rzEnd()   // 拖到一半被卸载的话，window 上的 pointermove 会一直留着
   offShotResult?.()
+  offTrayPresence?.()
 })
 
 async function loadConversations() {
@@ -2134,6 +2157,7 @@ async function startShot() {
   }
 }
 let offShotResult = null
+let offTrayPresence = null
 
 // 弹层的越界夹取按真实尺寸算，不按项数猜。
 // 必须用 offsetHeight：getBoundingClientRect 量的是变换后的盒子，而弹层带 0.15s 的
@@ -4204,7 +4228,7 @@ async function openWithApp(r) {
 /* 和标题栏、卡片外的缝隙同色：整条左栏就是"最底那一层"露出来的部分，不画边、不另起一块白 */
 .rail {
   width: var(--rail-w); flex: 0 0 var(--rail-w); background: var(--nb-bg-shell);
-  display: flex; flex-direction: column; align-items: center; padding: 0 0 5px;
+  display: flex; flex-direction: column; align-items: center; padding: 5px 0;
 }
 .rail-logo {
   width: 34px; height: 34px; border-radius: 10px; background: var(--brand); color: #fff;
@@ -4307,15 +4331,43 @@ async function openWithApp(r) {
 }
 .ava.group { background: #4f86f5; border-radius: 11px; }
 .ava img { width: 100%; height: 100%; object-fit: cover; }
+/* 会话行专用：3 列（头像 / 文字 / 右侧状态）2 行（名字行 / 摘要行）。
+   只有这一处用，其他页签的行仍走上面那条 flex 规则，不动它们已认可的渲染 */
+.row.conv-row {
+  display: grid; grid-template-columns: auto minmax(0, 1fr) auto; column-gap: 10px;
+  /* 两条行轨钉死，且第二条取奇数高：18px 轨里居中 13px 药丸会落在 2.5px 上，
+     盒子和字都被栅格化到半像素（量到 badge top = 244.5），上下两条弧发虚、数字偏半格。
+     取 17px 后：药丸 13→偏移 2、摘要 15→1、17→0，全是整数。行高 20+2+17+16 = 55 */
+  grid-template-rows: 20px 16px; row-gap: 2px; align-items: baseline;
+}
+.row.conv-row .ava { grid-column: 1; grid-row: 1 / span 2; align-self: center; }
+.row.conv-row .row-name { grid-column: 2; grid-row: 1; }
+.row.conv-row .row-last { grid-column: 2; grid-row: 2; align-self: center; margin-top: 0; line-height: 16px; }
+.row.conv-row .row-flags { grid-column: 3; grid-row: 1; }
+.row.conv-row .row-badge { grid-column: 3; grid-row: 2; align-self: center; }
+/* 免打扰铃铛和时间同一行、同一灰度；它只是 _muted 的镜像，后端没有这个字段 */
+.row-flags { display: inline-flex; align-items: baseline; gap: 4px; justify-self: end; }
+.row-mute { color: var(--nb-dim-2); transform: translateY(2px); }
+/* 那 2px 是量出来的：svg 的基线是它自己的底边，行盒底落在基线上，
+   而描边墨迹离盒底还有 1px，所以基线对齐管不到墨迹，只能自己补 */
 .row-main { flex: 1; min-width: 0; }
 .row-top { display: flex; align-items: baseline; gap: 8px; }
 .row-name { flex: 1; min-width: 0; font-size: 14px; color: var(--nb-text); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .row-time { flex: 0 0 auto; font-size: 11px; color: var(--nb-dim-2); }
 .row-last { margin-top: 2px; font-size: 12px; color: var(--nb-dim); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .row-badge {
-  flex: 0 0 auto; min-width: 18px; height: 18px; padding: 0 5px; border-radius: 9px;
-  background: var(--danger); color: #fff; font-size: 11px; line-height: 18px; text-align: center;
+  justify-self: end;
+  min-width: 14px; height: 14px; border-radius: 7px;
+  background: var(--danger); color: #fff; font-size: 9px; line-height: 1;
+  display: grid; place-items: center; white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+  /* 药丸取偶数高 14：9px 字号的数字墨迹占 6 行（偶数），14-6=8 → 上下各 4 行，
+     这才是 Δ0。13 行药丸装 6 行墨只能 3/4 或 4/3，永远差半格（亚像素尺子量到 ±0.50）。
+     宽度仍取奇数 14 起步：数字墨迹宽 5（奇数），14-5=9 → 4.5/4.5，横向由 min-width 给整数。 */
+  padding: 0 3px;
 }
+/* 省略号墨迹只有 2 行（偶数），14 行药丸同样能 6/6 对上；它贴基线，所以仍要收下边把它抬上来 */
+.row-badge.ell { padding: 0 3px 4px; }
 .row-act { border: 1px solid var(--nb-line); background: #fff; color: var(--nb-dim); border-radius: 5px; font-size: 12px; padding: 2px 7px; cursor: pointer; }
 .row-act:hover { color: var(--brand); border-color: var(--brand-line); }
 .row-act.danger:hover { color: var(--danger); border-color: rgba(217, 72, 96, .4); }
