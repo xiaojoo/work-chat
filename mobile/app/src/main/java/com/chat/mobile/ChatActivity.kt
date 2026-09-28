@@ -65,17 +65,12 @@ class ChatActivity : EdgeBackActivity() {
 
         val input = findViewById<EditText>(R.id.input)
         val send = findViewById<Button>(R.id.send)
-        val plus = findViewById<View>(R.id.plusBtn)
-        /* 「发送」只在输入框有字时露出来，露的位置就是 ＋ 那一格；
-           同时把 ＋ 收掉，不留一颗被盖住却还点得着的钮 */
+        /* 「发送」只在输入框有字时出现，出现就在输入框右边那一格（工具栏那行不受影响） */
         input.addTextChangedListener(object : android.text.TextWatcher {
             override fun beforeTextChanged(s: CharSequence?, a: Int, b: Int, c: Int) {}
             override fun onTextChanged(s: CharSequence?, a: Int, b: Int, c: Int) {}
             override fun afterTextChanged(s: android.text.Editable?) {
-                val has = !s.toString().trim().isEmpty()
-                send.visibility = if (has) View.VISIBLE else View.GONE
-                plus.visibility = if (has) View.GONE else View.VISIBLE
-                if (has && panelKind == 2) showPanel(0)
+                send.visibility = if (s.toString().trim().isEmpty()) View.GONE else View.VISIBLE
             }
         })
         send.setOnClickListener {
@@ -139,10 +134,23 @@ class ChatActivity : EdgeBackActivity() {
         buildPlus()
         findViewById<View>(R.id.emojiBtn).setOnClickListener { showPanel(if (panelKind == 1) 0 else 1) }
         findViewById<View>(R.id.plusBtn).setOnClickListener { showPanel(if (panelKind == 2) 0 else 2) }
+        // 工具栏第二颗是相册的快捷入口，走的是 ＋ 面板里「相册」同一条路
+        findViewById<View>(R.id.imageBtn).setOnClickListener { pick("image/*", REQ_ALBUM) }
         /* 键盘和面板互斥。这边键盘只会从输入框来（点一下让它聚焦，或已经聚焦了再点一下），
-           两个都挂上：任一发生就把面板收掉；反方向在 showPanel 里收键盘 */
+           两个都挂上：任一发生就把面板收掉；反方向在 showPanel 里收键盘。
+           键盘要显式 showSoftInput 去要——实测点一下已聚焦的空输入框，MIUI 不一定会自己把键盘
+           放回来（光标没动它就不显示），那样面板也就收不掉，等于这条规则时灵时不灵 */
         input.setOnFocusChangeListener { _, has -> if (has && panelKind != 0) showPanel(0) }
-        input.setOnClickListener { if (panelKind != 0) showPanel(0) }
+        input.setOnClickListener {
+            if (panelKind != 0) showPanel(0)
+            requestKeyboard()
+        }
+    }
+
+    private fun requestKeyboard() {
+        inputView.requestFocus()
+        getSystemService(android.view.inputmethod.InputMethodManager::class.java)
+            ?.showSoftInput(inputView, 0)
     }
 
     /** ＋ 面板八颗格子照图全摆。真接得通的只有两颗：相册（挑图）和文件（挑任意文件），

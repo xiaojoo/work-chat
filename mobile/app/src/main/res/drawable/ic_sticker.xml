@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 工具栏第四颗：贴纸。后端没有贴纸/表情商店这类消息类型，所以这一颗画淡、不给点 -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="24dp" android:height="24dp" android:viewportWidth="24" android:viewportHeight="24">
+    <path android:fillColor="#00000000" android:strokeColor="#1B2434" android:strokeWidth="1.7"
+        android:strokeLineJoin="round" android:strokeLineCap="round"
+        android:pathData="M5 3.5h8.5L19 9v11.5H5z M13.5 3.5V9H19" />
+</vector>

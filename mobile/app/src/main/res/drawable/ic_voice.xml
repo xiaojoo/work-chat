@@ -1,7 +1,0 @@
-<?xml version="1.0" encoding="utf-8"?>
-<!-- 输入条最左那颗语音钮：三道弧加一个点。后端没有语音消息，所以画出来是灰的、点不动 -->
-<vector xmlns:android="http://schemas.android.com/apk/res/android"
-    android:width="24dp" android:height="24dp" android:viewportWidth="24" android:viewportHeight="24">
-    <path android:fillColor="#00000000" android:strokeColor="#1B2434" android:strokeWidth="1.7" android:strokeLineCap="round" android:pathData="M8 5.5a8 8 0 0 1 0 13 M5 8a4 4 0 0 1 0 8 M16 5.5a8 8 0 0 0 0 13 M19 8a4 4 0 0 0 0 8" />
-    <path android:fillColor="#1B2434" android:strokeColor="#1B2434" android:strokeWidth="1.7" android:strokeLineCap="round" android:pathData="M12 10.2a1.8 1.8 0 1 0 0 3.6a1.8 1.8 0 1 0 0,-3.6" />
-</vector>

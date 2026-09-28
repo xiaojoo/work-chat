@@ -66,8 +66,9 @@
         android:paddingTop="6dp"
         android:paddingBottom="6dp" />
 
-    <!-- 输入这一条照微信那排：语音 / 输入框（右端一个麦克风）/ 表情 / ＋，最右留着「发送」。
-         语音和麦克风后端没有接口，所以画出来是灰的、点不动——和长按菜单"十项全摆八项灰"同一口径。 -->
+    <!-- 输入这块照图分两行：上面一行 = 输入框 + 「发送」，下面一行 = 工具栏（独立一行，六颗均分）。
+         「发送」只在输入框有字时出现（上一轮点名的规则），出现就在输入框右边。
+         后端没有的能力（语音、拍摄、贴纸）画淡 0.4、不给点——和长按菜单"十项全摆八项灰"同一口径。 -->
     <View
         android:layout_width="match_parent"
         android:layout_height="0.5dp"
@@ -77,82 +78,107 @@
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:orientation="horizontal"
-        android:gravity="center_vertical"
+        android:gravity="bottom"
         android:background="@color/nb_bg_3"
-        android:padding="8dp">
+        android:paddingStart="8dp" android:paddingEnd="8dp"
+        android:paddingTop="8dp" android:paddingBottom="4dp">
+
+        <EditText
+            android:id="@+id/input"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:minHeight="44dp"
+            android:maxLines="4"
+            android:background="@drawable/field_pill"
+            android:paddingStart="12dp" android:paddingEnd="12dp"
+            android:paddingTop="10dp" android:paddingBottom="10dp"
+            android:textSize="15sp"
+            android:inputType="textShortMessage|textMultiLine|textCapSentences"
+            android:hint="说点什么" />
+
+        <Button
+            android:id="@+id/send"
+            android:layout_width="wrap_content"
+            android:layout_height="44dp"
+            android:minWidth="68dp"
+            android:layout_marginStart="6dp"
+            android:background="@drawable/btn_brand"
+            android:stateListAnimator="@null"
+            android:textColor="#FFFFFF"
+            android:textSize="15sp"
+            android:textAllCaps="false"
+            android:visibility="gone"
+            android:text="发送" />
+    </LinearLayout>
+
+    <!-- 工具栏：独立一行，六颗等宽铺满。都不带按下高亮（上一轮点名的规则）；
+         颜色统一到 ink 那颗令牌——原来表情和 ＋ 是 ink_dim，和旁边三颗描 ink 色的不在一个深浅上 -->
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="horizontal"
+        android:background="@color/nb_bg_3"
+        android:paddingStart="8dp" android:paddingEnd="8dp"
+        android:paddingTop="2dp" android:paddingBottom="8dp">
 
         <ImageView
-            android:id="@+id/voiceBtn"
-            android:layout_width="40dp" android:layout_height="40dp"
-            android:padding="7dp"
-            android:src="@drawable/ic_voice"
+            android:id="@+id/micBtn"
+            android:layout_width="0dp" android:layout_height="40dp"
+            android:layout_weight="1"
+            android:scaleType="center"
+            android:src="@drawable/ic_mic"
+            android:tint="@color/ink"
             android:alpha="0.4"
-            android:contentDescription="语音（后端没有语音消息）" />
+            android:contentDescription="语音输入（后端没有语音消息）" />
 
-        <!-- 输入框 + 框内右端那颗麦克风 -->
-        <FrameLayout
-            android:layout_width="0dp" android:layout_height="wrap_content"
-            android:layout_weight="1" android:layout_marginStart="6dp">
+        <ImageView
+            android:id="@+id/imageBtn"
+            android:layout_width="0dp" android:layout_height="40dp"
+            android:layout_weight="1"
+            android:scaleType="center"
+            android:src="@drawable/ic_wb_image"
+            android:tint="@color/ink"
+            android:contentDescription="相册" />
 
-            <EditText
-                android:id="@+id/input"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:minHeight="44dp"
-                android:maxLines="4"
-                android:background="@drawable/field_pill"
-                android:paddingStart="12dp" android:paddingEnd="40dp"
-                android:paddingTop="10dp" android:paddingBottom="10dp"
-                android:textSize="15sp"
-                android:inputType="textShortMessage|textMultiLine|textCapSentences"
-                android:hint="说点什么" />
+        <ImageView
+            android:id="@+id/cameraBtn"
+            android:layout_width="0dp" android="40dp"
+            android:layout_height="40dp"
+            android:layout_weight="1"
+            android:scaleType="center"
+            android:src="@drawable/ic_camera"
+            android:tint="@color/ink"
+            android:alpha="0.4"
+            android:contentDescription="拍摄（没接相机）" />
 
-            <ImageView
-                android:id="@+id/micBtn"
-                android:layout_width="26dp" android:layout_height="26dp"
-                android:layout_gravity="end|center_vertical"
-                android:layout_marginEnd="8dp"
-                android:src="@drawable/ic_mic"
-                android:alpha="0.4"
-                android:contentDescription="语音输入（后端没有这个接口）" />
-        </FrameLayout>
+        <ImageView
+            android:id="@+id/stickerBtn"
+            android:layout_width="0dp" android:layout_height="40dp"
+            android:layout_weight="1"
+            android:scaleType="center"
+            android:src="@drawable/ic_sticker"
+            android:tint="@color/ink"
+            android:alpha="0.4"
+            android:contentDescription="贴纸（后端没有贴纸）" />
 
-        <!-- 按下不亮 ripple：这排是常驻控件，一亮只是"按到了"的多余回声 -->
         <ImageView
             android:id="@+id/emojiBtn"
-            android:layout_width="40dp" android:layout_height="40dp"
-            android:layout_marginStart="6dp"
-            android:padding="7dp"
+            android:layout_width="0dp" android:layout_height="40dp"
+            android:layout_weight="1"
+            android:scaleType="center"
             android:src="@drawable/ic_emoji"
+            android:tint="@color/ink"
             android:contentDescription="表情" />
 
-        <!-- ＋ 和「发送」共用一格：输入框没字是 ＋，一有字发送就占掉这一格（＋ 同时收掉，
-             不留一颗被盖住还点得着的钮）。槽位定宽，切换时这一排别的东西不跳位 -->
-        <FrameLayout
-            android:layout_width="60dp"
-            android:layout_height="44dp"
-            android:layout_marginStart="4dp">
-
-            <ImageView
-                android:id="@+id/plusBtn"
-                android:layout_width="40dp" android:layout_height="40dp"
-                android:layout_gravity="center"
-                android:padding="7dp"
-                android:src="@drawable/ic_plus_circle"
-                android:contentDescription="添加" />
-
-            <Button
-                android:id="@+id/send"
-                android:layout_width="match_parent"
-                android:layout_height="match_parent"
-                android:background="@drawable/btn_brand"
-                android:stateListAnimator="@null"
-                android:textColor="#FFFFFF"
-                android:textSize="15sp"
-                android:textAllCaps="false"
-                android:visibility="gone"
-                android:text="发送" />
-        </FrameLayout>
+        <ImageView
+            android:id="@+id/plusBtn"
+            android:layout_width="0dp" android:layout_height="40dp"
+            android:layout_weight="1"
+            android:scaleType="center"
+            android:src="@drawable/ic_plus_circle"
+            android:tint="@color/ink"
+            android:contentDescription="添加" />
     </LinearLayout>
 
     <!-- 面板：表情是一排字格；＋ 那八颗格子按图全摆，接不了接口的画淡、点不动 -->
