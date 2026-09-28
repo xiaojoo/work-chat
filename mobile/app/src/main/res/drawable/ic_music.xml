@@ -2,5 +2,5 @@
 <!-- 面板那颗「音乐」：八分音符。后端没有音乐消息，画出来是灰的 -->
 <vector xmlns:android="http://schemas.android.com/apk/res/android"
     android:width="24dp" android:height="24dp" android:viewportWidth="24" android:viewportHeight="24">
-    <path android:fillColor="#00000000" android:strokeColor="#1B2434" android:strokeWidth="1.7" android:strokeLineCap="round" android:pathData="M9.5 17.5V6.5l9 -2v11 M9.5 17.5a2.2 2.2 0 1 1 -4.4 0a2.2 2.2 0 1 1 4.4 0 M18.5 15.5a2.2 2.2 0 1 1 -4.4 0a2.2 2.2 0 1 1 4.4 0" />
+    <path android:fillColor="#00000000" android:strokeColor="@color/ink" android:strokeWidth="1.7" android:strokeLineCap="round" android:pathData="M9.5 17.5V6.5l9 -2v11 M9.5 17.5a2.2 2.2 0 1 1 -4.4 0a2.2 2.2 0 1 1 4.4 0 M18.5 15.5a2.2 2.2 0 1 1 -4.4 0a2.2 2.2 0 1 1 4.4 0" />
 </vector>

@@ -2,5 +2,5 @@
 <!-- 长按消息那排菜单的图形：和 ic_wb_* 同一套（24 视口 / 1.7 描边 / 不填） -->
 <vector xmlns:android="http://schemas.android.com/apk/res/android"
     android:width="24dp" android:height="24dp" android:viewportWidth="24" android:viewportHeight="24">
-    <path android:fillColor="#00000000" android:strokeColor="#1B2434" android:strokeWidth="1.7" android:strokeLineCap="round" android:strokeLineJoin="round" android:pathData="M5 7h14 M9 7V4.8h6V7 M7 7l1 13.2h8L17 7 M11 11v6 M13.8 11v6" />
+    <path android:fillColor="#00000000" android:strokeColor="@color/ink" android:strokeWidth="1.7" android:strokeLineCap="round" android:strokeLineJoin="round" android:pathData="M5 7h14 M9 7V4.8h6V7 M7 7l1 13.2h8L17 7 M11 11v6 M13.8 11v6" />
 </vector>

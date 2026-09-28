@@ -101,4 +101,14 @@ object Cfg {
         ctx.getSharedPreferences(PREF, Context.MODE_PRIVATE).edit()
             .putFloat("font_scale", value).apply()
     }
+
+    /** 夜间模式那一档，直接存 AppCompatDelegate 的常量：跟随系统 / 日间 / 夜间。存本机。 */
+    fun nightMode(ctx: Context): Int =
+        ctx.getSharedPreferences(PREF, Context.MODE_PRIVATE)
+            .getInt("night_mode", androidx.appcompat.app.AppCompatDelegate.MODE_NIGHT_NO)
+
+    fun setNightMode(ctx: Context, value: Int) {
+        ctx.getSharedPreferences(PREF, Context.MODE_PRIVATE).edit()
+            .putInt("night_mode", value).apply()
+    }
 }

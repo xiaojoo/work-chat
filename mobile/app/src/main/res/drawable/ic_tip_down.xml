@@ -2,5 +2,5 @@
 <!-- 气泡底下那个指向表情的小三角：12dp 宽 6dp 高，墨色（同气泡底那颗令牌）实心 -->
 <vector xmlns:android="http://schemas.android.com/apk/res/android"
     android:width="12dp" android:height="6dp" android:viewportWidth="12" android:viewportHeight="6">
-    <path android:fillColor="#1B2434" android:pathData="M0,0 L12,0 L6,6 Z" />
+    <path android:fillColor="@color/ink" android:pathData="M0,0 L12,0 L6,6 Z" />
 </vector>

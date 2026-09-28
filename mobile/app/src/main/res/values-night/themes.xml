@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 夜间换掉主题父级：浅色那版是 Theme.AppCompat.Light.NoActionBar，
+     深底上继续用 Light 父级会让系统对话框/弹出层还是白底。自己写的样式都走 @color 令牌，
+     所以只改这一处父级就够。 -->
+<resources>
+    <style name="Theme.ChatMobile" parent="Theme.AppCompat.NoActionBar" />
+</resources>

@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 夜间配色。规则说清楚，别让人猜我编的数：
+     1) 中性色按"明度倒过来"重排——浅底三档(bg-0 最底 / bg-1 卡片 / bg-3 栏底)映射成深底三档，
+        越靠前的层越暗；文字档 ink 反向变亮，两档灰按同一间距跟着走。
+     2) 混色档一律用同一条混法重算，不另发明：
+        shell_soft = shell 与卡片底各 50%；line_soft = line 与卡片底各 50%；
+        row_hover = 灰档 16% + 栏底 84%；row_active = brand 20% + 卡片底 80%；
+        brand_dim = brand 与卡片底各 50%（浅色那版是"与白各 50%"，深色里没有白，就与底各半）。
+     3) 彩色不动：brand / brand_strong / danger / ok / warn 在深底上照样读得出来，
+        只把 brand_soft（浅蓝底）换成深蓝底。
+     4) page_bg / surface / divider / tab_idle 是指向下面这些的别名，不用重写。 -->
+<resources>
+    <color name="nb_bg_0">#101318</color>
+    <color name="nb_bg_1">#1B1F27</color>
+    <color name="nb_bg_3">#232935</color>
+    <color name="shell">#171B22</color>
+    <color name="shell_soft">#191C24</color>
+    <color name="ink">#E8ECF4</color>
+    <color name="ink_dim">#A3AEC0</color>
+    <color name="ink_dim2">#7E8B9E</color>
+    <color name="line">#2C3340</color>
+    <color name="line_soft">#242934</color>
+    <color name="row_hover">#313643</color>
+    <color name="row_active">#1E2E4E</color>
+    <color name="brand_soft">#1E2A44</color>
+    <color name="brand_dim">#234588</color>
+</resources>

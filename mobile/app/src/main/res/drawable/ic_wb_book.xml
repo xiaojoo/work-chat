@@ -2,5 +2,5 @@
 <!-- 描点直接搬桌面端 Workbench.vue 里 Ic.book 的 path，不另画一套 -->
 <vector xmlns:android="http://schemas.android.com/apk/res/android"
     android:width="24dp" android:height="24dp" android:viewportWidth="24" android:viewportHeight="24">
-    <path android:fillColor="#00000000" android:strokeColor="#1B2434" android:strokeWidth="1.7" android:pathData="M5 5.5h6v13H5z M13 5.5h6v13h-6z" />
+    <path android:fillColor="#00000000" android:strokeColor="@color/ink" android:strokeWidth="1.7" android:pathData="M5 5.5h6v13H5z M13 5.5h6v13h-6z" />
 </vector>

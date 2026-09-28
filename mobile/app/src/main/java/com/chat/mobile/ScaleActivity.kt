@@ -2,7 +2,6 @@ package com.chat.mobile
 
 import android.content.Context
 import android.content.res.Configuration
-import android.os.Bundle
 import androidx.appcompat.app.AppCompatActivity
 
 /**
@@ -28,10 +27,4 @@ open class ScaleActivity : AppCompatActivity() {
         if (resources.configuration.fontScale != Cfg.fontScale(this)) recreate()
     }
 
-    override fun onCreate(savedInstanceState: Bundle?) {
-        super.onCreate(savedInstanceState)
-        // 深色那套令牌整个产品都还没有（web 里 dark/prefers-color-scheme 命中 0，
-        // 手机端没有 values-night），所以这里显式锁死日间，别跟着系统走黑底白字的一半。
-        getDelegate().setLocalNightMode(androidx.appcompat.app.AppCompatDelegate.MODE_NIGHT_NO)
-    }
 }
