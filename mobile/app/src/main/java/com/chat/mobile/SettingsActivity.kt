@@ -58,7 +58,7 @@ class SettingsActivity : EdgeBackActivity() {
         val nightNow = resources.configuration.uiMode and
             android.content.res.Configuration.UI_MODE_NIGHT_MASK ==
             android.content.res.Configuration.UI_MODE_NIGHT_YES
-        Rows.toggle(groups, "夜间模式跟随系统", on = follow, enabled = true) {
+        Rows.toggle(groups, "夜间模式跟随系统", on = follow, enabled = true, labelSp = 13f) {
             setNight(if (follow) AppCompatDelegate.MODE_NIGHT_NO
                      else AppCompatDelegate.MODE_NIGHT_FOLLOW_SYSTEM)
         }

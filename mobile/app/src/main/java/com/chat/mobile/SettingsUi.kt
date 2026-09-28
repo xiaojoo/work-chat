@@ -54,10 +54,14 @@ object Rows {
     /** 「左标题 / 右开关」的一行（复用聊天信息页那个自绘开关，不用系统 Switch）。
      *  enabled=false 时整行压淡、开关不给拨——摆出来但说清这颗现在是空的。 */
     fun toggle(parent: LinearLayout, label: String, on: Boolean, enabled: Boolean,
-               onClick: (() -> Unit)?): View {
+               labelSp: Float = 16f, onClick: (() -> Unit)?): View {
         val ctx = parent.context
         val v = LayoutInflater.from(ctx).inflate(R.layout.item_toggle, parent, false)
-        v.findViewById<TextView>(R.id.label).text = label
+        v.findViewById<TextView>(R.id.label).apply {
+            text = label
+            // item_toggle 是聊天信息页那两行开关共用的那份，字号不在共享件上改，调用方按自己那档设
+            if (labelSp != 16f) setTextSize(android.util.TypedValue.COMPLEX_UNIT_SP, labelSp)
+        }
         val track = v.findViewById<android.widget.FrameLayout>(R.id.track)
         track.setBackgroundResource(
             if (on) R.drawable.switch_track_on else R.drawable.switch_track_off)
