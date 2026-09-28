@@ -1,71 +1,93 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- 会话行：白行 + 一根从文字起头的下边框（缩进 = 8 + 头像 48 + 间距 10 = 66dp），
-     不再是带 4dp 缝的圆角卡片（卡片下面再画直线会看成两条线） -->
-<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+<!-- 会话行。横向手势改成"滑开露出定宽按钮、点按钮才执行"（照他那张图）：
+     底下垫两组按钮（左滑露右边三颗、右滑露左边一颗），上面盖着真正的内容层 slide，
+     slide 平移、行程封顶在按钮总宽，所以按钮宽度是死的、滑动长度也是死的。
+     内容层还是那根从文字起头的下边框（缩进 = 8 + 头像 48 + 间距 10 = 66dp）。 -->
+<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
     android:layout_width="match_parent" android:layout_height="wrap_content"
-    android:orientation="vertical" android:background="@color/surface">
+    android:background="@color/surface">
 
-    <LinearLayout
-        android:id="@+id/row"
-        android:layout_width="match_parent" android:layout_height="wrap_content"
-        android:minHeight="54dp" android:orientation="horizontal" android:gravity="center_vertical"
-        android:background="?attr/selectableItemBackground"
-        android:padding="8dp">
-
-        <!-- 头像 48dp（原来 38dp，×1.26）；字号按同一个系数 14sp→18sp。
-             行高跟着从 54dp 变成 8+48+8=64dp -->
-        <TextView android:id="@+id/ava"
-            android:layout_width="48dp" android:layout_height="48dp"
-            android:gravity="center" android:textSize="18sp" android:textStyle="bold"
-            android:textColor="#FFFFFF" android:background="@drawable/ava_square" />
-
-        <LinearLayout android:layout_width="0dp" android:layout_height="wrap_content"
-            android:layout_weight="1" android:layout_marginStart="10dp"
-            android:orientation="vertical">
-            <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content"
-                android:orientation="horizontal" android:gravity="center_vertical">
-                <TextView android:id="@+id/name"
-                    android:layout_width="0dp" android:layout_height="wrap_content"
-                    android:layout_weight="1"
-                    android:textSize="14sp" android:textColor="@color/ink"
-                    android:maxLines="1" android:ellipsize="end" />
-                <!-- 免打扰：铃铛在时间左边（后端没有这一列，是本机 flag，见 ConvFlags） -->
-                <ImageView android:id="@+id/muted"
-                    android:layout_width="14dp" android:layout_height="14dp"
-                    android:layout_marginStart="4dp"
-                    android:src="@drawable/ic_bell_off"
-                    android:contentDescription="已开免打扰"
-                    android:visibility="gone" />
-                <TextView android:id="@+id/time"
-                    android:layout_width="wrap_content" android:layout_height="wrap_content"
-                    android:layout_marginStart="6dp"
-                    android:textSize="11sp" android:textColor="@color/ink_dim2" />
-            </LinearLayout>
-            <!-- 未读那颗挪到这一行的最右 = 时间正下方（微信红点就在这一块），
-                 includeFontPadding 关掉，不然 11sp 的字在这台机落不进 18dp 的盒子里 -->
-            <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content"
-                android:layout_marginTop="2dp"
-                android:orientation="horizontal" android:gravity="center_vertical">
-                <TextView android:id="@+id/last"
-                    android:layout_width="0dp" android:layout_height="wrap_content"
-                    android:layout_weight="1"
-                    android:textSize="12sp" android:textColor="@color/ink_dim"
-                    android:maxLines="1" android:ellipsize="end" />
-                <TextView android:id="@+id/unread"
-                    android:layout_width="wrap_content" android:layout_height="18dp"
-                    android:layout_marginStart="8dp"
-                    android:background="@drawable/unread_badge"
-                    android:minWidth="18dp" android:gravity="center"
-                    android:paddingStart="5dp" android:paddingEnd="5dp"
-                    android:includeFontPadding="false"
-                    android:textColor="#FFFFFF" android:textSize="11sp" android:textStyle="bold"
-                    android:visibility="gone" />
-            </LinearLayout>
-        </LinearLayout>
+    <!-- 左滑露出：置顶 / 标为未读(已读) / 删除。70+84+70=224dp 就是这一边能滑的最大行程 -->
+    <LinearLayout android:id="@+id/actLeft"
+        android:layout_width="wrap_content" android:layout_height="match_parent"
+        android:layout_gravity="end" android:orientation="horizontal">
+        <TextView android:id="@+id/actPin" style="@style/SwipeAct"
+            android:layout_width="70dp" android:background="@color/brand" android:text="置顶" />
+        <TextView android:id="@+id/actRead" style="@style/SwipeAct"
+            android:layout_width="84dp" android:background="@color/warn" android:text="标为未读" />
+        <TextView android:id="@+id/actDel" style="@style/SwipeAct"
+            android:layout_width="70dp" android:background="@color/danger" android:text="删除" />
     </LinearLayout>
 
-    <View android:id="@+id/line"
-        android:layout_width="match_parent" android:layout_height="0.5dp"
-        android:layout_marginStart="66dp"
-        android:background="@color/line_soft" />
-</LinearLayout>
+    <!-- 右滑露出：只有"标为已读/未读"这一颗，84dp 行程 -->
+    <TextView android:id="@+id/actReadR" style="@style/SwipeAct"
+        android:layout_width="84dp" android:layout_gravity="start"
+        android:background="@color/brand" android:text="标为已读" />
+
+    <LinearLayout android:id="@+id/slide"
+        android:layout_width="match_parent" android:layout_height="wrap_content"
+        android:orientation="vertical" android:background="@color/surface">
+
+        <LinearLayout
+            android:id="@+id/row"
+            android:layout_width="match_parent" android:layout_height="wrap_content"
+            android:minHeight="54dp" android:orientation="horizontal" android:gravity="center_vertical"
+            android:background="?attr/selectableItemBackground"
+            android:padding="8dp">
+
+            <!-- 头像 48dp；字号按同一个系数 14sp→18sp。行高跟着从 54dp 变成 8+48+8=64dp -->
+            <TextView android:id="@+id/ava"
+                android:layout_width="48dp" android:layout_height="48dp"
+                android:gravity="center" android:textSize="18sp" android:textStyle="bold"
+                android:textColor="#FFFFFF" android:background="@drawable/ava_square" />
+
+            <LinearLayout android:layout_width="0dp" android:layout_height="wrap_content"
+                android:layout_weight="1" android:layout_marginStart="10dp"
+                android:orientation="vertical">
+                <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content"
+                    android:orientation="horizontal" android:gravity="center_vertical">
+                    <TextView android:id="@+id/name"
+                        android:layout_width="0dp" android:layout_height="wrap_content"
+                        android:layout_weight="1"
+                        android:textSize="14sp" android:textColor="@color/ink"
+                        android:maxLines="1" android:ellipsize="end" />
+                    <!-- 免打扰：铃铛在时间左边（后端没有这一列，是本机 flag，见 ConvFlags） -->
+                    <ImageView android:id="@+id/muted"
+                        android:layout_width="14dp" android:layout_height="14dp"
+                        android:layout_marginStart="4dp"
+                        android:src="@drawable/ic_bell_off"
+                        android:contentDescription="已开免打扰"
+                        android:visibility="gone" />
+                    <TextView android:id="@+id/time"
+                        android:layout_width="wrap_content" android:layout_height="wrap_content"
+                        android:layout_marginStart="6dp"
+                        android:textSize="11sp" android:textColor="@color/ink_dim2" />
+                </LinearLayout>
+                <!-- 未读那颗在这一行的最右 = 时间正下方（微信红点就在这一块），数字上下左右居中 -->
+                <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content"
+                    android:layout_marginTop="2dp"
+                    android:orientation="horizontal" android:gravity="center_vertical">
+                    <TextView android:id="@+id/last"
+                        android:layout_width="0dp" android:layout_height="wrap_content"
+                        android:layout_weight="1"
+                        android:textSize="12sp" android:textColor="@color/ink_dim"
+                        android:maxLines="1" android:ellipsize="end" />
+                    <TextView android:id="@+id/unread"
+                        android:layout_width="wrap_content" android:layout_height="18dp"
+                        android:layout_marginStart="8dp"
+                        android:background="@drawable/unread_badge"
+                        android:minWidth="18dp" android:gravity="center"
+                        android:paddingStart="5dp" android:paddingEnd="5dp"
+                        android:includeFontPadding="false"
+                        android:textColor="#FFFFFF" android:textSize="11sp" android:textStyle="bold"
+                        android:visibility="gone" />
+                </LinearLayout>
+            </LinearLayout>
+        </LinearLayout>
+
+        <View android:id="@+id/line"
+            android:layout_width="match_parent" android:layout_height="0.5dp"
+            android:layout_marginStart="66dp"
+            android:background="@color/line_soft" />
+    </LinearLayout>
+</FrameLayout>

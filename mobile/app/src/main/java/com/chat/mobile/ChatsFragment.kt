@@ -11,7 +11,6 @@ import android.widget.EditText
 import android.widget.TextView
 import androidx.appcompat.app.AlertDialog
 import androidx.fragment.app.Fragment
-import androidx.recyclerview.widget.ItemTouchHelper
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
 import androidx.swiperefreshlayout.widget.SwipeRefreshLayout
@@ -78,67 +77,7 @@ class ChatsFragment : Fragment() {
                 if (lm.findLastVisibleItemPosition() >= rows.size - 5) loadMore()
             }
         })
-        attachSwipes()
     }
-
-    /** 左滑=删除，右滑=标为已读/标为未读；两向都不弹框——滑到底就直接做。
-     *  滑开的那块空档刷成动作色、下沿写上这一滑要干什么（删除 / 已读 / 未读）：
-     *  松手之前就该看清动作目的，不用等做完再靠一句 toast 回想。
-     *  微信是先露两个按钮再点一次，这里少一层"藏在行后面的按钮"，也就少一种点了看不见的命中区 */
-    private fun attachSwipes() {
-        val px = resources.displayMetrics.density
-        val danger = 0xFFD94860.toInt()      // 令牌 danger
-        val brand = 0xFF2B6BE8.toInt()       // 令牌 brand
-        val bg = android.graphics.Paint().apply { isAntiAlias = true }
-        val ink = android.graphics.Paint().apply {
-            isAntiAlias = true
-            textSize = 12f * px
-            color = 0xFFFFFFFF.toInt()
-        }
-        val cb = object : ItemTouchHelper.SimpleCallback(0, ItemTouchHelper.LEFT or ItemTouchHelper.RIGHT) {
-            override fun onMove(rv: RecyclerView, h: RecyclerView.ViewHolder, t: RecyclerView.ViewHolder) = false
-
-            override fun onChildDraw(c: Canvas, rv: RecyclerView, h: RecyclerView.ViewHolder,
-                                     dX: Float, dY: Float, state: Int, active: Boolean) {
-                if (state == ItemTouchHelper.ACTION_STATE_SWIPE && dX != 0f) {
-                    val row = h.itemView
-                    val del = dX < 0f
-                    // 空出来的那一条：往左滑露在右边，往右滑露在左边
-                    val l = if (del) row.right + dX else 0f
-                    val r = if (del) row.right.toFloat() else dX
-                    bg.color = if (del) danger else brand
-                    c.drawRect(l, row.top.toFloat(), r, row.bottom.toFloat(), bg)
-                    val label = if (del) "删除" else swipeLabel(h.bindingAdapterPosition)
-                    ink.textAlign = if (del) Paint.Align.RIGHT else Paint.Align.LEFT
-                    // 字贴空档的外侧、**垂直居中**（行高 64dp，之前压在底边看着像掉下去了）；
-                    // 空档不够宽时被 clipRect 裁掉，不压到行文字上
-                    val tx = if (del) r - 16 * px else l + 16 * px
-                    val fm = ink.fontMetrics
-                    val ty = (row.top + row.bottom) / 2f - (fm.ascent + fm.descent) / 2f
-                    c.save()
-                    c.clipRect(l, row.top.toFloat(), r, row.bottom.toFloat())
-                    c.drawText(label, tx, ty, ink)
-                    c.restore()
-                }
-                super.onChildDraw(c, rv, h, dX, dY, state, active)
-            }
-
-            override fun onSwiped(h: RecyclerView.ViewHolder, dir: Int) {
-                val pos = h.bindingAdapterPosition
-                if (pos == RecyclerView.NO_POSITION || pos >= rows.size) return
-                val c = rows[pos]
-                list.adapter?.notifyItemChanged(pos)
-                if (dir == ItemTouchHelper.LEFT) { doDelete(c); toast("已删除「${c.name}」") }
-                else if (unreadOf(c) > 0) { markRead(c); toast("已标为已读") }
-                else { unreadOverride[c.id] = 1; refreshRow(c); toast("已标为未读") }
-            }
-        }
-        ItemTouchHelper(cb).attachToRecyclerView(list)
-    }
-
-    /** 右滑这颗动作的名字跟着这一行的状态走：有未读=这一滑标已读，没未读=这一滑标未读 */
-    private fun swipeLabel(pos: Int): String =
-        rows.getOrNull(pos)?.let { if (unreadOf(it) > 0) "已读" else "未读" } ?: "未读"
 
     private fun toast(msg: String) =
         android.widget.Toast.makeText(requireContext(), msg, android.widget.Toast.LENGTH_SHORT).show()
@@ -296,6 +235,81 @@ class ChatsFragment : Fragment() {
         pop.show()
     }
 
+    /** 滑开露出定宽按钮：ItemTouchHelper 是"滑到底就提交"，停不住也点不了，所以这里自己接管。
+     *  行程封顶在按钮总宽（左滑 224dp、右滑 84dp），松手过半停在全开、否则弹回。一次只开一行。 */
+    private var openSlide: View? = null
+
+    /** 收回去：只把这一行的内容层平移回 0 */
+    private fun closeSlide(v: View?) {
+        v?.animate()?.translationX(0f)?.setDuration(140)?.start()
+        if (openSlide === v) openSlide = null
+    }
+
+    /** 未读那颗跟着这一行的状态走：有未读点下去是"标为已读"，没有是"标为未读" */
+    private fun doRead(c: Api.Conversation) {
+        if (unreadOf(c) > 0) { markRead(c); toast("已标为已读") }
+        else { unreadOverride[c.id] = 1; refreshRow(c); toast("已标为未读") }
+    }
+
+    /** 行上的横向手势。行程封顶在按钮总宽（左滑 224dp = 70+84+70，右滑 84dp），
+     *  所以按钮是定宽、能滑出去的距离也是定值；松手过半就停在全开，否则弹回。
+     *  开着的时候点内容层只负责收回去，不会顺手把聊天打开。 */
+    private fun bindSwipe(h: VH, c: Api.Conversation, nm: String) {
+        val px = resources.displayMetrics.density
+        val maxL = 224 * px
+        val maxR = 84 * px
+        val slop = android.view.ViewConfiguration.get(requireContext()).scaledTouchSlop
+        h.slide.translationX = 0f
+        val read = if (unreadOf(c) > 0) "标为已读" else "标为未读"
+        h.actPin.text = if (flags.pinned(c.id)) "取消置顶" else "置顶"
+        h.actRead.text = read
+        h.actReadR.text = read
+        h.actPin.setOnClickListener { closeSlide(h.slide); flags.togglePinned(c.id); filter() }
+        h.actRead.setOnClickListener { closeSlide(h.slide); doRead(c) }
+        h.actReadR.setOnClickListener { closeSlide(h.slide); doRead(c) }
+        h.actDel.setOnClickListener { closeSlide(h.slide); doDelete(c); toast("已删除「${c.name}」") }
+        var x0 = 0f; var y0 = 0f; var t0 = 0f; var drag = false
+        h.slide.setOnTouchListener { v, e ->
+            when (e.actionMasked) {
+                android.view.MotionEvent.ACTION_DOWN -> {
+                    x0 = e.rawX; y0 = e.rawY; t0 = v.translationX; drag = false
+                    touchX = e.rawX; touchY = e.rawY
+                    if (openSlide != null && openSlide !== v) closeSlide(openSlide)
+                }
+                android.view.MotionEvent.ACTION_MOVE -> {
+                    val dx = e.rawX - x0
+                    val dy = e.rawY - y0
+                    if (!drag && Math.abs(dx) > slop && Math.abs(dx) > Math.abs(dy)) {
+                        drag = true
+                        // 一旦判定是横拖，就把挂在那儿的长按掐掉：
+                        // 不掐的话慢一点滑，行里的长按菜单会跟着弹出来盖在按钮上
+                        v.cancelLongPress()
+                        v.parent?.requestDisallowInterceptTouchEvent(true)
+                    }
+                    if (drag) v.translationX = (t0 + dx).coerceIn(-maxL, maxR)
+                }
+                else -> {
+                    if (drag) {
+                        val t = v.translationX
+                        val openL = t < -maxL * 0.35f
+                        val openR = t > maxR * 0.35f
+                        v.animate().translationX(if (openL) -maxL else if (openR) maxR else 0f)
+                            .setDuration(140).start()
+                        openSlide = if (openL || openR) v else null
+                    }
+                    drag = false
+                }
+            }
+            false
+        }
+        h.slide.setOnClickListener {
+            if (Math.abs(h.slide.translationX) > 0.5f) closeSlide(h.slide)
+            else startActivity(Intent(requireContext(), ChatActivity::class.java)
+                .putExtra("conv", c.id).putExtra("name", nm))
+        }
+        h.slide.setOnLongClickListener { showMenu(h.slide, c); true }
+    }
+
     private fun showMenu(anchor: View, c: Api.Conversation) {
         val items = listOf(
             if (flags.pinned(c.id)) "取消置顶" else "置顶该聊天",
@@ -410,19 +424,7 @@ class ChatsFragment : Fragment() {
                和页面底色（nb-bg-3 240,243,248）只差 1，画出来就是底边一个 3px 的台阶——
                线从 56dp 起头，所以左半截和右半截的白底收尾不在同一条 y 上 */
             h.line.visibility = if (i == rows.size - 1) View.GONE else View.VISIBLE
-            h.itemView.setOnClickListener {
-                startActivity(Intent(requireContext(), ChatActivity::class.java)
-                    .putExtra("conv", c.id).putExtra("name", nm))
-            }
-            h.itemView.setOnLongClickListener { showMenu(it, c); true }
-            /* 长按不给坐标，所以自己记一下按下点——菜单要贴着手指这儿弹，
-               不是固定钉在行的下沿（他点的就是这句"在哪里长按就在哪里弹出"） */
-            h.itemView.setOnTouchListener { _, e ->
-                if (e.actionMasked == android.view.MotionEvent.ACTION_DOWN) {
-                    touchX = e.rawX; touchY = e.rawY
-                }
-                false
-            }
+            bindSwipe(h, c, nm)
         }
     }
 
@@ -434,6 +436,11 @@ class ChatsFragment : Fragment() {
         val unread: TextView = v.findViewById(R.id.unread)
         val muted: android.widget.ImageView = v.findViewById(R.id.muted)
         val line: View = v.findViewById(R.id.line)
+        val slide: View = v.findViewById(R.id.slide)
+        val actPin: TextView = v.findViewById(R.id.actPin)
+        val actRead: TextView = v.findViewById(R.id.actRead)
+        val actDel: TextView = v.findViewById(R.id.actDel)
+        val actReadR: TextView = v.findViewById(R.id.actReadR)
     }
 
     companion object {

@@ -28,6 +28,15 @@
         <item name="android:textColor">@color/tab_tint</item>
     </style>
 
+    <!-- 滑开行之后露出的动作按钮：白字 15sp 居中，宽度由每一颗自己写死（定宽，跟着拖拽拉伸的那种不要） -->
+    <style name="SwipeAct">
+        <item name="android:layout_height">match_parent</item>
+        <item name="android:gravity">center</item>
+        <item name="android:textSize">15sp</item>
+        <item name="android:textColor">#FFFFFF</item>
+        <item name="android:maxLines">1</item>
+    </style>
+
     <!-- 底部面板的一行：整行可点、字居中、高度按拇指下限给到 54dp -->
     <style name="SheetItem">
         <item name="android:layout_width">match_parent</item>
