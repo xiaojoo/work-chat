@@ -9,4 +9,5 @@
     <string name="conversations_title">会话</string>
     <string name="reload">刷新</string>
     <string name="logout">退出</string>
+    <string name="workbench_note">这 11 格就是桌面端工作台侧栏那三组入口（工作台 / 内容 / AI），图标也是同一套描点。桌面端它们还是设计稿静态壳、后端没有对应接口，所以这里点每一格只会给一句原因，不出内容。接口做出来之后，这一屏不用改版式，只要把每格的点击换真跳转。</string>
 </resources>

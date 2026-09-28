@@ -34,6 +34,8 @@
         <activity android:name=".AddMembersActivity" android:exported="false" />
         <!-- 聊天里点对方头像进来的那页（对应桌面端好友信息弹框） -->
         <activity android:name=".PersonActivity" android:exported="false" />
+        <!-- 工作台某个入口点进去的那页（搜索 + 分类页签 + 卡片列表） -->
+        <activity android:name=".WorkListActivity" android:exported="false" />
     </application>
 
 </manifest>
