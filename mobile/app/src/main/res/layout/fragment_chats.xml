@@ -3,16 +3,47 @@
     android:layout_width="match_parent" android:layout_height="match_parent"
     android:orientation="vertical" android:background="@color/nb_bg_3">
 
-    <!-- 顶栏对齐桌面端标题栏那一条：nb-bg-shell，标题 16px/600 -->
-    <FrameLayout
-        android:layout_width="match_parent" android:layout_height="50dp"
-        android:background="@color/shell">
-        <TextView
-            android:layout_width="wrap_content" android:layout_height="wrap_content"
-            android:layout_gravity="center"
-            android:text="微信" android:textSize="16sp" android:textStyle="bold"
-            android:textColor="@color/ink" />
-    </FrameLayout>
+    <!-- 顶栏：左边我的头像 + 昵称 + 状态，右边一颗 ＋（点开是建群那一小菜单）。
+         原来这里是一条居中的「微信」标题，挪成身份块之后那两个字由底部页签承担。 -->
+    <LinearLayout
+        android:layout_width="match_parent" android:layout_height="wrap_content"
+        android:minHeight="56dp" android:orientation="horizontal" android:gravity="center_vertical"
+        android:background="@color/shell"
+        android:paddingStart="8dp" android:paddingEnd="6dp" android:paddingTop="6dp" android:paddingBottom="6dp">
+
+        <TextView android:id="@+id/meAva"
+            android:layout_width="40dp" android:layout_height="40dp"
+            android:gravity="center" android:textSize="16sp" android:textStyle="bold"
+            android:textColor="#FFFFFF" android:background="@drawable/ava_square" />
+
+        <LinearLayout android:layout_width="0dp" android:layout_height="wrap_content"
+            android:layout_weight="1" android:layout_marginStart="10dp" android:orientation="vertical">
+
+            <TextView android:id="@+id/meName"
+                android:layout_width="match_parent" android:layout_height="wrap_content"
+                android:textSize="16sp" android:textStyle="bold" android:textColor="@color/ink"
+                android:maxLines="1" android:ellipsize="end" />
+
+            <!-- 状态点 + 一行小字。点用 7dp 圆点，颜色由代码按连接结果换 -->
+            <LinearLayout android:layout_width="wrap_content" android:layout_height="wrap_content"
+                android:layout_marginTop="2dp" android:orientation="horizontal" android:gravity="center_vertical">
+                <View android:id="@+id/meDot"
+                    android:layout_width="7dp" android:layout_height="7dp"
+                    android:background="@drawable/dot" />
+                <TextView android:id="@+id/meState"
+                    android:layout_width="wrap_content" android:layout_height="wrap_content"
+                    android:layout_marginStart="4dp"
+                    android:textSize="11sp" android:textColor="@color/ink_dim2" />
+            </LinearLayout>
+        </LinearLayout>
+
+        <ImageView android:id="@+id/plusBtn"
+            android:layout_width="40dp" android:layout_height="40dp"
+            android:padding="7dp"
+            android:src="@drawable/ic_plus_circle"
+            android:tint="@color/ink"
+            android:contentDescription="新建" />
+    </LinearLayout>
 
     <EditText
         android:id="@+id/search"

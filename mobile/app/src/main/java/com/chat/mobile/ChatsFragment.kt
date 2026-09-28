@@ -29,6 +29,13 @@ class ChatsFragment : Fragment() {
     private lateinit var search: EditText
     private lateinit var refresh: SwipeRefreshLayout
     private lateinit var flags: ConvFlags
+    private lateinit var meAva: TextView
+    private lateinit var meName: TextView
+    private lateinit var meDot: View
+    private lateinit var meState: TextView
+    private var myName = ""
+    /** 顶栏那颗状态点的数据源：本机到消息网关的那条连接（不是 /user/online，见 openGateway 的说明） */
+    private var gw: Ws? = null
 
     /** 手动"标为未读/已读"的结果只活在这一份内存表里：服务端没有这个字段，
      *  下拉刷新会把它清掉（桌面端刷新同样丢，行为对齐，不自作主张持久化） */
@@ -49,6 +56,12 @@ class ChatsFragment : Fragment() {
         search = v.findViewById(R.id.search)
         refresh = v.findViewById(R.id.refresh)
         flags = ConvFlags(requireContext())
+        meAva = v.findViewById(R.id.meAva)
+        meName = v.findViewById(R.id.meName)
+        meDot = v.findViewById(R.id.meDot)
+        meState = v.findViewById(R.id.meState)
+        v.findViewById<View>(R.id.plusBtn).setOnClickListener { showPlusMenu(it) }
+        loadMe()
         list.layoutManager = LinearLayoutManager(requireContext())
         list.adapter = Adapter()
         search.addTextChangedListener(object : android.text.TextWatcher {
@@ -137,6 +150,13 @@ class ChatsFragment : Fragment() {
            但「多了一条会话」这种事摊不出来：转群新建的那条得重打接口才看得见，
            所以建完群那边会立 needsReload 这个牌子，这里认账并把它放倒。 */
         if (rows.isEmpty() || needsReload) { needsReload = false; load() } else filter()
+        openGateway()
+    }
+
+    /** 离开这一页就把这条连接放掉：进聊天页时那边自己会开一条，别留两条 */
+    override fun onPause() {
+        super.onPause()
+        closeGateway()
     }
 
     private fun filter() {
@@ -195,6 +215,86 @@ class ChatsFragment : Fragment() {
     /** 手指按下的屏幕坐标（rawX/rawY 含状态栏），长按菜单按它定位 */
     private var touchX = 0f
     private var touchY = 0f
+
+    /** 顶栏身份块：昵称走 /api/user/{id}（后端 avatar 全是空串，所以和列表里同一套首字母方块）。 */
+    private fun loadMe() {
+        val ctx = requireContext()
+        val base = Cfg.apiBase(ctx); val tk = Cfg.token(ctx); val id = Cfg.userId(ctx)
+        if (base.isEmpty() || tk.isEmpty() || id.isEmpty()) { paintState("未登录", R.color.ink_dim2); return }
+        thread(name = "me") {
+            val r = runCatching { Api(base, tk).profile(id) }
+            activity?.runOnUiThread {
+                if (!isAdded) return@runOnUiThread
+                myName = r.getOrNull()?.let { it.nickname.ifEmpty { it.username } } ?: ""
+                meName.text = myName
+                meAva.text = myName.take(1).uppercase()
+            }
+        }
+    }
+
+    /** 状态那一行量的是"这台手机 ↔ 消息网关"这条连接本身。
+     *  不用 /api/user/online：它现在恒返回 []（那份在线表要 redis 支撑，这套进程没接上），
+     *  拿它画就是永远一个"离线"，是假指示。 */
+    private fun openGateway() {
+        val ctx = requireContext()
+        if (Cfg.token(ctx).isEmpty()) return
+        closeGateway()
+        paintState("连接中", R.color.warn)
+        gw = Ws(Cfg.wsBase(ctx), Cfg.token(ctx), "chat-mobile-list",
+            onFrame = { }, onState = { s -> activity?.runOnUiThread { if (isAdded) applyState(s) } }).also { it.open() }
+    }
+
+    private fun closeGateway() { gw?.close(); gw = null }
+
+    /** Ws 报的是过程话术（"已连接"/"连接断开：xxx"/"连接关闭 1000"），翻成状态点那三个词 */
+    private fun applyState(s: String) {
+        when {
+            s == "已连接" -> paintState("在线", R.color.ok)
+            s.startsWith("连接断开") || s.startsWith("连接关闭") -> paintState("离线", R.color.ink_dim2)
+            else -> paintState("连接中", R.color.warn)
+        }
+    }
+
+    private fun paintState(text: String, colorRes: Int) {
+        meState.text = text
+        meDot.background.mutate().setTint(resources.getColor(colorRes, null))
+    }
+
+    /** 顶栏 ＋ 弹出来的小菜单。后端只有"群"没有"频道"，所以第二项画淡、不给点，
+     *  和长按菜单"十项全摆八项灰"同一口径。菜单贴右上，右边缘留 8dp，不越屏幕。 */
+    private fun showPlusMenu(anchor: View) {
+        val items = listOf(
+            Triple("创建群聊", R.drawable.ic_plus_circle, true),
+            Triple("创建频道", R.drawable.ic_hash, false))
+        val px = resources.displayMetrics.density
+        val pop = ListPopupWindow(requireContext())
+        pop.anchorView = anchor
+        pop.setAdapter(object : ArrayAdapter<String>(requireContext(), R.layout.item_plus_menu, items.map { it.first }) {
+            override fun getView(pos: Int, cv: View?, parent: ViewGroup): View {
+                val row = cv ?: layoutInflater.inflate(R.layout.item_plus_menu, parent, false)
+                row.findViewById<android.widget.ImageView>(R.id.ic).setImageResource(items[pos].second)
+                row.findViewById<TextView>(R.id.text).text = items[pos].first
+                row.alpha = if (items[pos].third) 1f else 0.4f
+                return row
+            }
+            override fun areAllItemsEnabled() = false
+            override fun isEnabled(pos: Int) = items[pos].third
+        })
+        pop.isModal = true
+        pop.width = (190 * px).toInt()
+        pop.setBackgroundDrawable(resources.getDrawable(R.drawable.menu_bg, null))
+        pop.setOnItemClickListener { _, _, pos, _ ->
+            pop.dismiss()
+            if (items[pos].third) {
+                startActivity(Intent(requireContext(), AddMembersActivity::class.java)
+                    .putExtra("mode", "new").putExtra("mine", myName))
+            }
+        }
+        val where = IntArray(2); anchor.getLocationOnScreen(where)
+        pop.horizontalOffset =
+            (resources.displayMetrics.widthPixels - 8 * px - pop.width - where[0]).toInt()
+        pop.show()
+    }
 
     private fun showMenu(anchor: View, c: Api.Conversation) {
         val items = listOf(

@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 状态那颗小圆点：白底，颜色由代码按连接结果上 tint（在线=ok、连接中=warn、离线=ink-dim-2） -->
+<shape xmlns:android="http://schemas.android.com/apk/res/android" android:shape="oval">
+    <solid android:color="#FFFFFF" />
+    <size android:width="7dp" android:height="7dp" />
+</shape>

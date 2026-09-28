@@ -31,6 +31,8 @@ class AddMembersActivity : EdgeBackActivity() {
     private lateinit var convId: String
     private var have = setOf<String>()
     private var convert = false
+    /** 顶栏 ＋ →「创建群聊」进来的：不是往已有会话里加人，也不是把私聊转群，是就地新建一个两人群 */
+    private var fresh = false
     private var mine = ""
     private var target = ""
     private var targetName = ""
@@ -41,6 +43,7 @@ class AddMembersActivity : EdgeBackActivity() {
         convId = intent.getStringExtra("conv") ?: ""
         have = (intent.getStringExtra("have") ?: "").split(',').filter { it.isNotEmpty() }.toSet()
         convert = intent.getStringExtra("mode") == "convert"
+        fresh = intent.getStringExtra("mode") == "new"
         mine = intent.getStringExtra("mine") ?: ""
         target = intent.getStringExtra("target") ?: ""
         targetName = intent.getStringExtra("targetName") ?: ""
@@ -93,7 +96,8 @@ class AddMembersActivity : EdgeBackActivity() {
                     rows = built
                     list.adapter?.notifyDataSetChanged()
                     status.text = "${built.count { it is Person }} 人可添加 · " +
-                        (if (convert) "我和 $targetName 已在里面，不列出来"
+                        (if (fresh) "点一个人就建一个两人群（我 + 它）"
+                         else if (convert) "我和 $targetName 已在里面，不列出来"
                          else "已在群里的 ${have.size} 人不列出")
                 }.onFailure { status.text = "读取失败：${it.message}" }
             }
@@ -102,6 +106,16 @@ class AddMembersActivity : EdgeBackActivity() {
     }
 
     private fun confirm(p: Api.OrgPerson, nm: String) {
+        if (fresh) {
+            AlertDialog.Builder(this)
+                .setTitle("新建群聊")
+                .setMessage("建一个两人群：成员 = 我、$nm（POST /api/group/create，memberIds 只带 $nm，我落成群主）。" +
+                    "建完直接跳进这个群。")
+                .setNegativeButton("取消") { d, _ -> d.dismiss() }
+                .setPositiveButton("建群") { _, _ -> createFresh(p, nm) }
+                .show()
+            return
+        }
         if (convert) {
             AlertDialog.Builder(this)
                 .setTitle("和 $targetName 转成群聊")
@@ -141,6 +155,31 @@ class AddMembersActivity : EdgeBackActivity() {
                     finish()
                 }.onFailure {
                     Toast.makeText(this, "转群失败：${it.message}", Toast.LENGTH_LONG).show()
+                }
+            }
+        }
+    }
+
+    /** 新建两人群：memberIds 只带选的那个人，后端把创建者落成群主（和转群同一条接口） */
+    private fun createFresh(p: Api.OrgPerson, nm: String) {
+        val gbase = Cfg.groupBase(this); val tk = Cfg.token(this)
+        val name = "${mine.ifEmpty { "我" }}、$nm 等2人"
+        thread(name = "new-group") {
+            val res = runCatching {
+                val id = Api(gbase, tk).createGroup(name, listOf(p.id))
+                if (id.isEmpty()) error("后端没返回群 id") else id
+            }
+            runOnUiThread {
+                if (isFinishing) return@runOnUiThread
+                res.onSuccess { gid ->
+                    Toast.makeText(this, "已建群", Toast.LENGTH_SHORT).show()
+                    ChatsFragment.needsReload = true
+                    startActivity(Intent(this, ChatActivity::class.java)
+                        .putExtra("conv", "g$gid").putExtra("name", name))
+                    setResult(RESULT_OK)
+                    finish()
+                }.onFailure {
+                    Toast.makeText(this, "建群失败：${it.message}", Toast.LENGTH_LONG).show()
                 }
             }
         }

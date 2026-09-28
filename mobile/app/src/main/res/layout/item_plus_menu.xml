@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 顶栏 ＋ 弹出来的那一小菜单的一行：左边图标、右边文字。
+     行高/字号/内边距照 item_menu（44dp / 15sp / 16dp），只是多一列图标。
+     后端没有的那一项（创建频道）由代码把整行 alpha 压到 0.4 并且不给点 -->
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent" android:layout_height="wrap_content"
+    android:minHeight="44dp" android:orientation="horizontal" android:gravity="center_vertical"
+    android:paddingStart="16dp" android:paddingEnd="16dp"
+    android:background="?attr/selectableItemBackground">
+
+    <ImageView android:id="@+id/ic"
+        android:layout_width="18dp" android:layout_height="18dp"
+        android:contentDescription="" />
+
+    <TextView android:id="@+id/text"
+        android:layout_width="0dp" android:layout_height="wrap_content"
+        android:layout_weight="1" android:layout_marginStart="10dp"
+        android:textSize="15sp" android:textColor="@color/ink"
+        android:maxLines="1" android:ellipsize="end" />
+</LinearLayout>
