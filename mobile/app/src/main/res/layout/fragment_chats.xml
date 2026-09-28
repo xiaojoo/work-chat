@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
     android:layout_width="match_parent" android:layout_height="match_parent"
-    android:orientation="vertical" android:background="@color/nb_bg_3">
+    android:orientation="vertical" android:background="@color/surface">
 
     <!-- 顶栏：左边我的头像 + 昵称 + 状态，右边一颗 ＋（点开是建群那一小菜单）。
          原来这里是一条居中的「微信」标题，挪成身份块之后那两个字由底部页签承担。 -->
