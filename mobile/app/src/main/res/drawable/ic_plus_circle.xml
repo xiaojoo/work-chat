@@ -1,10 +1,12 @@
 <?xml version="1.0" encoding="utf-8"?>
+<!-- ＋：原来是两条 fillColor 路径拼出来的环，环宽 2 单位 = 实渲 6px，他说线条要细一点。
+     改成描边画法、strokeWidth 1.0：26dp 的盒子对 24 视口，1 单位 = 2.98px → 环和十字都 3px，正好一半。
+     描边色走图标那一族的 ink，ImageView 上的 tint 会盖过这里 -->
 <vector xmlns:android="http://schemas.android.com/apk/res/android"
     android:width="26dp" android:height="26dp"
-    android:viewportWidth="24" android:viewportHeight="24"
-    android:tint="@color/ink_dim">
-    <path android:fillColor="#000000"
-        android:pathData="M12,2a10,10 0 1,0 0,20a10,10 0 1,0 0,-20zM12,4a8,8 0 1,1 0,16a8,8 0 1,1 0,-16z" />
-    <path android:fillColor="#000000"
-        android:pathData="M11,7h2v4h4v2h-4v4h-2v-4h-4v-2h4z" />
+    android:viewportWidth="24" android:viewportHeight="24">
+    <path android:fillColor="#00000000" android:strokeColor="#1B2434" android:strokeWidth="1"
+        android:pathData="M12,2 A10,10 0 1,0 12,22 A10,10 0 1,0 12,2 Z" />
+    <path android:fillColor="#00000000" android:strokeColor="#1B2434" android:strokeWidth="1"
+        android:strokeLineCap="round" android:pathData="M7,12 H17 M12,7 V17" />
 </vector>

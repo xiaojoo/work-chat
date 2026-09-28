@@ -8,7 +8,7 @@
     <LinearLayout
         android:layout_width="match_parent" android:layout_height="wrap_content"
         android:minHeight="56dp" android:orientation="horizontal" android:gravity="center_vertical"
-        android:background="@color/shell"
+        android:background="@color/shell_soft"
         android:paddingStart="8dp" android:paddingEnd="6dp" android:paddingTop="6dp" android:paddingBottom="6dp">
 
         <TextView android:id="@+id/meAva"
@@ -51,7 +51,7 @@
         android:layout_marginStart="8dp" android:layout_marginEnd="8dp"
         android:layout_marginTop="8dp" android:layout_marginBottom="4dp"
         android:background="@drawable/search_bg"
-        android:drawableStart="@android:drawable/ic_menu_search"
+        android:drawableStart="@drawable/ic_search"
         android:drawableTint="@color/ink_dim2"
         android:drawablePadding="6dp"
         android:paddingStart="10dp" android:paddingEnd="10dp"

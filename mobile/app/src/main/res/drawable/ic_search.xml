@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 搜索格那颗放大镜：原来用的是平台 @android:drawable/ic_menu_search——它的手柄朝左下，
+     而且固有尺寸大（在 32dp 的格子里顶得慌）。这把自己画一个：16dp、手柄朝右下、描边 1.6。 -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="16dp" android:height="16dp"
+    android:viewportWidth="24" android:viewportHeight="24">
+    <path android:fillColor="#00000000" android:strokeColor="#1B2434" android:strokeWidth="1.6"
+        android:pathData="M10.5,3.5 A7,7 0 1,0 10.5,17.5 A7,7 0 1,0 10.5,3.5 Z" />
+    <path android:fillColor="#00000000" android:strokeColor="#1B2434" android:strokeWidth="1.6"
+        android:strokeLineCap="round" android:pathData="M15.6,15.6 L20.5,20.5" />
+</vector>
