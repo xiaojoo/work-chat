@@ -1,8 +1,13 @@
 package com.chat.mobile
 
+import android.Manifest
+import android.content.pm.PackageManager
+import android.os.Build
 import android.os.Bundle
 import android.widget.LinearLayout
 import androidx.appcompat.app.AppCompatActivity
+import androidx.core.app.ActivityCompat
+import androidx.core.content.ContextCompat
 import androidx.fragment.app.Fragment
 import java.time.DayOfWeek
 
@@ -22,6 +27,17 @@ class MainActivity : ScaleActivity() {
 
         tabs.forEachIndexed { i, t -> t.setOnClickListener { show(i) } }
         show(0)
+        askNotifPermission()
+        /* 长连接挂在服务上：这样锁屏、退到桌面都还在收消息 */
+        NotifyService.start(this)
+    }
+
+    /** Android 13 起通知是运行时权限。不给就是下拉里什么都没有，所以进主界面问一次。 */
+    private fun askNotifPermission() {
+        if (Build.VERSION.SDK_INT < 33) return
+        val got = ContextCompat.checkSelfPermission(this, Manifest.permission.POST_NOTIFICATIONS)
+        if (got == PackageManager.PERMISSION_GRANTED) return
+        ActivityCompat.requestPermissions(this, arrayOf(Manifest.permission.POST_NOTIFICATIONS), 71)
     }
 
     private fun show(i: Int) {

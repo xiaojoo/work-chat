@@ -2,6 +2,11 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
 
     <uses-permission android:name="android.permission.INTERNET" />
+    <!-- Android 13 起通知是运行时权限，不给就什么都不弹 -->
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+    <!-- 后台那条长连接：Android 14 起前台服务必须声明类型，聊天这种收消息的就是 remoteMessaging -->
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_REMOTE_MESSAGING" />
 
     <application android:name=".App"
         android:allowBackup="false"
@@ -37,6 +42,9 @@
         <activity android:name=".PersonActivity" android:exported="false" />
         <!-- 工作台某个入口点进去的那页（搜索 + 分类页签 + 卡片列表） -->
         <activity android:name=".WorkListActivity" android:exported="false" />
+        <!-- 后台收消息那条：没有系统推送，只能自己把网关的 WebSocket 挂在这儿 -->
+        <service android:name=".NotifyService" android:exported="false"
+            android:foregroundServiceType="remoteMessaging" />
     </application>
 
 </manifest>

@@ -104,6 +104,8 @@ class SettingsActivity : EdgeBackActivity() {
         sheet.findViewById<TextView>(R.id.actLogout).setOnClickListener {
             sheet.dismiss()
             Cfg.clearToken(this)
+            /* 令牌都没了，那条长连接和挂在上面的通知、角标要一并收掉 */
+            NotifyService.stop(this)
             startActivity(Intent(this, LoginActivity::class.java)
                 .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK))
             finish()

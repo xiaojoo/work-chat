@@ -612,6 +612,21 @@ class ChatActivity : EdgeBackActivity() {
     /** 原来这里有个 pretty(iso)：把时间印在每条气泡底下。时间改成居中分隔后它就没主了，删掉。
      *  留一句要紧的事实给 tsOf：createTime 是带 Z 的 UTC（实测 2026-09-27T05:06:30.586Z
      *  在手机上直接印成 05:06，而本机当时是 13:06 —— 差整 8 小时），必须换算到设备时区。 */
+    /** 这条会话正开在眼前：后台服务据此不再给它弹通知，退出这页就恢复。
+     *  同一进程内可见，所以放伴生对象，不另设广播。 */
+    override fun onResume() {
+        super.onResume()
+        liveConv = convId
+        Notify.cancel(this, convId)
+    }
+
+    override fun onPause() {
+        super.onPause()
+        if (liveConv == convId) liveConv = null
+        /* 在这页看过的消息服务端已经清过未读，退出去让角标和汇总那颗跟着新 */
+        NotifyService.refresh(this)
+    }
+
     override fun onDestroy() {
         ws?.close(); ws = null
         super.onDestroy()
@@ -632,7 +647,10 @@ class ChatActivity : EdgeBackActivity() {
         val at: TextView = v.findViewById(R.id.at)
     }
 
-    private companion object {
+    companion object {
+        /** 屏幕上正开着的那条会话；NotifyService 读它决定要不要弹 */
+        @Volatile var liveConv: String? = null
+
         const val REQ_ALBUM = 41
         const val REQ_FILE = 42
         const val COLS = 7   // 表情一页一行几列（和面板 220dp 高配 4 行 52dp）
