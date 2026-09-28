@@ -526,8 +526,9 @@ class ChatActivity : EdgeBackActivity() {
             .putExtra("user", id).putExtra("name", nm.ifEmpty { "用户${id.takeLast(4)}" }))
     }
 
-    /** 长按一条消息 → 桌面端右键那十二项，这里改成五列一行的格子（微信那种双行排法）。
-     *  真能做的只有「复制」和「撤回」，其余按桌面端同样的口径画淡、点了不响应。 */
+    /** 长按一条消息 → 桌面端右键那几项，这里改成五列一行的格子（微信那种双行排法）。
+     *  真能做的只有「复制」和「撤回」，其余按桌面端同样的口径画淡、点了不响应。
+     *  弹的位置自己算：底下放不下就翻到上面，并把那颗三角挪到正对着这条消息的气泡。 */
     private fun showMsgMenu(anchor: View, m: JSONObject, self: Boolean) {
         val isText = (m.optString("messageType").ifEmpty { "TEXT" }) == "TEXT"
         val canRevoke = self && !mId(m).startsWith("local-") && mId(m).isNotEmpty() &&
@@ -542,10 +543,10 @@ class ChatActivity : EdgeBackActivity() {
             MItem("多选", R.drawable.ic_m_multi, false),
             MItem("提醒", R.drawable.ic_m_remind, false),
             MItem("引用", R.drawable.ic_m_quote, false),
-            MItem("删除", R.drawable.ic_m_trash, false),
             MItem("撤回", R.drawable.ic_m_undo, canRevoke) { confirmRevoke(m) }
         )
-        val grid = layoutInflater.inflate(R.layout.popup_msg_menu, null) as GridLayout
+        val root = layoutInflater.inflate(R.layout.popup_msg_menu, null) as LinearLayout
+        val grid = root.findViewById<GridLayout>(R.id.grid)
         items.forEach { it0 ->
             val cell = layoutInflater.inflate(R.layout.item_msg_menu, grid, false)
             cell.findViewById<ImageView>(R.id.ic).setImageResource(it0.icon)
@@ -559,23 +560,36 @@ class ChatActivity : EdgeBackActivity() {
                 rowSpec = GridLayout.spec(GridLayout.UNDEFINED)
             })
         }
-        val p = PopupWindow(grid,
+        val p = PopupWindow(root,
             ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT, true)
         p.isOutsideTouchable = true
         p.elevation = 12f * resources.displayMetrics.density
         pop = p
         p.setOnDismissListener { pop = null }
         /* 格子是五列 columnWeight 均分，用 UNSPECIFIED 去量会得到宽度 0 ——
-           弹出来就是一个看不见的窗。所以定宽 5×62dp，再交给 showAsDropDown 自己决定上下翻。 */
-        val w = (62 * 5 * resources.displayMetrics.density).toInt()
-        p.width = w
-        /* 以整行为参照居中（气泡贴左也贴右，跟着气泡走会顶出屏幕），
-           纵向交给 showAsDropDown：底下放不下它自己翻到上面 */
-        val row = anchor.parent as View
+           弹出来就是一个看不见的窗。所以定宽 5×62dp，量高度也按这个宽去量。 */
+        val d = resources.displayMetrics
+        val w = (62 * 5 * d.density).toInt()
+        val tipH = (6 * d.density).toInt()
+        val gap = (2 * d.density).toInt()
+        grid.measure(View.MeasureSpec.makeMeasureSpec(w, View.MeasureSpec.EXACTLY),
+            View.MeasureSpec.makeMeasureSpec(0, View.MeasureSpec.UNSPECIFIED))
+        val total = grid.measuredHeight + tipH
+
         val a = IntArray(2); anchor.getLocationInWindow(a)
+        val row = anchor.parent as View
         val r = IntArray(2); row.getLocationInWindow(r)
-        val xoff = (r[0] + row.width / 2 - a[0]) - w / 2
-        p.showAsDropDown(anchor, xoff, (8 * resources.displayMetrics.density).toInt())
+        val winH = window.decorView.height
+        val winW = window.decorView.width
+        val pl = MsgMenuPlace.place(winW, winH, a[0], a[1], anchor.width, anchor.height,
+            r[0], row.width, w, total, gap, (12 * d.density).toInt(),
+            (8 * d.density).toInt(), (12 * d.density).toInt())
+
+        root.findViewById<View>(if (pl.flipUp) R.id.tipDown else R.id.tipUp).let { tip ->
+            tip.visibility = View.VISIBLE
+            (tip.layoutParams as LinearLayout.LayoutParams).marginStart = pl.tipMargin
+        }
+        p.showAtLocation(window.decorView, Gravity.NO_GRAVITY, pl.x, pl.y)
     }
 
     private data class MItem(val name: String, val icon: Int, val on: Boolean, val run: () -> Unit = {})
