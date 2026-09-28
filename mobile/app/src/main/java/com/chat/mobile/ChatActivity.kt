@@ -65,13 +65,17 @@ class ChatActivity : EdgeBackActivity() {
 
         val input = findViewById<EditText>(R.id.input)
         val send = findViewById<Button>(R.id.send)
-        /* 没字的时候这颗是灰的：省得点一下什么都不发生，还以为按不动 */
-        send.isEnabled = false
+        val plus = findViewById<View>(R.id.plusBtn)
+        /* 「发送」只在输入框有字时露出来，露的位置就是 ＋ 那一格；
+           同时把 ＋ 收掉，不留一颗被盖住却还点得着的钮 */
         input.addTextChangedListener(object : android.text.TextWatcher {
             override fun beforeTextChanged(s: CharSequence?, a: Int, b: Int, c: Int) {}
             override fun onTextChanged(s: CharSequence?, a: Int, b: Int, c: Int) {}
             override fun afterTextChanged(s: android.text.Editable?) {
-                send.isEnabled = !s.toString().trim().isEmpty()
+                val has = !s.toString().trim().isEmpty()
+                send.visibility = if (has) View.VISIBLE else View.GONE
+                plus.visibility = if (has) View.GONE else View.VISIBLE
+                if (has && panelKind == 2) showPanel(0)
             }
         })
         send.setOnClickListener {
@@ -124,15 +128,21 @@ class ChatActivity : EdgeBackActivity() {
     private lateinit var panel: View
     private lateinit var emojiScroll: View
     private lateinit var plusGrid: GridLayout
+    private lateinit var inputView: EditText
 
     private fun setupPanels(input: EditText) {
         panel = findViewById(R.id.panel)
         emojiScroll = findViewById(R.id.emojiScroll)
         plusGrid = findViewById(R.id.plusGrid)
+        inputView = input
         buildEmojis(input)
         buildPlus()
         findViewById<View>(R.id.emojiBtn).setOnClickListener { showPanel(if (panelKind == 1) 0 else 1) }
         findViewById<View>(R.id.plusBtn).setOnClickListener { showPanel(if (panelKind == 2) 0 else 2) }
+        /* 键盘和面板互斥。这边键盘只会从输入框来（点一下让它聚焦，或已经聚焦了再点一下），
+           两个都挂上：任一发生就把面板收掉；反方向在 showPanel 里收键盘 */
+        input.setOnFocusChangeListener { _, has -> if (has && panelKind != 0) showPanel(0) }
+        input.setOnClickListener { if (panelKind != 0) showPanel(0) }
     }
 
     /** ＋ 面板八颗格子照图全摆。真接得通的只有两颗：相册（挑图）和文件（挑任意文件），
@@ -148,8 +158,6 @@ class ChatActivity : EdgeBackActivity() {
         val real = mapOf(
             "相册" to { pick("image/*", REQ_ALBUM) },
             "文件" to { pick("*/*", REQ_FILE) })
-        val tv = android.util.TypedValue()
-        theme.resolveAttribute(android.R.attr.selectableItemBackground, tv, true)
         tiles.forEach { (name, icon) ->
             val cell = layoutInflater.inflate(R.layout.tile_pick, plusGrid, false)
             cell.findViewById<ImageView>(R.id.tic).setImageResource(icon)
@@ -160,7 +168,6 @@ class ChatActivity : EdgeBackActivity() {
                 cell.isClickable = false
             } else {
                 cell.isClickable = true
-                cell.setBackgroundResource(tv.resourceId)
                 cell.setOnClickListener { act() }
             }
             plusGrid.addView(cell, GridLayout.LayoutParams().apply {
@@ -175,26 +182,64 @@ class ChatActivity : EdgeBackActivity() {
         panel.visibility = if (kind == 0) View.GONE else View.VISIBLE
         emojiScroll.visibility = if (kind == 1) View.VISIBLE else View.GONE
         plusGrid.visibility = if (kind == 2) View.VISIBLE else View.GONE
+        tip?.dismiss(); tip = null
+        // 开面板就把键盘收下去，不然两个一起占着下半屏
+        if (kind != 0) hideKeyboard()
     }
 
-    /** 表情就是往输入框里接一个字，不发出去——和微信那排一样 */
+    private fun hideKeyboard() {
+        getSystemService(android.view.inputmethod.InputMethodManager::class.java)
+            ?.hideSoftInputFromWindow(inputView.windowToken, 0)
+    }
+
+    /** 表情就是往输入框里接一个字，不发出去——和微信那排一样。
+     *  长按那一格在它头顶出个气泡，写这个表情的含义。
+     *  格子按列权重铺满整宽——原来每格定宽 44dp，7 列只吃到 880px，右边空着一条 200px 的死带。 */
     private fun buildEmojis(input: EditText) {
         val grid = findViewById<GridLayout>(R.id.emojiGrid)
         val px = resources.displayMetrics.density
-        val tv = android.util.TypedValue()
-        theme.resolveAttribute(android.R.attr.selectableItemBackground, tv, true)
-        EMOJI.forEach { e ->
+        EMOJI.forEach { (cp, meaning) ->
+            val glyph = String(Character.toChars(cp))
             val b = TextView(this)
-            b.text = e
+            b.text = glyph
             b.textSize = 22f
             b.gravity = Gravity.CENTER
             b.isClickable = true
-            b.setBackgroundResource(tv.resourceId)
-            b.setOnClickListener { input.append(e) }
+            b.setOnClickListener { input.append(glyph) }
+            b.setOnLongClickListener { showTip(b, glyph, meaning); true }
             grid.addView(b, GridLayout.LayoutParams().apply {
-                width = (44 * px).toInt(); height = (44 * px).toInt()
+                width = 0; columnSpec = GridLayout.spec(GridLayout.UNDEFINED, 1f)
+                height = (44 * px).toInt()
             })
         }
+    }
+
+    /** 表情含义的气泡。不用系统那套 tooltip——这台机（M2012K10C / MIUI）长按压根不出它，
+     *  截屏差分只看到状态栏时钟在动。不抓焦点也不接触摸：它就是个标签，
+     *  挡不住底下那一排的点，1.6 秒自己收。 */
+    private var tip: PopupWindow? = null
+
+    private fun showTip(cell: View, glyph: String, meaning: String) {
+        tip?.dismiss()
+        val v = layoutInflater.inflate(R.layout.bubble_tip, null)
+        v.findViewById<TextView>(R.id.tipGlyph).text = glyph
+        v.findViewById<TextView>(R.id.tipText).text = meaning
+        v.measure(View.MeasureSpec.UNSPECIFIED, View.MeasureSpec.UNSPECIFIED)
+        val tw = v.measuredWidth
+        val th = v.measuredHeight
+        val gap = (8 * resources.displayMetrics.density).toInt()
+        val at = IntArray(2); cell.getLocationOnScreen(at)
+        val win = IntArray(2); window.decorView.getLocationOnScreen(win)
+        val x = (at[0] + cell.width / 2 - tw / 2 - win[0])
+            .coerceIn(0, resources.displayMetrics.widthPixels - tw)
+        // 头顶放不下（第一行贴着面板顶）就翻到脚下
+        val y = if (at[1] - win[1] - th - gap >= 0) at[1] - win[1] - th - gap
+                else at[1] - win[1] + cell.height + gap
+        tip = PopupWindow(v, tw, th, false).apply {
+            isTouchable = false
+            showAtLocation(cell, Gravity.NO_GRAVITY, x, y)
+        }
+        android.os.Handler(mainLooper).postDelayed({ tip?.dismiss(); tip = null }, 1600)
     }
 
     private fun pick(mime: String, req: Int) {
@@ -556,10 +601,21 @@ class ChatActivity : EdgeBackActivity() {
         const val REQ_FILE = 42
         /** 常用那一小片，不是全量 Unicode：面板要能一屏滚完，且这些都是文本，后端存的就是字。
          *  按码点列而不是把字面 emoji 写进源码——那串字节在编辑工具里会掉字（我先写过字面量，
-         *  结果源码里留下四个空串，面板上就是四个点了没反应的白格）。 */
-        val EMOJI: List<String> = ((0x1F600..0x1F619) + (0x1F641..0x1F643) +
-            listOf(0x1F44D, 0x1F44E, 0x1F44C, 0x1F64F, 0x1F44F, 0x1F4AA, 0x1F91D,
-                   0x2764, 0x1F494, 0x1F4AF, 0x1F389, 0x1F31F, 0x1F525, 0x2728, 0x1F381, 0x1F4B0))
-            .map { String(Character.toChars(it)) }
+         *  结果源码里留下四个空串，面板上就是四个点了没反应的白格）。
+         *  每格带一句含义，长按那一格就是读这个；码点和含义写在一起，不会各改各的对不上。 */
+        val EMOJI: List<Pair<Int, String>> = listOf(
+            0x1F600 to "咧嘴笑", 0x1F601 to "笑得眯眼", 0x1F602 to "笑出泪", 0x1F603 to "张嘴笑",
+            0x1F604 to "笑逐颜开", 0x1F605 to "擦汗的笑", 0x1F606 to "笑到闭眼", 0x1F607 to "装乖",
+            0x1F608 to "使坏", 0x1F609 to "眨眼", 0x1F60A to "脸红", 0x1F60B to "好吃",
+            0x1F60C to "松了口气", 0x1F60D to "喜欢", 0x1F60E to "得意", 0x1F60F to "坏笑",
+            0x1F610 to "面无表情", 0x1F611 to "无语", 0x1F612 to "郁闷", 0x1F613 to "冒汗",
+            0x1F614 to "失落", 0x1F615 to "为难", 0x1F616 to "难受", 0x1F617 to "想亲",
+            0x1F618 to "飞吻", 0x1F619 to "亲亲",
+            0x1F641 to "不太高兴", 0x1F642 to "微微一笑", 0x1F643 to "苦笑",
+            0x1F44D to "赞", 0x1F44E to "不行", 0x1F44C to "可以", 0x1F64F to "拜托",
+            0x1F44F to "鼓掌", 0x1F4AA to "加油", 0x1F91D to "握手",
+            0x2764 to "爱心", 0x1F494 to "心碎", 0x1F4AF to "满分", 0x1F389 to "庆祝",
+            0x1F31F to "闪亮", 0x1F525 to "火了", 0x2728 to "星星", 0x1F381 to "礼物",
+            0x1F4B0 to "有钱")
     }
 }

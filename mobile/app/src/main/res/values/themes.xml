@@ -56,6 +56,9 @@
         <item name="android:insetTop">0dp</item>
         <item name="android:insetBottom">0dp</item>
         <item name="android:stateListAnimator">@null</item>
+        <!-- Borderless 也带一层按下 ripple（实测按住 ‹ 那 48dp 里有 10944 个像素在变）。
+             按「按钮的按下高亮去掉」铺一层空底把它顶掉 -->
+        <item name="android:background">@null</item>
     </style>
 
     <!-- 微信式的行：白底、左图标/头像、中间两行文字、右箭头，底部一条分隔线 -->

@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 表情含义那个小气泡的底：墨色（nb-text 那颗令牌）实底、圆角 6dp、不描边，
+     和长按菜单一条规则。白底的面板上再铺一层白就没了 -->
+<shape xmlns:android="http://schemas.android.com/apk/res/android" android:shape="rectangle">
+    <solid android:color="@color/ink" />
+    <corners android:radius="6dp" />
+</shape>

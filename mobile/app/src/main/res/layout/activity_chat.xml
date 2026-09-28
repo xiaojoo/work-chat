@@ -117,36 +117,42 @@
                 android:contentDescription="语音输入（后端没有这个接口）" />
         </FrameLayout>
 
+        <!-- 按下不亮 ripple：这排是常驻控件，一亮只是"按到了"的多余回声 -->
         <ImageView
             android:id="@+id/emojiBtn"
             android:layout_width="40dp" android:layout_height="40dp"
             android:layout_marginStart="6dp"
             android:padding="7dp"
             android:src="@drawable/ic_emoji"
-            android:background="?android:attr/selectableItemBackgroundBorderless"
             android:contentDescription="表情" />
 
-        <ImageView
-            android:id="@+id/plusBtn"
-            android:layout_width="40dp" android:layout_height="40dp"
-            android:layout_marginStart="2dp"
-            android:padding="7dp"
-            android:src="@drawable/ic_plus_circle"
-            android:background="?android:attr/selectableItemBackgroundBorderless"
-            android:contentDescription="添加" />
-
-        <Button
-            android:id="@+id/send"
-            android:layout_width="wrap_content"
+        <!-- ＋ 和「发送」共用一格：输入框没字是 ＋，一有字发送就占掉这一格（＋ 同时收掉，
+             不留一颗被盖住还点得着的钮）。槽位定宽，切换时这一排别的东西不跳位 -->
+        <FrameLayout
+            android:layout_width="60dp"
             android:layout_height="44dp"
-            android:minWidth="60dp"
-            android:layout_marginStart="4dp"
-            android:background="@drawable/btn_brand"
-            android:stateListAnimator="@null"
-            android:textColor="#FFFFFF"
-            android:textSize="15sp"
-            android:textAllCaps="false"
-            android:text="发送" />
+            android:layout_marginStart="4dp">
+
+            <ImageView
+                android:id="@+id/plusBtn"
+                android:layout_width="40dp" android:layout_height="40dp"
+                android:layout_gravity="center"
+                android:padding="7dp"
+                android:src="@drawable/ic_plus_circle"
+                android:contentDescription="添加" />
+
+            <Button
+                android:id="@+id/send"
+                android:layout_width="match_parent"
+                android:layout_height="match_parent"
+                android:background="@drawable/btn_brand"
+                android:stateListAnimator="@null"
+                android:textColor="#FFFFFF"
+                android:textSize="15sp"
+                android:textAllCaps="false"
+                android:visibility="gone"
+                android:text="发送" />
+        </FrameLayout>
     </LinearLayout>
 
     <!-- 面板：表情是一排字格；＋ 那八颗格子按图全摆，接不了接口的画淡、点不动 -->

@@ -1,22 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- 发送那颗：品牌蓝实底白字，按下转深一档。原生那颗灰盒子在这排里太沉 -->
-<selector xmlns:android="http://schemas.android.com/apk/res/android">
-    <item android:state_pressed="true">
-        <shape android:shape="rectangle">
-            <solid android:color="@color/brand_strong" />
-            <corners android:radius="8dp" />
-        </shape>
-    </item>
-    <item android:state_enabled="false">
-        <shape android:shape="rectangle">
-            <solid android:color="@color/line" />
-            <corners android:radius="8dp" />
-        </shape>
-    </item>
-    <item>
-        <shape android:shape="rectangle">
-            <solid android:color="@color/brand" />
-            <corners android:radius="8dp" />
-        </shape>
-    </item>
-</selector>
+<!-- 发送那颗：品牌蓝实底白字。原来还有一档 state_pressed（按下转深），
+     按「按钮的按下高亮去掉」撤了，所以这里就一个形状 -->
+<shape xmlns:android="http://schemas.android.com/apk/res/android" android:shape="rectangle">
+    <solid android:color="@color/brand" />
+    <corners android:radius="8dp" />
+</shape>
