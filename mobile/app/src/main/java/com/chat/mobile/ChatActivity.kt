@@ -65,12 +65,12 @@ class ChatActivity : EdgeBackActivity() {
 
         val input = findViewById<EditText>(R.id.input)
         val send = findViewById<Button>(R.id.send)
-        /* 「发送」只在输入框有字时出现，出现就在输入框右边那一格（工具栏那行不受影响） */
+        /* 「发送」常驻右边：没字时不可选中（底色换成 brand 与白各 50% 那颗），有字才变实蓝、才给点 */
         input.addTextChangedListener(object : android.text.TextWatcher {
             override fun beforeTextChanged(s: CharSequence?, a: Int, b: Int, c: Int) {}
             override fun onTextChanged(s: CharSequence?, a: Int, b: Int, c: Int) {}
             override fun afterTextChanged(s: android.text.Editable?) {
-                send.visibility = if (s.toString().trim().isEmpty()) View.GONE else View.VISIBLE
+                send.isEnabled = !s.toString().trim().isEmpty()
             }
         })
         send.setOnClickListener {
@@ -136,11 +136,11 @@ class ChatActivity : EdgeBackActivity() {
         findViewById<View>(R.id.plusBtn).setOnClickListener { showPanel(if (panelKind == 2) 0 else 2) }
         // 工具栏第二颗是相册的快捷入口，走的是 ＋ 面板里「相册」同一条路
         findViewById<View>(R.id.imageBtn).setOnClickListener { pick("image/*", REQ_ALBUM) }
-        /* 键盘和面板互斥。这边键盘只会从输入框来（点一下让它聚焦，或已经聚焦了再点一下），
-           两个都挂上：任一发生就把面板收掉；反方向在 showPanel 里收键盘。
-           键盘要显式 showSoftInput 去要——实测点一下已聚焦的空输入框，MIUI 不一定会自己把键盘
-           放回来（光标没动它就不显示），那样面板也就收不掉，等于这条规则时灵时不灵 */
-        input.setOnFocusChangeListener { _, has -> if (has && panelKind != 0) showPanel(0) }
+        /* 键盘和面板互斥：点输入框收面板并把键盘显式要回来；开面板反过来把键盘收下去。
+           键盘必须显式 showSoftInput——实测点一下已聚焦的空输入框，MIUI 不一定会自己把键盘
+           放回来（光标没动它就不显示），那样面板也就收不掉。
+           这里不挂 OnFocusChangeListener：气泡自己收起时窗口会把焦点回灌给输入框一次，
+           那条监听会把刚长按的面板顺手关掉（实测长按后 1.6 秒面板就没了）。 */
         input.setOnClickListener {
             if (panelKind != 0) showPanel(0)
             requestKeyboard()
@@ -190,7 +190,7 @@ class ChatActivity : EdgeBackActivity() {
         panel.visibility = if (kind == 0) View.GONE else View.VISIBLE
         emojiScroll.visibility = if (kind == 1) View.VISIBLE else View.GONE
         plusGrid.visibility = if (kind == 2) View.VISIBLE else View.GONE
-        tip?.dismiss(); tip = null
+        dismissTip()
         // 开面板就把键盘收下去，不然两个一起占着下半屏
         if (kind != 0) hideKeyboard()
     }
@@ -213,6 +213,7 @@ class ChatActivity : EdgeBackActivity() {
             b.textSize = 22f
             b.gravity = Gravity.CENTER
             b.isClickable = true
+            b.setBackgroundResource(R.drawable.bg_cell)
             b.setOnClickListener { input.append(glyph) }
             b.setOnLongClickListener { showTip(b, glyph, meaning); true }
             grid.addView(b, GridLayout.LayoutParams().apply {
@@ -224,30 +225,46 @@ class ChatActivity : EdgeBackActivity() {
 
     /** 表情含义的气泡。不用系统那套 tooltip——这台机（M2012K10C / MIUI）长按压根不出它，
      *  截屏差分只看到状态栏时钟在动。不抓焦点也不接触摸：它就是个标签，
-     *  挡不住底下那一排的点，1.6 秒自己收。 */
+     *  挡不住底下那一排的点，1.6 秒自己收。
+     *  底下带一个三角指着被按那一格：气泡本身会被屏幕左右边缘夹住，所以三角的位置单独算，
+     *  夹到哪都还指着那一格；同时那一格上"行按下色"的高亮，跟着气泡一起收。 */
     private var tip: PopupWindow? = null
+    private var tipCell: View? = null
 
     private fun showTip(cell: View, glyph: String, meaning: String) {
-        tip?.dismiss()
+        dismissTip()
+        tipCell = cell
+        cell.isSelected = true
         val v = layoutInflater.inflate(R.layout.bubble_tip, null)
         v.findViewById<TextView>(R.id.tipGlyph).text = glyph
         v.findViewById<TextView>(R.id.tipText).text = meaning
+        val tri = v.findViewById<View>(R.id.tipTri)
         v.measure(View.MeasureSpec.UNSPECIFIED, View.MeasureSpec.UNSPECIFIED)
+        tri.measure(View.MeasureSpec.UNSPECIFIED, View.MeasureSpec.UNSPECIFIED)
         val tw = v.measuredWidth
         val th = v.measuredHeight
-        val gap = (8 * resources.displayMetrics.density).toInt()
+        val dp = resources.displayMetrics.density
+        val gap = (2 * dp).toInt()
         val at = IntArray(2); cell.getLocationOnScreen(at)
         val win = IntArray(2); window.decorView.getLocationOnScreen(win)
-        val x = (at[0] + cell.width / 2 - tw / 2 - win[0])
-            .coerceIn(0, resources.displayMetrics.widthPixels - tw)
+        val cellCx = at[0] + cell.width / 2 - win[0]
+        val x = (cellCx - tw / 2).coerceIn(0, resources.displayMetrics.widthPixels - tw)
         // 头顶放不下（第一行贴着面板顶）就翻到脚下
         val y = if (at[1] - win[1] - th - gap >= 0) at[1] - win[1] - th - gap
                 else at[1] - win[1] + cell.height + gap
+        val edge = (11 * dp).toInt()
+        (tri.layoutParams as android.view.ViewGroup.MarginLayoutParams).marginStart =
+            (cellCx - tri.measuredWidth / 2 - x).coerceIn(edge, tw - tri.measuredWidth - edge)
         tip = PopupWindow(v, tw, th, false).apply {
             isTouchable = false
             showAtLocation(cell, Gravity.NO_GRAVITY, x, y)
         }
-        android.os.Handler(mainLooper).postDelayed({ tip?.dismiss(); tip = null }, 1600)
+        android.os.Handler(mainLooper).postDelayed({ dismissTip() }, 1600)
+    }
+
+    private fun dismissTip() {
+        tip?.dismiss(); tip = null
+        tipCell?.isSelected = false; tipCell = null
     }
 
     private fun pick(mime: String, req: Int) {

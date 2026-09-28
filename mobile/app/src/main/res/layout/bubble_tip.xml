@@ -1,18 +1,29 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- 长按表情格时头顶出的小气泡：表情本身 + 一句含义。白字墨底，圆角 6dp 同长按菜单 -->
+<!-- 长按表情格时头顶出的小气泡：表情本身 + 一句含义，底下带一个指向那一格的小三角。
+     白字墨底、圆角 6dp 同长按菜单；三角的水平位置由代码按被按那格算，夹在圆角之内 -->
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
     android:layout_width="wrap_content" android:layout_height="wrap_content"
-    android:orientation="horizontal" android:gravity="center_vertical"
-    android:background="@drawable/tip_bg"
-    android:paddingStart="12dp" android:paddingEnd="12dp"
-    android:paddingTop="7dp" android:paddingBottom="7dp">
+    android:orientation="vertical">
 
-    <TextView android:id="@+id/tipGlyph"
+    <LinearLayout
         android:layout_width="wrap_content" android:layout_height="wrap_content"
-        android:textSize="20sp" android:textColor="@color/surface" />
+        android:orientation="horizontal" android:gravity="center_vertical"
+        android:background="@drawable/tip_bg"
+        android:paddingStart="12dp" android:paddingEnd="12dp"
+        android:paddingTop="7dp" android:paddingBottom="7dp">
 
-    <TextView android:id="@+id/tipText"
+        <TextView android:id="@+id/tipGlyph"
+            android:layout_width="wrap_content" android:layout_height="wrap_content"
+            android:textSize="20sp" android:textColor="@color/surface" />
+
+        <TextView android:id="@+id/tipText"
+            android:layout_width="wrap_content" android:layout_height="wrap_content"
+            android:layout_marginStart="8dp"
+            android:textSize="14sp" android:textColor="@color/surface" />
+    </LinearLayout>
+
+    <ImageView android:id="@+id/tipTri"
         android:layout_width="wrap_content" android:layout_height="wrap_content"
-        android:layout_marginStart="8dp"
-        android:textSize="14sp" android:textColor="@color/surface" />
+        android:src="@drawable/ic_tip_down"
+        android:contentDescription="" />
 </LinearLayout>

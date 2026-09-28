@@ -97,6 +97,7 @@
             android:inputType="textShortMessage|textMultiLine|textCapSentences"
             android:hint="说点什么" />
 
+        <!-- 「发送」常驻右边：没字时是灰蓝的不可选中态（只换底色 + 不给点），不是消失 -->
         <Button
             android:id="@+id/send"
             android:layout_width="wrap_content"
@@ -108,7 +109,7 @@
             android:textColor="#FFFFFF"
             android:textSize="15sp"
             android:textAllCaps="false"
-            android:visibility="gone"
+            android:enabled="false"
             android:text="发送" />
     </LinearLayout>
 

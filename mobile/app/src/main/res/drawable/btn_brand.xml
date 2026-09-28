@@ -1,7 +1,17 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- 发送那颗：品牌蓝实底白字。原来还有一档 state_pressed（按下转深），
-     按「按钮的按下高亮去掉」撤了，所以这里就一个形状 -->
-<shape xmlns:android="http://schemas.android.com/apk/res/android" android:shape="rectangle">
-    <solid android:color="@color/brand" />
-    <corners android:radius="8dp" />
-</shape>
+<!-- 发送那颗：有字=品牌蓝，没字=不可选中（brand 与白各 50%，(43,107,232) 和 255 各一半 = #95B5F3）。
+     常驻不消失，只换底色和可点不可点。圆角 8dp，不描边 -->
+<selector xmlns:android="http://schemas.android.com/apk/res/android">
+    <item android:state_enabled="false">
+        <shape android:shape="rectangle">
+            <solid android:color="@color/brand_dim" />
+            <corners android:radius="8dp" />
+        </shape>
+    </item>
+    <item>
+        <shape android:shape="rectangle">
+            <solid android:color="@color/brand" />
+            <corners android:radius="8dp" />
+        </shape>
+    </item>
+</selector>
