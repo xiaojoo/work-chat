@@ -1,9 +1,11 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- 长按菜单的底：nb-bg-1 卡片面 + 6dp 圆角。
-     描边撤了（他点名"不要边框"）——本来那 1dp 的 nb-line 在浅底上几乎看不出来，
-     只是让四个角看着发硬；圆角也从桌面端 .ctx-menu 的 10 收到 6。 -->
+<!-- 长按菜单的底：nb-bg-1 卡片面 + 6dp 圆角 + 一圈贴边描边（nb-line，0.5dp 在这台机落到 1px）。
+     这圈描边就是他说的"边框阴影"——只要贴着边的一条，不要往外散的那片投影：
+     白卡片贴在白页面上，散开的投影既糊又显不出边界，一条 1px 的边反而清楚。
+     （历史上他先点名"不要边框"，那次撤的是 1dp 的 nb-line；这次按 0.5dp=1px 加回来。） -->
 <shape xmlns:android="http://schemas.android.com/apk/res/android"
     android:shape="rectangle">
     <solid android:color="@color/surface" />
     <corners android:radius="6dp" />
+    <stroke android:width="0.5dp" android:color="@color/line" />
 </shape>

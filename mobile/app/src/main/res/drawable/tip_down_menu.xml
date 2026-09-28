@@ -1,7 +1,9 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- 长按菜单的三角（弹在消息**上面**时用，尖朝下指回消息）。同 tip_up_menu，颜色走 @color/surface。 -->
+<!-- 长按菜单的三角（弹在消息**上面**时用，尖朝下）。同 tip_up_menu：只描两条斜边。 -->
 <vector xmlns:android="http://schemas.android.com/apk/res/android"
     android:width="12dp" android:height="6dp"
     android:viewportWidth="12" android:viewportHeight="6">
     <path android:fillColor="@color/surface" android:pathData="M0,0 L12,0 L6,6 Z" />
+    <path android:strokeColor="@color/line" android:strokeWidth="0.4"
+        android:pathData="M0.35,0 L6,5.65 M11.65,0 L6,5.65" />
 </vector>

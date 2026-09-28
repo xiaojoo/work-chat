@@ -1,8 +1,11 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- 长按菜单指向消息的那颗三角（弹在消息下面时用，尖朝上）。
-     颜色必须和 menu_bg 那颗 @color/surface 同一颗，否则深色模式下会看出两块。 -->
+<!-- 长按菜单的三角（弹在消息**下面**时用，尖朝上）。
+     只描两条斜边、不描贴卡片那条底边——底边一描就会在接缝处多出一道横线。
+     斜边的颜色和卡片那圈描边同一颗（nb-line），接起来才像同一条线。 -->
 <vector xmlns:android="http://schemas.android.com/apk/res/android"
     android:width="12dp" android:height="6dp"
     android:viewportWidth="12" android:viewportHeight="6">
     <path android:fillColor="@color/surface" android:pathData="M6,0 L12,6 L0,6 Z" />
+    <path android:strokeColor="@color/line" android:strokeWidth="0.4"
+        android:pathData="M6,0.35 L11.65,6 M6,0.35 L0.35,6" />
 </vector>

@@ -1,25 +1,33 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- 长按消息弹出的那一块：白底 + 6dp 圆角（menu_bg），五列一行、两行十项。
+<!-- 长按消息弹出的那一块：白底 + 6dp 圆角 + 一圈 1px 描边（menu_bg），五列一行、两行十项。
      上下各留一颗三角的位子，代码里按"底下放不放得下"只点亮其中一颗，
-     并把它的左右位置挪到正对着那条消息的气泡。 -->
-<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
-    android:layout_width="wrap_content" android:layout_height="wrap_content"
-    android:orientation="vertical">
+     并把它的左右位置挪到正对着那条消息的气泡。
+
+     为什么是 FrameLayout 而不是原来的竖排 LinearLayout：卡片有描边了，
+     三角要是只贴在卡片边上（不重叠），卡片顶上那条 1px 就会横穿三角的底，
+     看着像三角是另外贴上去的一片。所以这里把三角**压进卡片 2px**，
+     并且排在卡片之后绘制（FrameLayout 按子节点顺序画），让它盖住那一条。
+     原先四周那 12dp 内边距是给散开的投影留的地方，现在只要描边，散投影撤了，地方也就不需要了。 -->
+<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent" android:layout_height="wrap_content">
+
+    <!-- 宽度必须 match_parent：五列 columnWeight 要拿到确定宽度才分得开。
+         卡片包进外层以后如果还写 wrap_content，量出来只有 22px，
+         弹框就成了"贴左边的一条、看着像没弹出来"。 -->
+    <GridLayout android:id="@+id/grid"
+        android:layout_width="match_parent" android:layout_height="wrap_content"
+        android:columnCount="5"
+        android:background="@drawable/menu_bg"
+        android:paddingStart="4dp" android:paddingEnd="4dp"
+        android:paddingTop="6dp" android:paddingBottom="6dp" />
 
     <ImageView android:id="@+id/tipUp"
         android:layout_width="12dp" android:layout_height="6dp"
         android:src="@drawable/tip_up_menu" android:visibility="gone"
         android:contentDescription="" />
 
-    <GridLayout android:id="@+id/grid"
-        android:layout_width="wrap_content" android:layout_height="wrap_content"
-        android:columnCount="5"
-        android:background="@drawable/menu_bg"
-        android:paddingStart="4dp" android:paddingEnd="4dp"
-        android:paddingTop="6dp" android:paddingBottom="6dp" />
-
     <ImageView android:id="@+id/tipDown"
         android:layout_width="12dp" android:layout_height="6dp"
         android:src="@drawable/tip_down_menu" android:visibility="gone"
         android:contentDescription="" />
-</LinearLayout>
+</FrameLayout>

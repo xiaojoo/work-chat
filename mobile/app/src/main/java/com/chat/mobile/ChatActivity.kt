@@ -8,6 +8,7 @@ import android.view.ViewGroup
 import android.widget.Button
 import android.widget.EditText
 import android.widget.GridLayout
+import android.widget.FrameLayout
 import android.widget.ImageView
 import android.widget.LinearLayout
 import android.widget.PopupWindow
@@ -545,7 +546,7 @@ class ChatActivity : EdgeBackActivity() {
             MItem("引用", R.drawable.ic_m_quote, false),
             MItem("撤回", R.drawable.ic_m_undo, canRevoke) { confirmRevoke(m) }
         )
-        val root = layoutInflater.inflate(R.layout.popup_msg_menu, null) as LinearLayout
+        val root = layoutInflater.inflate(R.layout.popup_msg_menu, null) as FrameLayout
         val grid = root.findViewById<GridLayout>(R.id.grid)
         items.forEach { it0 ->
             val cell = layoutInflater.inflate(R.layout.item_msg_menu, grid, false)
@@ -563,7 +564,6 @@ class ChatActivity : EdgeBackActivity() {
         val p = PopupWindow(root,
             ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT, true)
         p.isOutsideTouchable = true
-        p.elevation = 12f * resources.displayMetrics.density
         pop = p
         p.setOnDismissListener { pop = null }
         /* 格子是五列 columnWeight 均分，用 WRAP_CONTENT / UNSPECIFIED 去量会得到宽度 0 ——
@@ -572,30 +572,43 @@ class ChatActivity : EdgeBackActivity() {
         val d = resources.displayMetrics
         val w = (62 * 5 * d.density).toInt()
         p.width = w
+        /* 三角往卡片里压进去的量：只要盖住那 1px 描边就够了，多压会把斜边扎进卡片白面 */
+        val ov = (1 * d.density).toInt()
         val tipH = (6 * d.density).toInt()
-        val gap = (2 * d.density).toInt()
         grid.measure(View.MeasureSpec.makeMeasureSpec(w, View.MeasureSpec.EXACTLY),
             View.MeasureSpec.makeMeasureSpec(0, View.MeasureSpec.UNSPECIFIED))
-        val total = grid.measuredHeight + tipH
+        val total = grid.measuredHeight + tipH - ov
 
         /* 判上下用**窗口内**坐标（和 decorView 的宽高同一套），
            但 showAtLocation 吃的是**屏幕**坐标 —— 应用窗口顶在状态栏下面，
            直接把窗口坐标喂给它会整体上移一个状态栏的高度，所以最后加窗口在屏幕上的偏移。 */
         val a = IntArray(2); anchor.getLocationInWindow(a)
-        val row = anchor.parent as View
-        val r = IntArray(2); row.getLocationInWindow(r)
         val winH = window.decorView.height
         val winW = window.decorView.width
+        /* 横向对齐气泡**靠头像那一端**：别人发的贴它的左沿，我发的贴它的右沿。
+           （之前按整屏居中，卡片和消息各说各话。）
+           纵向缝取 0：三角的尖**就落在气泡的那条边上**，既不压进气泡，也不空出一道。 */
         val pl = MsgMenuPlace.place(winW, winH, a[0], a[1], anchor.width, anchor.height,
-            r[0], row.width, w, total, gap, (12 * d.density).toInt(),
+            self, w, total, 0, (12 * d.density).toInt(),
             (8 * d.density).toInt(), (12 * d.density).toInt())
 
-        root.findViewById<View>(if (pl.flipUp) R.id.tipDown else R.id.tipUp).let { tip ->
-            tip.visibility = View.VISIBLE
-            (tip.layoutParams as LinearLayout.LayoutParams).marginStart = pl.tipMargin
+        val tip = root.findViewById<ImageView>(if (pl.flipUp) R.id.tipDown else R.id.tipUp)
+        tip.visibility = View.VISIBLE
+        /* FrameLayout 按子节点顺序画，三角排在卡片后面 → 压住卡片那条描边，接缝看不出来。
+           尖朝上时卡片整体下让 tipH-ov，让三角的底扎进卡片 1px；尖朝下时卡片在顶上，
+           三角的顶（那条宽边）扎进卡片底边。 */
+        (grid.layoutParams as FrameLayout.LayoutParams).topMargin =
+            if (pl.flipUp) 0 else tipH - ov
+        (tip.layoutParams as FrameLayout.LayoutParams).apply {
+            leftMargin = pl.tipMargin
+            topMargin = if (pl.flipUp) grid.measuredHeight - ov else 0
         }
         val o = IntArray(2); window.decorView.getLocationOnScreen(o)
-        p.showAtLocation(window.decorView, Gravity.NO_GRAVITY, o[0] + pl.x, o[1] + pl.y)
+        /* pl.x/pl.y 就是弹框最外层的左上角：尖朝上时 y 即尖所在的那条线，正好落在气泡底边上；
+           卡片在 y 下面 tipH-ov（三角占的那段，两处重叠 ov）。 */
+        val px = (o[0] + pl.x).coerceIn(0, (d.widthPixels - w).coerceAtLeast(0))
+        val py = (o[1] + pl.y).coerceIn(0, (d.heightPixels - total).coerceAtLeast(0))
+        p.showAtLocation(window.decorView, Gravity.NO_GRAVITY, px, py)
     }
 
     private data class MItem(val name: String, val icon: Int, val on: Boolean, val run: () -> Unit = {})
