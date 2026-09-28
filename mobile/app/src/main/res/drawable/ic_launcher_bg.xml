@@ -1,8 +1,8 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- 桌面图标底：品牌色从上到下压深一档。两颗色是现成令牌（brand #2B6BE8 / brand-strong #1F56C4），
-     不自己挑色。**这里只能写字面值**：`<gradient>` 的 item 里放 `@color/...` 在这台 MIUI 14 上解析不出来，
-     量到的结果是上白下蓝（顶色掉成透明，桌面自己的白底透出来），改成字面量后才是要的两档蓝。
-     自适应图标外层 108dp 会被桌面切成圆/方，所以底色铺满整块。 -->
+<!-- 桌面图标底：白 → brand-soft 一档淡蓝。两颗气泡自己已经是蓝+青，底必须浅，
+     否则蓝气泡会糊进背景里。
+     **色只能写字面值**：`<gradient>` 的 item 里放 `@color/...` 在这台 MIUI 14 上解析不出来
+     （量到的结果是上白下蓝，顶色掉成透明）。这两个字面值就是 nb-bg-1 / brand-soft 两颗令牌。 -->
 <vector xmlns:android="http://schemas.android.com/apk/res/android"
     android:width="108dp" android:height="108dp"
     android:viewportWidth="108" android:viewportHeight="108">
@@ -12,8 +12,8 @@
                 android:startX="54" android:startY="0"
                 android:endX="54" android:endY="108"
                 android:type="linear">
-                <item android:offset="0" android:color="#FF2B6BE8" />
-                <item android:offset="1" android:color="#FF1F56C4" />
+                <item android:offset="0" android:color="#FFFFFFFF" />
+                <item android:offset="1" android:color="#FFEAF1FF" />
             </gradient>
         </aapt:attr>
     </path>

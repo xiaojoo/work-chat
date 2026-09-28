@@ -15,6 +15,9 @@
     <color name="brand_strong">#1F56C4</color> <!-- brand-strong -->
     <color name="brand_soft">#EAF1FF</color>   <!-- brand-soft -->
     <color name="brand_dim">#95B5F3</color>    <!-- 发送不可选中：brand 与白各 50%（(43,107,232)+(255,255,255) 各一半） -->
+    <!-- 桌面图标第二颗气泡的青。客户端原本没有青色令牌（web 侧 theme.css 也没有），
+         值是从他给的那张参考图上取的（量到 #2AD8D8）。只给图标用，不动别的语义色。 -->
+    <color name="brand_teal">#2AD8D8</color>
     <color name="shell_soft">#F0F2F6</color>   <!-- 顶栏底色淡一档：shell(225,229,236) 与白各 50% = (240,242,246)。桌面端那颗 shell 令牌没动。搜索格也用这一颗 -->
     <color name="row_hover">#E0E4EC</color>    <!-- 行按下：mix(dim-2 16%, bg-3) -->
     <color name="row_active">#D5E1FA</color>   <!-- 选中行：mix(brand 20%, bg-1) -->

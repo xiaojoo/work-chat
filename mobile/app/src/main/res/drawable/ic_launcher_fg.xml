@@ -1,21 +1,38 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- 桌面图标前景：白气泡 + 三点。气泡那笔和页内导航用的 ic_tab_chats / 状态栏那颗
-     ic_stat_msg 是同一条 pathData，只是放大到自适应图标的安全区里（108dp 外圈会被桌面切掉，
-     所以图形只占中间 68dp）。三点用品牌蓝，落在白底上对比 8.6:1。 -->
+<!-- 桌面图标前景：两颗叠放的气泡（左上蓝、右下青），中间一道白描边分开——照他给的那张参考图。
+
+     路径写在参考图自己的 256 坐标系里（量出来的：整颗标记 x 19..232、y 56..214），
+     再用 group 缩放搬进 108 画布。**MIUI 桌面会把 108 画布放大约 1.5 倍再切圆角**，
+     上一版按 AOSP 安全区铺到 63%，屏上直接糊满 93%；这版按屏上占六成出头反推。
+
+     每颗气泡的**体和尾巴是同一条 path**——分成两条画时，青那颗的尾巴被自己的白描边切断，
+     在桌面上只剩一小条碎片（23:20 那版量到就是这个样子）。
+     颜色：蓝 = brand → brand-strong 渐变（渐变 item 不认 @color，见 ic_launcher_bg 的注释）；
+     青 = @color/brand_teal（新加的令牌，值取自参考图）。 -->
 <vector xmlns:android="http://schemas.android.com/apk/res/android"
     android:width="108dp" android:height="108dp"
     android:viewportWidth="108" android:viewportHeight="108">
-    <!-- MIUI 的桌面会把 108 画布放大 ~1.48 倍再切圆角（上一版气泡占 63% 画布，
-         量到屏上占满 93% 的方块），所以图形只按 42% 画布来铺，切完才是想要的六成。 -->
-    <group android:scaleX="2.25" android:scaleY="2.25"
-        android:translateX="27" android:translateY="25.9">
-        <path android:fillColor="#FFFFFFFF"
-            android:pathData="M4,3h16a2,2 0 0 1 2,2v11a2,2 0 0 1 -2,2H9l-5,4v-4a2,2 0 0 1 -2,-2V5a2,2 0 0 1 2,-2z" />
-        <path android:fillColor="@color/brand"
-            android:pathData="M7.6,8.7a1.8,1.8 0 1,0 0,3.6a1.8,1.8 0 1,0 0,-3.6z" />
-        <path android:fillColor="@color/brand"
-            android:pathData="M12,8.7a1.8,1.8 0 1,0 0,3.6a1.8,1.8 0 1,0 0,-3.6z" />
-        <path android:fillColor="@color/brand"
-            android:pathData="M16.4,8.7a1.8,1.8 0 1,0 0,3.6a1.8,1.8 0 1,0 0,-3.6z" />
+    <group android:scaleX="0.225" android:scaleY="0.225"
+        android:translateX="25.8" android:translateY="24.6">
+
+        <path android:pathData="M53,56 H126 A34,34 0 0 1 160,90 V138 A34,34 0 0 1 126,172 L86,172 L36,196 L58,172 H53 A34,34 0 0 1 19,138 V90 A34,34 0 0 1 53,56 Z">
+            <aapt:attr xmlns:aapt="http://schemas.android.com/aapt" name="android:fillColor">
+                <gradient android:startX="19" android:startY="56" android:endX="160" android:endY="196"
+                    android:type="linear">
+                    <item android:offset="0" android:color="#FF2B6BE8" />
+                    <item android:offset="1" android:color="#FF1F56C4" />
+                </gradient>
+            </aapt:attr>
+        </path>
+
+        <!-- 青气泡和蓝气泡之间的白缝：不用 stroke（描边会在尾巴上打结、
+             尾巴被自己的白边切成一小条），改成把同一条路径放大 7% 画一层白底衬，
+             再把青色本体压上去——缝宽一致，尾巴也干净。 -->
+        <group android:pivotX="172" android:pivotY="134" android:scaleX="1.07" android:scaleY="1.07">
+            <path android:fillColor="#FFFFFFFF"
+                android:pathData="M146,76 H198 A34,34 0 0 1 232,110 V158 A34,34 0 0 1 198,192 L214,212 L170,192 H146 A34,34 0 0 1 112,158 V110 A34,34 0 0 1 146,76 Z" />
+        </group>
+        <path android:fillColor="@color/brand_teal"
+            android:pathData="M146,76 H198 A34,34 0 0 1 232,110 V158 A34,34 0 0 1 198,192 L214,212 L170,192 H146 A34,34 0 0 1 112,158 V110 A34,34 0 0 1 146,76 Z" />
     </group>
 </vector>
