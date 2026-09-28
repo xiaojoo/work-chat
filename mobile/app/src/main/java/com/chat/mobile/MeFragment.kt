@@ -40,9 +40,14 @@ class MeFragment : Fragment() {
         }
 
         Rows.gap(groups)
-        Rows.row(groups, "设置", "") {
+        /* item_setting 是设置页/个人信息页共用的那份，字号不许在共享件上改（见"共享 layout 按调用方设"），
+           所以这一页自己把两档压到工作台的字号：行标题 13sp（= 工作台分组小标题那档）、
+           行右值 12sp（= 工作台格子名那档）。 */
+        val row = Rows.row(groups, "设置", "") {
             startActivity(Intent(requireContext(), SettingsActivity::class.java))
         }
+        row.findViewById<TextView>(R.id.label)?.setTextSize(android.util.TypedValue.COMPLEX_UNIT_SP, 13f)
+        row.findViewById<TextView>(R.id.value)?.setTextSize(android.util.TypedValue.COMPLEX_UNIT_SP, 12f)
         Rows.endGroup(groups)
     }
 
