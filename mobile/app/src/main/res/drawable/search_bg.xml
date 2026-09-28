@@ -1,7 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- 搜索格：淡蓝底 + 8dp 圆角。原来这一格是白底、页面是 nb-bg-3 灰，
-     按"底下改白、搜索格给淡蓝"翻过来：底色走令牌 brand_wash（brand 22% + 白 78%） -->
+<!-- 搜索格：底色和顶栏同一颗令牌 shell_soft（他点名"搜索框的背景和 title 背景一样"）+ 8dp 圆角 -->
 <shape xmlns:android="http://schemas.android.com/apk/res/android" android:shape="rectangle">
-    <solid android:color="@color/brand_wash" />
+    <solid android:color="@color/shell_soft" />
     <corners android:radius="8dp" />
 </shape>

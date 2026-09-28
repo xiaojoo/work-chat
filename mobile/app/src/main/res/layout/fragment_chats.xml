@@ -49,7 +49,7 @@
         android:id="@+id/search"
         android:layout_width="match_parent" android:layout_height="32dp"
         android:layout_marginStart="8dp" android:layout_marginEnd="8dp"
-        android:layout_marginTop="8dp" android:layout_marginBottom="4dp"
+        android:layout_marginTop="8dp" android:layout_marginBottom="0dp"
         android:background="@drawable/search_bg"
         android:drawableStart="@drawable/ic_search"
         android:drawableTint="@color/ink_dim2"
@@ -67,7 +67,7 @@
         <androidx.recyclerview.widget.RecyclerView
             android:id="@+id/list"
             android:layout_width="match_parent" android:layout_height="match_parent"
-            android:paddingTop="4dp" android:clipToPadding="false" />
+            android:clipToPadding="false" />
     </androidx.swiperefreshlayout.widget.SwipeRefreshLayout>
 
     <TextView

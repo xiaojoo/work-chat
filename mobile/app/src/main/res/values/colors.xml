@@ -15,8 +15,7 @@
     <color name="brand_strong">#1F56C4</color> <!-- brand-strong -->
     <color name="brand_soft">#EAF1FF</color>   <!-- brand-soft -->
     <color name="brand_dim">#95B5F3</color>    <!-- 发送不可选中：brand 与白各 50%（(43,107,232)+(255,255,255) 各一半） -->
-    <color name="brand_wash">#E8EEFC</color>   <!-- 搜索格淡蓝：brand_wash 再淡一档=与白各 50%（(208,222,250)+(255) 各一半 = 232,239,253） -->
-    <color name="shell_soft">#F0F2F6</color>   <!-- 顶栏底色淡一档：shell(225,229,236) 与白各 50% = (240,242,246)。桌面端那颗 shell 令牌没动 -->
+    <color name="shell_soft">#F0F2F6</color>   <!-- 顶栏底色淡一档：shell(225,229,236) 与白各 50% = (240,242,246)。桌面端那颗 shell 令牌没动。搜索格也用这一颗 -->
     <color name="row_hover">#E0E4EC</color>    <!-- 行按下：mix(dim-2 16%, bg-3) -->
     <color name="row_active">#D5E1FA</color>   <!-- 选中行：mix(brand 20%, bg-1) -->
     <color name="danger">#D94860</color>       <!-- danger -->
