@@ -158,7 +158,7 @@ public class GroupController {
     }
 
     /**
-     * 禁言成员
+     * 禁言成员；muteUntil 缺省或为过去时间是解禁
      */
     @PostMapping("/{groupId}/member/{targetUserId}/mute")
     public ResponseEntity<Map<String, String>> muteMember(
@@ -167,9 +167,27 @@ public class GroupController {
             @PathVariable Long targetUserId,
             @RequestBody Map<String, String> body) {
         Long userId = getUserId(request);
-        LocalDateTime muteUntil = LocalDateTime.parse(body.get("muteUntil"));
+        String raw = body == null ? null : body.get("muteUntil");
+        LocalDateTime muteUntil = (raw == null || raw.isBlank()) ? null : LocalDateTime.parse(raw);
         groupService.muteMember(groupId, userId, targetUserId, muteUntil);
-        return ResponseEntity.ok(Map.of("message", "已禁言"));
+        return ResponseEntity.ok(Map.of("message", muteUntil == null ? "已解除禁言" : "已禁言"));
+    }
+
+    /**
+     * 转让群主
+     */
+    @PostMapping("/{groupId}/transfer")
+    public ResponseEntity<Map<String, String>> transferOwner(
+            HttpServletRequest request,
+            @PathVariable Long groupId,
+            @RequestBody Map<String, Object> body) {
+        Long userId = getUserId(request);
+        Object raw = body == null ? null : body.get("targetUserId");
+        if (raw == null) {
+            throw new RuntimeException("targetUserId 不能为空");
+        }
+        groupService.transferOwner(groupId, userId, ((Number) raw).longValue());
+        return ResponseEntity.ok(Map.of("message", "已转让群主"));
     }
 
     /**

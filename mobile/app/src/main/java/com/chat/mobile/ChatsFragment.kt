@@ -179,8 +179,10 @@ class ChatsFragment : Fragment() {
         if (Cfg.token(ctx).isEmpty()) return
         closeGateway()
         paintState("连接中", R.color.warn)
-        gw = Ws(Cfg.wsBase(ctx), Cfg.token(ctx), "chat-mobile-list",
-            onFrame = { }, onState = { s -> activity?.runOnUiThread { if (isAdded) applyState(s) } }).also { it.open() }
+        gw = Ws(Cfg.wsBase(ctx), Cfg.token(ctx), "${Cfg.deviceId(ctx)}-list",
+            onFrame = { Delivery.echo(gw, it, Cfg.userId(ctx)) },
+            onState = { s -> activity?.runOnUiThread { if (isAdded) applyState(s) } },
+            refresh = { Cfg.renewToken(ctx) }).also { it.open() }
     }
 
     private fun closeGateway() { gw?.close(); gw = null }

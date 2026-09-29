@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 通话留下的那句系统提示（未接听 / 已拒绝 / 通话时长 00:12）。
+     和桌面端 .sys-line 同一副样子：整行居中、11sp、灰字在 nb-bg-3 圆角药丸上，
+     不参与头像/气泡/尾巴那套，也进不了长按弹框。 -->
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent" android:layout_height="wrap_content"
+    android:orientation="horizontal" android:gravity="center"
+    android:paddingTop="6dp" android:paddingBottom="16dp">
+
+    <TextView android:id="@+id/nt"
+        android:layout_width="wrap_content" android:layout_height="wrap_content"
+        android:background="@drawable/time_pill"
+        android:paddingStart="10dp" android:paddingEnd="10dp"
+        android:paddingTop="2dp" android:paddingBottom="2dp"
+        android:textSize="11sp" android:textColor="@color/ink_dim" />
+</LinearLayout>

@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 检索命中的那条闪一下：桌面端是 .msg.hit { box-shadow: 0 0 0 2px brand-soft }——只加一圈色，
+     不动几何。Android 没有 box-shadow，就垫一张外圈，里面那条气泡原样画在上面：
+     外圈圆角 = 气泡 4dp + 那 2dp，闪的时候气泡本身的形状和位置一个字都不挪。 -->
+<layer-list xmlns:android="http://schemas.android.com/apk/res/android">
+    <item>
+        <shape android:shape="rectangle">
+            <solid android:color="@color/hit_ring" />
+            <corners android:radius="6dp" />
+        </shape>
+    </item>
+    <item android:left="2dp" android:top="2dp" android:right="2dp" android:bottom="2dp">
+        <shape android:shape="rectangle">
+            <solid android:color="@color/brand" />
+            <corners android:radius="4dp" />
+        </shape>
+    </item>
+</layer-list>

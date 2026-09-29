@@ -37,7 +37,7 @@ class Api(private val base: String, private val token: String = "") {
     /** 登录成功返回 accessToken/userId/username；失败抛 Failure，消息就是后端那句 error。
      *  userId 后端返回的是 JSON 数字而不是字符串，getString 在 JVM 的 org.json 上会直接抛
      *  "is not a string"，所以一律 get().toString() 收成 Session —— 不让行为跟着平台变 */
-    data class Session(val token: String, val userId: String, val username: String)
+    data class Session(val token: String, val userId: String, val username: String, val refreshToken: String = "")
 
     fun login(username: String, password: String): Session {
         val o = JSONObject(call("/api/auth/login", JSONObject().put("username", username).put("password", password).toString()))
@@ -48,7 +48,26 @@ class Api(private val base: String, private val token: String = "") {
         return Session(
             token = t,
             userId = o.opt("userId")?.toString() ?: "",
-            username = o.opt("username")?.toString() ?: username
+            username = o.opt("username")?.toString() ?: username,
+            refreshToken = o.optString("refreshToken")
+        )
+    }
+
+    /**
+     * access 票到期了，用 refresh 票换一张。这个调用本身不能带那张过期的 access 票 ——
+     * 带了就会被鉴权层挡在门口，续期永远失败，所以这里用不带 token 的 Api(base)。
+     */
+    fun refresh(refreshToken: String): Session {
+        val o = JSONObject(call("/api/auth/refresh", JSONObject().put("refreshToken", refreshToken).toString()))
+        val err = o.optString("error")
+        if (err.isNotEmpty()) throw Failure(err)
+        val t = o.optString("accessToken")
+        if (t.isEmpty()) throw Failure("续期响应里没有 accessToken：$o")
+        return Session(
+            token = t,
+            userId = o.opt("userId")?.toString() ?: "",
+            username = o.opt("username")?.toString() ?: "",
+            refreshToken = o.optString("refreshToken")
         )
     }
 

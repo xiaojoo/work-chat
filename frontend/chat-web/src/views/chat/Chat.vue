@@ -162,17 +162,83 @@
           <span v-if="memberStackMore" class="stack-more">+{{ memberStackMore }}</span>
         </div>
         <div class="mh-acts">
+          <!-- 会话内检索的入口常驻在这一行，不藏进 ☰ 也不藏右键菜单（藏起来等于没做）。
+               自己画的清空叉，不用 type=search：原生那颗 ✕ 是 UA 的样式，改不动 -->
+          <div class="mh-search-wrap">
+            <input class="mh-search" type="text" v-model="msgSearchText" placeholder="搜索本会话"
+                   aria-label="搜索本会话消息" autocomplete="off" spellcheck="false"
+                   @input="queueMsgSearch" @keydown.esc="closeMsgSearch" @focus="msgSearchOpen = !!msgSearchHits.length" />
+            <span v-if="msgSearchBusy" class="ms-busy">查中…</span>
+            <button v-else-if="msgSearchText" class="ms-x" type="button" aria-label="清空搜索"
+                    @click="closeMsgSearch">✕</button>
+          </div>
           <button class="mh-btn icon" @click="drawerOpen = !drawerOpen"
                   :title="drawerOpen ? '收起详情' : currentConversation?.type === 2 ? '内容详情' : '会话详情'">☰</button>
         </div>
       </header>
+
+      <!-- 结果面板：顶上那句是后端报的实数（扫了多少条、多久、用的哪个后端），
+           扫到窗口头还没扫完就改口说"只翻了最近 N 天"——不能把"没搜到"演成"没有" -->
+      <div v-if="msgSearchOpen && (msgSearchHits.length || msgSearchNote)" class="ms-pop">
+        <div class="ms-meta">
+          <span>{{ msgSearchMetaLine }}</span>
+          <span v-if="msgSearchNote" class="ms-note">{{ msgSearchNote }}</span>
+        </div>
+        <button v-for="h in msgSearchHits" :key="h.messageId" class="ms-row" type="button"
+                @click="jumpToMsgHit(h)">
+          <span class="ms-who">{{ msgSearchSender(h) }}</span>
+          <span class="ms-time">{{ formatConvTime(h.createTime) }}</span>
+          <span class="ms-txt">{{ previewOf(h.content) }}</span>
+        </button>
+        <!-- 归纳要点一下才跑：这台机器上的模型要先想 ~530 个 token 才答话（实测 9.3s / 549 token），
+             挂在每次搜索后面等于每敲一个字就占一次 GPU。没配模型服务时后端会回那句实话，这里就照说 -->
+        <div v-if="msgSearchHits.length" class="ms-sum">
+          <button class="ms-sum-btn" type="button" :disabled="msgSummaryBusy" @click="runMsgSummary">
+            {{ msgSummaryBusy ? '归纳中…' : 'AI 归纳这批' }}
+          </button>
+          <span v-if="msgSummaryMeta" class="ms-sum-meta">{{ msgSummaryMeta }}</span>
+        </div>
+        <div v-if="msgSummaryText || msgSummaryErr" class="ms-sum-out" :class="{ bad: !!msgSummaryErr }">
+          {{ msgSummaryErr || msgSummaryText }}
+        </div>
+      </div>
+
+      <!-- 通话条：响铃/呼叫/接通三种态都常驻在这一行，不藏进任何弹框或右键菜单。
+           远端画面大格、自己小格叠在右下；语音时两块画面都不出现 -->
+      <div v-if="lkPhase !== 'idle'" class="lk-bar" :class="lkPhase">
+        <div v-if="lkInCall && lkCall && lkCall.mediaType === 'VIDEO'" class="lk-stage">
+          <video ref="lkRemoteVideo" class="lk-video" autoplay playsinline></video>
+          <video ref="lkLocalVideo" class="lk-video lk-self" muted playsinline></video>
+        </div>
+        <audio ref="lkRemoteAudio" class="lk-audio" autoplay></audio>
+        <span class="lk-label">{{ lkLabel }}</span>
+        <span v-if="lkName" class="lk-peer">{{ lkName }}</span>
+        <span v-if="lkInCall" class="lk-timer">{{ lkTime }}</span>
+        <template v-if="lkPhase === 'in'">
+          <button type="button" class="btn btn-primary" @click="lkAccept">接听</button>
+          <button type="button" class="btn btn-neutral" @click="lkReject">拒绝</button>
+        </template>
+        <template v-else-if="lkPhase === 'out'">
+          <button type="button" class="btn btn-neutral" @click="lkCancel">取消</button>
+        </template>
+        <template v-else>
+          <button type="button" class="btn btn-neutral" @click="lkToggleMic">{{ lkMicOn ? '静音' : '取消静音' }}</button>
+          <button type="button" class="btn btn-neutral" @click="lkToggleShare">{{ lkSharing ? '停止共享' : '共享屏幕' }}</button>
+          <button type="button" class="btn btn-danger" @click="lkHangup">挂断</button>
+        </template>
+      </div>
 
       <div class="m-body" ref="messagesRef" @contextmenu.prevent="openBgMenu($event)">
         <!-- 有真实消息走真实 -->
         <template v-if="currentConversation && messages.length">
           <template v-for="(msg, index) in messages" :key="msg.messageId">
             <div v-if="shouldShowTime(msg, index)" class="day-split"><span>{{ formatTimeDivider(msg.timestamp || msg.createTime) }}</span></div>
-            <div class="msg" :class="{ self: String(msg.senderId) === String(userStore.userId) }">
+            <!-- 通话留下的那句系统提示（未接听 / 已拒绝 / 通话时长 03:12）：
+                 它是消息流里的一条 SYSTEM，不进头像、气泡、右键那套 -->
+            <div v-if="msg.messageType === 'SYSTEM'" class="sys-line">{{ bodyText(msg) }}</div>
+            <div v-if="msg.messageType !== 'SYSTEM'" class="msg"
+                 :class="{ self: String(msg.senderId) === String(userStore.userId), hit: msgSearchJumped && String(msg.messageId) === msgSearchJumped }"
+                 :data-mid="String(msg.messageId || '')">
               <div v-if="String(msg.senderId) !== String(userStore.userId)" class="msg-ava" @click="showUserInfo(msg.senderId)">
                 <img v-if="currentConversation.avatar" :src="currentConversation.avatar" alt="" />
                 <span v-else>{{ currentConversation.name?.charAt(0)?.toUpperCase() }}</span>
@@ -196,7 +262,11 @@
                     </a>
                     <span v-else class="b-txt">{{ bodyText(msg) }}</span>
                   </div>
-                  <span v-if="msg.status === 'FAILED'" class="msg-fail" title="发送失败：这条没有存进服务器">!</span>
+                  <span v-if="msg.status === 'FAILED'" class="msg-fail"
+                        :title="msg.failReason || '发送失败：这条没有存进服务器'">!</span>
+                  <span v-else-if="msg.status === 'READ'" class="msg-read" title="对方已读到这一条">已读</span>
+                  <span v-else-if="msg.status === 'PENDING'" class="msg-read" title="还没被服务器收下">发送中</span>
+                  <span v-else-if="msg.status === 'DELIVERED'" class="msg-read" title="对方设备已收到，还没读">已送达</span>
                 </div>
                 <!-- 引用是气泡下面那一行灰字＋左竖线（照参考图），不再把 "> 谁：" 混在气泡正文里。
                      引用的是图片/文件时按类型渲染：图片出缩略图（点开走大图查看器），
@@ -407,7 +477,8 @@
 
           <div class="gs-grid">
             <div v-for="m in filteredGroupMembers" :key="m.userId" class="gs-cell"
-                 :class="{ picking: removeMode && canRemoveMember(m) }" @click="onMemberCell(m)">
+                 :class="{ picking: removeMode && canRemoveMember(m), picked: manageMode && String(m.userId) === managedUserId }"
+                 @click="onMemberCell(m)">
               <div class="gs-ava">
                 <span class="gs-init">{{ memberName(m).charAt(0).toUpperCase() }}</span>
                 <span v-if="removeMode && canRemoveMember(m)" class="gs-minus"><Minus theme="outline" size="11" /></span>
@@ -421,9 +492,38 @@
               <span class="gs-box">＋</span><em>添加</em>
             </button>
             <button v-if="selectedGroup" type="button" class="gs-tile" :class="{ on: removeMode }" title="移出成员"
-                    :disabled="!groupMembers.some(m => canRemoveMember(m))" @click="removeMode = !removeMode">
+                    :disabled="!groupMembers.some(m => canRemoveMember(m))" @click="toggleRemoveMode">
               <span class="gs-box">－</span><em>移出</em>
             </button>
+            <!-- 设管理员/禁言/转让群主的接口后端一直有，此前前端一次都没调过 -->
+            <button v-if="selectedGroup" type="button" class="gs-tile" :class="{ on: manageMode }" title="成员管理"
+                    :disabled="!canManageAnyone" @click="toggleManageMode">
+              <span class="gs-box">⋯</span><em>管理</em>
+            </button>
+          </div>
+
+          <!-- 管理模式：点一个成员在这里出操作条。够不着的项置灰不消失，并写清是谁的权限挡着 -->
+          <div v-if="manageMode && managedMember" class="gs-manage">
+            <div class="gs-mg-head">
+              <span class="gs-mg-name">{{ memberName(managedMember) }}</span>
+              <span v-if="managedMember.role === 2" class="gs-tag owner">群主</span>
+              <span v-else-if="managedMember.role === 1" class="gs-tag admin">管理员</span>
+              <span v-else class="gs-mg-role">普通成员</span>
+              <span v-if="managedMember.muted" class="gs-mg-muted">禁言中</span>
+            </div>
+            <div class="gs-mg-acts">
+              <button type="button" class="btn btn-neutral" :disabled="!canSetRole(managedMember)"
+                      @click="handleSetRole(managedMember, managedMember.role === 1 ? 0 : 1)">
+                {{ managedMember.role === 1 ? '取消管理员' : '设为管理员' }}
+              </button>
+              <button type="button" class="btn btn-neutral" :disabled="!canMute(managedMember)"
+                      @click="handleMute(managedMember, managedMember.muted ? null : 10)">
+                {{ managedMember.muted ? '解除禁言' : '禁言 10 分钟' }}
+              </button>
+              <button type="button" class="btn btn-danger" :disabled="!canTransfer(managedMember)"
+                      @click="handleTransferOwner(managedMember)">转让群主</button>
+            </div>
+            <div v-if="myGroupRole < 2" class="gs-note">只有群主能设管理员和转让群主，你能做的只有禁言普通成员</div>
           </div>
           <div v-if="!filteredGroupMembers.length" class="list-empty">
             {{ drawerMembers.length ? '没有匹配的成员' : (selectedGroup ? '这个群还没有成员' : '这个会话没有成员') }}
@@ -626,7 +726,8 @@
         </div>
         <div class="modal-foot">
           <button class="btn btn-ghost" @click="handleShareMember">分享</button>
-          <button class="btn btn-ghost" @click="handleCallMember">音视频通话</button>
+          <button class="btn btn-ghost" @click="handleCallMember('AUDIO')">语音通话</button>
+          <button class="btn btn-ghost" @click="handleCallMember('VIDEO')">视频通话</button>
           <button class="btn btn-primary" @click="handleSendMessage(selectedMember)">发消息</button>
         </div>
       </div>
@@ -754,11 +855,12 @@ import { ref, computed, onMounted, onUnmounted, nextTick, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { useUserStore } from '../../stores/user'
 import { useWebSocket } from '../../websocket/client'
+import { useCall } from '../../websocket/useCall'
 import { useTokenValidation } from '../../composables/useTokenValidation'
 import { notifyDesktop } from '../../config'
 import { getConversationList, createConversation, clearUnread, deleteConversation } from '../../api/conversation'
 import { getFriendList, addFriend, checkFriend } from '../../api/friend'
-import { createGroup, getMyGroups, getGroup, getGroupMembers, inviteMembers, removeMember, leaveGroup, dissolveGroup, updateGroup } from '../../api/group'
+import { createGroup, getMyGroups, getGroup, getGroupMembers, inviteMembers, removeMember, leaveGroup, dissolveGroup, updateGroup, setMemberRole, muteMember, transferOwner } from '../../api/group'
 import { getUserProfile, searchUser, updateProfile, getMe, getOrg, getOnline } from '../../api/user'
 import { uploadFile, fileObjectUrl, parseFileRef, previewOf } from '../../api/file'
 import CreateGroupModal from '../../components/CreateGroupModal.vue'
@@ -782,7 +884,259 @@ const WB_LINKS = [
 ]
 const userStore = useUserStore()
 const { connected, connect, disconnect, send, sendWhenConnected, onMessage } = useWebSocket()
+
+/* ---- 断线那一截的补发 ----
+   LOAD_MESSAGES 只在点开会话那一刻拉一次，而且只给"今天这 50 条"。会话正开着的时候断了线，
+   别人推进来的消息我这端根本没连上，回来也不会重新拉 —— 界面上就是"消息凭空少了几条"。
+   所以每条会话记一个游标 (messageId, messageDate)：message_date 是 messages 的分区键的一部分，
+   光给一个 timeuuid 服务端定不了该去哪一天那个分区找。
+   实时推来的帧没有 messageDate，那就只往前推 id、日期留着不动：服务端是从这个日期逐天走到今天的，
+   日期偏旧只会多扫一天，不会漏；偏新才危险，而那条消息的分区不可能晚于此刻所在的分区。 */
+const CURSOR_KEY = 'msgCursors'
+const msgCursors = ref(loadCursors())
+
+function loadCursors() {
+  try { return JSON.parse(localStorage.getItem(CURSOR_KEY) || '{}') } catch (e) { return {} }
+}
+
+/** timeuuid 的字符串是 time_low 先写的，直接比字典序会把先后搞反（878b…-bbda 其实老于 3be5…-bbdd） */
+function uuidTimeKey(id) {
+  const u = String(id)
+  return u.length < 18 ? u : u.slice(14, 18) + u.slice(9, 13) + u.slice(0, 8)
+}
+
+function rememberCursor(convId, m) {
+  if (!convId || !m || !m.messageId) return
+  const key = String(convId)
+  const cur = msgCursors.value[key] || {}
+  const id = String(m.messageId)
+  if (cur.id && uuidTimeKey(cur.id) >= uuidTimeKey(id)) return
+  msgCursors.value[key] = { id, date: m.messageDate || cur.date || '' }
+  localStorage.setItem(CURSOR_KEY, JSON.stringify(msgCursors.value))
+}
+
+function requestCatchUp() {
+  const conv = currentConversation.value
+  if (!conv) return
+  const c = msgCursors.value[String(conv.id)]
+  // 没游标 = 这条还没加载过，点开时自然会整批拉，不用补
+  if (!c || !c.id) return
+  send('SYNC_MISSING', { conversationId: String(conv.id), afterId: c.id, cursorDate: c.date })
+}
+
+// 第一次连上不触发（那时正要 LOAD_MESSAGES）；只认"断过之后又回来"这一次
+watch(connected, (up, was) => {
+  if (!up || was !== false) return
+  replayOutbox()
+  requestCatchUp()
+})
+
+/* ---- 会话内检索 ----
+   走网关的 SEARCH_MESSAGES 而不是直接打消息服务的 REST：检索是最宽的读口（一个常用字能把
+   整条会话翻出来），成员资格只有在网关那边判得动（成员表在用户服务/群服务）。
+   结果只回给请求者本人，requestId 对不上号的一律不认。 */
+const msgSearchText = ref('')
+const msgSearchHits = ref([])
+const msgSearchMeta = ref(null)
+const msgSearchOpen = ref(false)
+const msgSearchBusy = ref(false)
+const msgSearchJumped = ref('')
+let msgSearchTimer = 0
+let msgSearchReqId = ''
+
+const msgSearchMetaLine = computed(() => {
+  const d = msgSearchMeta.value
+  if (!d) return ''
+  const bits = [`命中 ${msgSearchHits.value.length} 条`]
+  bits.push(`翻了 ${d.scanned} 条`)
+  bits.push(`${d.tookMs}ms`)
+  bits.push(`后端 ${d.provider}`)
+  return bits.join(' · ')
+})
+
+const msgSearchNote = computed(() => {
+  const d = msgSearchMeta.value
+  if (!d) return ''
+  if (d.truncated) return `只翻了最近 ${d.days || 30} 天，更早的没查`
+  return msgSearchHits.value.length ? '' : '这条会话里没搜到，换个词或把天数放大'
+})
+
+function queueMsgSearch() {
+  clearTimeout(msgSearchTimer)
+  if (!msgSearchText.value.trim()) {
+    msgSearchHits.value = []; msgSearchMeta.value = null; msgSearchOpen.value = false; msgSearchBusy.value = false
+    return
+  }
+  msgSearchBusy.value = true
+  msgSearchTimer = setTimeout(runMsgSearch, 350)
+}
+
+function runMsgSearch() {
+  const conv = currentConversation.value
+  const q = msgSearchText.value.trim()
+  if (!conv || !q) return
+  msgSearchReqId = nextReqId('search')
+  const ok = send('SEARCH_MESSAGES',
+    { conversationId: String(conv.id), keyword: q, limit: 50, days: 30 }, msgSearchReqId)
+  if (!ok) {
+    msgSearchBusy.value = false
+    toast('连接断了，检索没发出去', 'error')
+  }
+}
+
+function closeMsgSearch() {
+  clearTimeout(msgSearchTimer)
+  msgSearchText.value = ''
+  msgSearchHits.value = []
+  msgSearchMeta.value = null
+  msgSearchOpen.value = false
+  msgSearchBusy.value = false
+  msgSummaryText.value = ''
+  msgSummaryErr.value = ''
+  msgSummaryMeta.value = ''
+  msgSummaryBusy.value = false
+}
+
+function msgSearchSender(h) {
+  return String(h.senderId) === String(userStore.userId) ? '我' : (getMemberNameSync(h.senderId) || '用户 ' + h.senderId)
+}
+
+/* ---- 检索结果的 AI 归纳 ----
+   走网关的 SEARCH_SUMMARY：成员资格在那边判，而且客户端只交 (id, date)，
+   原文由消息服务自己从库里读 —— 不然这颗按钮就成了往模型提示词里塞话的入口。 */
+const msgSummaryBusy = ref(false)
+const msgSummaryText = ref('')
+const msgSummaryErr = ref('')
+const msgSummaryMeta = ref('')
+let msgSummaryReqId = ''
+
+function runMsgSummary() {
+  const conv = currentConversation.value
+  if (!conv || !msgSearchHits.value.length) return
+  const items = msgSearchHits.value.slice(0, 8)
+    .map(h => ({ id: String(h.messageId), date: String(h.messageDate || '') }))
+  msgSummaryBusy.value = true
+  msgSummaryText.value = ''
+  msgSummaryErr.value = ''
+  msgSummaryMeta.value = ''
+  msgSummaryReqId = nextReqId('sum')
+  const ok = send('SEARCH_SUMMARY',
+    { conversationId: String(conv.id), keyword: msgSearchText.value.trim(), items }, msgSummaryReqId)
+  if (!ok) {
+    msgSummaryBusy.value = false
+    msgSummaryErr.value = '连接断了，归纳没发出去'
+  }
+}
+
+/** 点一条结果：滚过去并闪一下。命中的那条不在已加载窗口里就直说，不偷偷改成"搜不到" */
+function jumpToMsgHit(h) {
+  const hit = messages.value.find(m => String(m.messageId) === String(h.messageId))
+  if (!hit) {
+    toast('这条不在已加载的窗口里，往上翻页到那一天再看', 'info')
+    return
+  }
+  msgSearchJumped.value = String(hit.messageId)
+  nextTick(() => {
+    const el = document.querySelector(`.msg[data-mid="${CSS.escape(msgSearchJumped.value)}"]`)
+    el?.scrollIntoView({ block: 'center', behavior: 'smooth' })
+  })
+  setTimeout(() => { if (msgSearchJumped.value === String(h.messageId)) msgSearchJumped.value = '' }, 1800)
+}
+
+// 换会话就清掉上一个会话的结果：挂在 currentConversation 那个 watch 上（见下面），
+// 这里不能 watch —— currentConversation 是在后面才声明的 const，先引用会撞 TDZ，
+// 整个 setup 直接抛 "Cannot access 'currentConversation' before initialization"，页面什么都不渲染
+
+/* ---- 发端 outbox ----
+   设计文档第六阶段点名不要"发送成功 = WebSocket write 成功"。所以这一笔先写进本机：
+   收到 ACK 才删，刷新、关页、断网都还在；连上之后拿**同一个 requestId** 再发一次，
+   服务端按 requestId 去重（message_request 表），所以重放不会落两条。
+   气泡在 ACK 之前是"发送中"，不是"已发送"——后者要说的是服务器已经收下。 */
+const OUTBOX_KEY = 'msgOutbox'
+
+function outboxAll() {
+  try {
+    const v = JSON.parse(localStorage.getItem(OUTBOX_KEY) || '[]')
+    return Array.isArray(v) ? v : []
+  } catch (e) { return [] }
+}
+
+function outboxPut(item) {
+  const list = outboxAll().filter(x => String(x.reqId) !== String(item.reqId))
+  list.push(item)
+  localStorage.setItem(OUTBOX_KEY, JSON.stringify(list))
+}
+
+function outboxDrop(reqId) {
+  if (!reqId) return
+  localStorage.setItem(OUTBOX_KEY, JSON.stringify(outboxAll().filter(x => String(x.reqId) !== String(reqId))))
+}
+
+function replayOutbox() {
+  const list = outboxAll()
+  if (!list.length) return
+  const openId = currentConversation.value ? String(currentConversation.value.id) : ''
+  for (const e of list) {
+    const already = messages.value.some(m => String(m.messageId) === String(e.localId))
+    // 会话正开着才把"发送中"那条补回画面；没开着的照发，界面上由会话列表的最后一条体现
+    if (String(e.conversationId) === openId && !already) {
+      messages.value.push({
+        messageId: e.localId, conversationId: e.conversationId, senderId: userStore.userId,
+        messageType: e.messageType, content: e.content, extra: e.extra || '',
+        timestamp: e.ts || Date.now(), status: 'PENDING'
+      })
+      ensureMedia(messages.value[messages.value.length - 1])
+      scrollToBottom()
+    }
+    const ok = send('MESSAGE_SEND', {
+      conversationId: e.conversationId, messageType: e.messageType,
+      content: e.content, extra: e.extra || ''
+    }, e.reqId)
+    if (ok) {
+      const row = messages.value.find(m => String(m.messageId) === String(e.localId))
+      if (row) pendingSends.set(e.reqId, row)
+    }
+  }
+}
+
+// 通话：媒体元素在这边，状态机在 useCall 里。
+// 一律解构成顶层变量 —— 模板只自动解包顶层 ref，写成 lk.phase 会拿到 Ref 对象本身，
+// `lk.phase !== 'idle'` 于是永远为真，通话条会一直挂在界面上。
+const lkRemoteVideo = ref(null)
+const lkRemoteAudio = ref(null)
+const lkLocalVideo = ref(null)
+const lkEls = {
+  remoteVideo: lkRemoteVideo, remoteAudio: lkRemoteAudio, localVideo: lkLocalVideo
+}
+const {
+  phase: lkPhase, label: lkLabel, inCall: lkInCall, call: lkCall,
+  micOn: lkMicOn, sharing: lkSharing,
+  invite: lkInvite, accept: lkAccept, reject: lkReject,
+  cancel: lkCancel, hangup: lkHangup, toggleMic: lkToggleMic, toggleShare: lkToggleShare
+} = useCall({
+  send, onMessage, els: lkEls,
+  // 收线后网关会往这条会话里写一句 SYSTEM，补拉一次才看得见
+  onEnded: () => {
+    const c = currentConversation.value
+    if (c) send('LOAD_MESSAGES', { conversationId: String(c.id), limit: 50 })
+  }
+})
+const lkName = computed(() => {
+  const id = lkCall.value?.peerId
+  return id ? (getMemberNameSync(id) || '用户 ' + id) : ''
+})
+const lkTime = computed(() => {
+  const s = lkCall.value?.secs || 0
+  return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`
+})
 const { isTokenValid, validateToken, redirectToLogin } = useTokenValidation()
+
+// 网关 MESSAGE_ACK 里的机器码 → 给人看的那句话。缺了这条，被禁言的人只会看到一个"!"
+const ACK_ERRORS = {
+  MUTED: '你在这个群里被禁言了，这条消息没有发出去',
+  SAVE_FAILED: '消息没有存进服务器，请重试',
+  MEMBER_LOOKUP_FAILED: '群成员列表没取到，消息没有发出，请重试'
+}
 
 const messagesRef = ref(null)
 const inputMessage = ref('')
@@ -1080,6 +1434,8 @@ const dwTab = ref('doc')
 // 「内容详情」只给群聊（那是项目文档那一套），所以选中单聊时页签必须落到「成员」，
 // 否则抽屉开出来是一页没有页签的空壳
 watch(currentConversation, c => { if (c && c.type !== 2) dwTab.value = 'member' }, { immediate: true })
+// 上一个会话的检索结果挂在新会话的页头下面是最容易看错的东西，换会话就收掉
+watch(currentConversation, () => closeMsgSearch())
 
 // 添加好友（用 AddMembersModal 的组织树选择器）
 const showAddFriend = ref(false)
@@ -1173,8 +1529,12 @@ function handleShareMember() {
   })
 }
 
-function handleCallMember() {
-  toast('音视频通话功能开发中', 'info')
+function handleCallMember(media) {
+  const m = selectedMember.value
+  if (!m) { toast('没选中要呼叫的人', 'error'); return }
+  if (String(m.userId) === String(userStore.userId)) { toast('不能给自己打', 'info'); return }
+  lkInvite(m.userId, media === 'VIDEO' ? 'VIDEO' : 'AUDIO', currentConversation.value?.id)
+  selectedMember.value = null
 }
 
 // 消息右键菜单
@@ -1407,6 +1767,12 @@ onMounted(() => document.addEventListener('visibilitychange', onRefocus))
 onUnmounted(() => document.removeEventListener('visibilitychange', onRefocus))
 
 onMounted(async () => {
+  /* 真处理器要 await 六个接口才挂上，这中间到的帧以前是没人接的：
+     丢 MESSAGE_RECEIVE 就是"这条消息从来没进过界面"，丢 MESSAGE_ACK 就是 outbox 那条永远销不掉。
+     先把帧攒下来（带上限，万一处理器一直没挂上也不会涨爆内存），挂上那一刻补交一次。 */
+  const earlyFrames = []
+  onMessage(m => { if (earlyFrames.length < 500) earlyFrames.push(m) })
+
   // 验证 Token
   if (!validateToken()) {
     redirectToLogin(true)
@@ -1450,7 +1816,7 @@ onMounted(async () => {
     }
   }
 
-  onMessage((msg) => {
+  const handleWsFrame = (msg) => {
     switch (msg.type) {
       case 'MESSAGE_RECEIVE': {
         const data = msg.data
@@ -1462,12 +1828,24 @@ onMounted(async () => {
           const fromConv = conversations.value.find(c => String(c.id) === String(data.conversationId))
           notifyDesktop(fromConv?.name || '收到新消息', previewOf(data.content))
         }
+        /* 收件回执：这条到了我这个设备，就该报上去。网关把它写进 message_delivered，
+           再转给同一会话里的其他人，发件人气泡上的"已送达"就是这份回执。
+           不管这条会话正开着没开着——设备收到了就是收到了，跟屏幕在不在看无关。
+           跳过自己发的那条（自己另一个标签页发的，给自己发回执没意义，和服务端跳过 senderId 算未读是同一条规则） */
+        if (data.messageId && String(data.senderId) !== String(userStore.userId)) {
+          send('MESSAGE_DELIVERED', {
+            conversationId: String(data.conversationId),
+            messageIds: [String(data.messageId)]
+          })
+        }
         // 如果是当前会话的消息，追加到列表
         if (currentConversation.value && String(data.conversationId) === String(currentConversation.value.id)) {
           messages.value.push(data)
           ensureMedia(data)
           scrollToBottom()
         }
+        // 游标不管这条会话开没开着都要推：没开着的那条，下次补发也得知道看到哪儿了
+        rememberCursor(data.conversationId, data)
         // 更新会话列表的最后消息
         const conv = conversations.value.find(c => String(c.id) === String(data.conversationId))
         if (conv) {
@@ -1486,6 +1864,9 @@ onMounted(async () => {
         break
       }
       case 'MESSAGE_ACK': {
+        // 先销账再找气泡：outbox 里那条可能是刷新后重放的，界面上根本没有对应的气泡
+        // （会话没开着），这时也要把账清掉，否则每次重连都重发一遍
+        outboxDrop(msg.requestId)
         const local = pendingSends.get(msg.requestId)
         if (!local) break
         pendingSends.delete(msg.requestId)
@@ -1493,9 +1874,94 @@ onMounted(async () => {
         if (data.status === 'SENT' && data.messageId) {
           local.messageId = data.messageId      // 换成服务端 timeuuid，撤回与分页都要用它
           local.status = 'SENT'
+          rememberCursor(local.conversationId, local)
+          // 重放的那一条可能已经由 LOAD_MESSAGES 拉回来过（服务端去重还回同一条 id），
+          // 列表里就会有两行同样的消息：留带状态的那行，去掉另一行
+          const dup = messages.value.findIndex(m => m !== local && String(m.messageId) === String(data.messageId))
+          if (dup >= 0) messages.value.splice(dup, 1)
         } else {
           local.status = 'FAILED'
+          // 网关回的是机器码，界面原先只有一个"!"，被禁言的人会一直以为是网不好
+          const why = ACK_ERRORS[data.error]
+          if (why) {
+            local.failReason = why
+            toast(why, 'error')
+          }
         }
+        break
+      }
+      case 'MESSAGE_DELIVERED': {
+        /* 对方设备收到了这几条。只把我自己发的、此刻还是 SENT 的往前推一格：
+           FAILED 不能被这条洗白，READ 是比它更强的状态，不能被倒回去。
+           和已读同一口径：只认当前打开的这条会话，也不做持久化（历史里翻不出"已送达"） */
+        const data = msg.data || {}
+        const conv = currentConversation.value
+        if (!conv || String(conv.id) !== String(data.conversationId)) break
+        if (!Array.isArray(data.messageIds)) break
+        const got = new Set(data.messageIds.map(String))
+        messages.value.forEach(m => {
+          if (got.has(String(m.messageId))
+              && String(m.senderId) === String(userStore.userId)
+              && m.status === 'SENT') {
+            m.status = 'DELIVERED'
+          }
+        })
+        break
+      }
+      case 'MESSAGE_CATCHUP': {
+        /* 断线期间漏掉的那一截，服务端按正序给回来。只在"补的正是我当前开着的那条会话"时接进列表，
+           按 messageId 去重：这一批和实时推的可能有重叠（断线前那一刻推过、我没渲染完就断了）。
+           帧里的行没有 timestamp 字段（那是网关给实时消息加的），日期从 createTime 取，
+           不然分隔线和排序会把它甩到最前面去。 */
+        const rows = typeof msg.data === 'string' ? JSON.parse(msg.data) : msg.data
+        if (!Array.isArray(rows) || rows.length === 0) break
+        const conv = currentConversation.value
+        if (!conv || String(rows[0].conversationId) !== String(conv.id)) break
+        const have = new Set(messages.value.map(m => String(m.messageId)))
+        const fresh = rows.filter(r => !have.has(String(r.messageId)))
+          .map(r => ({ ...r, timestamp: r.timestamp || Date.parse(r.createTime || '') || Date.now() }))
+        for (const r of fresh) {
+          messages.value.push(r)
+          ensureMedia(r)
+        }
+        if (fresh.length) {
+          scrollToBottom()
+          // 补回来的条数要说得出声音：不然用户只知道"消息变多了"，不知道是断线补的
+          toast(`补回 ${fresh.length} 条断线期间的消息`, 'info')
+        }
+        rememberCursor(conv.id, rows[rows.length - 1])
+        break
+      }
+      case 'SEARCH_RESULT': {
+        // 只认自己刚问的那一次：换会话、连发两次时旧回执不能把新结果盖掉
+        if (!msg.requestId || msg.requestId !== msgSearchReqId) break
+        msgSearchBusy.value = false
+        const d = typeof msg.data === 'string' ? JSON.parse(msg.data) : (msg.data || {})
+        if (d.error) {
+          msgSearchHits.value = []
+          msgSearchMeta.value = null
+          msgSearchOpen.value = true
+          toast(d.error, 'error')
+          break
+        }
+        msgSearchHits.value = Array.isArray(d.hits) ? d.hits : []
+        msgSearchMeta.value = d
+        msgSearchOpen.value = true
+        break
+      }
+      case 'SEARCH_SUMMARY_RESULT': {
+        if (!msg.requestId || msg.requestId !== msgSummaryReqId) break
+        const d = typeof msg.data === 'string' ? JSON.parse(msg.data) : (msg.data || {})
+        msgSummaryBusy.value = false
+        if (d.error) {
+          msgSummaryErr.value = d.error
+          msgSummaryText.value = ''
+          msgSummaryMeta.value = ''
+          break
+        }
+        msgSummaryText.value = d.summary || ''
+        msgSummaryErr.value = d.summary ? '' : (d.error || '模型没给结论')
+        msgSummaryMeta.value = d.summary ? `${d.provider} · ${d.tookMs}ms` : ''
         break
       }
       case 'MESSAGE_DELETED': {
@@ -1517,10 +1983,18 @@ onMounted(async () => {
         break
       }
       case 'MESSAGE_READ': {
-        // 对方已读
-        const data = msg.data
+        // 回执说的是"我读到 lastReadMessageId 这一条"，所以只能标到它为止。
+        // 原先是无条件把我全部消息标成已读，还跨会话：一条回执能让几百条在读上都成立。
+        const data = msg.data || {}
+        const conv = currentConversation.value
+        if (!conv || String(conv.id) !== String(data.conversationId)) break
+        const anchor = messages.value.find(m => String(m.messageId) === String(data.lastReadMessageId))
+        // 锚点那条不在已加载窗口里就什么也不标：宁可少标，不造一个说谎的"已读"
+        if (!anchor || !anchor.timestamp) break
         messages.value.forEach(m => {
-          if (String(m.senderId) === String(userStore.userId)) {
+          if (String(m.senderId) === String(userStore.userId)
+              && Number(m.timestamp) <= Number(anchor.timestamp)
+              && m.status !== 'FAILED') {
             m.status = 'READ'
           }
         })
@@ -1547,7 +2021,16 @@ onMounted(async () => {
             messages.value = []
             return
           }
-          messages.value = data.reverse()
+          // 按会话认一次领：这一处是整批替换 messages.value，回包里混进别的会话的行时
+          // 界面上不会有任何异常，只会把别人的聊天记录静悄悄摆在这条会话里（和手机端 ConvRows 同一条规则）。
+          // 没选中会话时不判：那时连"该留谁的"都没有，宁可照旧摆出来也别整批吞掉变成空白
+          const cid = currentConversation.value ? String(currentConversation.value.id) : ''
+          const rows = cid ? data.filter(r => String(r.conversationId) === cid) : data
+          if (rows.length !== data.length) {
+            toast(`历史回包里有 ${data.length - rows.length} 条不是本会话的，已丢掉`, 'info')
+          }
+          messages.value = rows.reverse()
+          rememberCursor(currentConversation.value?.id, messages.value[messages.value.length - 1])
           // 只预热最近这段，否则一屏历史里有图就会并发拉回全部原图
           messages.value.slice(-12).forEach(ensureMedia)
           // 更新当前会话的最后消息
@@ -1564,7 +2047,10 @@ onMounted(async () => {
         break
       }
     }
-  })
+  }
+  onMessage(handleWsFrame)
+  // 订阅挂上之前攒下的帧补交一次：那中间到的 ACK/新消息不能就当没发生过
+  earlyFrames.splice(0).forEach(m => handleWsFrame(m))
 })
 
 onUnmounted(() => {
@@ -1631,6 +2117,8 @@ async function selectConversation(conv) {
   closeMention()
   // 抽屉「成员」页签的两个临时态不该跟着换会话留下来：正在勾选移出、正在改群名
   removeMode.value = false
+  manageMode.value = false
+  managedUserId.value = ''
   groupMemberSearchText.value = ''
   localStorage.setItem('chat_currentConversation', String(conv.id))
   // 清除未读数
@@ -1775,7 +2263,7 @@ function sendTextMessage() {
     : ''
   const payload = { conversationId: convId, messageType: 'TEXT', content, extra }
 
-  const sent = send('MESSAGE_SEND', payload, reqId)
+  send('MESSAGE_SEND', payload, reqId)
 
   // 本地立即显示
   const newMsg = {
@@ -1786,25 +2274,15 @@ function sendTextMessage() {
     content,
     extra,
     timestamp: Date.now(),
-    status: sent ? 'SENT' : 'FAILED'
+    // 写到 socket 上不等于"已发送"：那一刻还不知道服务器收没收下。ACK 之前是发送中
+    status: 'PENDING'
   }
   messages.value.push(newMsg)
   ensureMedia(newMsg)
   // 必须存数组里那个响应式代理：改原始对象不会触发重渲染
-  if (sent) pendingSends.set(reqId, messages.value[messages.value.length - 1])
-
-  // 如果发送失败，3秒后自动重试
-  if (!sent) {
-    setTimeout(() => {
-      if (newMsg.status === 'FAILED' && connected.value) {
-        const retrySent = send('MESSAGE_SEND', payload, reqId)
-        if (retrySent) {
-          pendingSends.set(reqId, messages.value.find(m => String(m.messageId) === String(newMsg.messageId)) || newMsg)
-          newMsg.status = 'SENT'
-        }
-      }
-    }, 3000)
-  }
+  pendingSends.set(reqId, messages.value[messages.value.length - 1])
+  // 这一笔先进本机：ACK 到了才删。断网/刷新/关页都还在这儿，连上后拿同一个 reqId 重放
+  outboxPut({ reqId, localId: messageId, conversationId: convId, messageType: 'TEXT', content, extra, ts: newMsg.timestamp })
 
   // 更新会话列表的最后消息
   const conv = conversations.value.find(c => String(c.id) === convId)
@@ -1941,18 +2419,22 @@ async function sendMediaFile(file, type) {
     fileId: info.fileId, name: info.name, size: info.size, contentType: info.contentType
   })
   const reqId = nextReqId('send')
-  const sent = send('MESSAGE_SEND', { conversationId: convId, messageType: type, content: payload }, reqId)
+  const localId = `local-${Date.now()}`
+  send('MESSAGE_SEND', { conversationId: convId, messageType: type, content: payload }, reqId)
   const local = {
-    messageId: `local-${Date.now()}`,
+    messageId: localId,
     conversationId: convId,
     senderId: userStore.userId,
     messageType: type,
     content: payload,
     timestamp: Date.now(),
-    status: sent ? 'SENT' : 'FAILED'
+    status: 'PENDING'
   }
   messages.value.push(local)
-  if (sent) pendingSends.set(reqId, messages.value[messages.value.length - 1])
+  pendingSends.set(reqId, messages.value[messages.value.length - 1])
+  // 上传已经成功了，差的只是"把这条消息送进服务器"——所以同样进 outbox，
+  // 断网时不会把那份已经传好的文件白传一遍
+  outboxPut({ reqId, localId, conversationId: convId, messageType: type, content: payload, extra: '', ts: local.timestamp })
   ensureMedia(local)
   const conv = conversations.value.find(c => String(c.id) === convId)
   if (conv) { conv.lastMessage = previewOf(payload); conv.lastMessageTime = Date.now() }
@@ -2479,10 +2961,104 @@ const groupDirty = computed(() => {
   return groupNameDraft.value.trim() !== (g.name || '') || groupAnnDraft.value.trim() !== (g.announcement || '')
 })
 
-// 移出模式下点格子就是移出这个人；否则还是看这个人是谁
+// 移出模式下点格子就是移出这个人；管理模式下选中这个人展开操作条；否则还是看这个人是谁
 function onMemberCell(m) {
   if (removeMode.value && canRemoveMember(m)) { handleRemoveMember(m); return }
+  if (manageMode.value) { managedUserId.value = String(m.userId); return }
   showMemberInfo(m)
+}
+
+/* ---- 成员管理：设管理员 / 禁言 / 转让群主 ---- */
+const manageMode = ref(false)
+const managedUserId = ref('')
+
+const myGroupRole = computed(() => {
+  const me = groupMembers.value.find(m => String(m.userId) === String(userStore.userId))
+  return me ? Number(me.role) : -1
+})
+const managedMember = computed(() =>
+  groupMembers.value.find(m => String(m.userId) === managedUserId.value) || null)
+
+// 后端 setMemberRole 只认群主，且改不了 role=2；muteMember 要求操作人 role>=1 且目标角色更低
+const canSetRole = m => selectedGroup.value && myGroupRole.value === 2
+  && Number(m.role) !== 2 && String(m.userId) !== String(userStore.userId)
+const canMute = m => selectedGroup.value && myGroupRole.value >= 1
+  && Number(m.role) < myGroupRole.value
+const canTransfer = m => selectedGroup.value && myGroupRole.value === 2
+  && Number(m.role) !== 2 && String(m.userId) !== String(userStore.userId)
+const canManageAnyone = computed(() => groupMembers.value.some(m => canSetRole(m) || canMute(m) || canTransfer(m)))
+
+// 和移出模式互斥：两个模式同时开着时，点一格到底算哪个说不清
+function toggleManageMode() {
+  manageMode.value = !manageMode.value
+  if (manageMode.value) {
+    removeMode.value = false
+    managedUserId.value = ''
+  }
+}
+function toggleRemoveMode() {
+  removeMode.value = !removeMode.value
+  if (removeMode.value) {
+    manageMode.value = false
+    managedUserId.value = ''
+  }
+}
+
+// 后端收的是 LocalDateTime.parse：没有时区、按服务器本地时钟解释，所以这里给本地时间
+function localIsoPlus(minutes) {
+  const d = new Date(Date.now() + minutes * 60000)
+  const p = n => String(n).padStart(2, '0')
+  return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}T${p(d.getHours())}:${p(d.getMinutes())}:${p(d.getSeconds())}`
+}
+
+async function reloadGroupMembers() {
+  if (!selectedGroup.value) return
+  groupMembers.value = await getGroupMembers(selectedGroup.value.id)
+}
+
+async function handleSetRole(member, role) {
+  if (!selectedGroup.value || !canSetRole(member)) return
+  const name = getMemberNameSync(member.userId) || '用户 ' + member.userId
+  try {
+    await setMemberRole(selectedGroup.value.id, member.userId, role)
+    toast(role === 1 ? `已将 ${name} 设为管理员` : `已取消 ${name} 的管理员`, 'success')
+    await reloadGroupMembers()
+  } catch (e) {
+    toast(e.response?.data?.error || '设置角色失败', 'error')
+  }
+}
+
+async function handleMute(member, minutes) {
+  if (!selectedGroup.value || !canMute(member)) return
+  const name = getMemberNameSync(member.userId) || '用户 ' + member.userId
+  try {
+    await muteMember(selectedGroup.value.id, member.userId, minutes == null ? null : localIsoPlus(minutes))
+    toast(minutes == null ? `已解除 ${name} 的禁言` : `已禁言 ${name} ${minutes} 分钟`, 'success')
+    await reloadGroupMembers()
+  } catch (e) {
+    toast(e.response?.data?.error || '禁言操作失败', 'error')
+  }
+}
+
+async function handleTransferOwner(member) {
+  if (!selectedGroup.value || !canTransfer(member)) return
+  const name = getMemberNameSync(member.userId) || '用户 ' + member.userId
+  const ok = await confirmBox({
+    message: `确定将群主转让给 ${name}？转让后你变成普通成员，这个操作只能由新群主再转回来。`,
+    title: '转让群主',
+    confirmText: '转让',
+    cancelText: '取消',
+    type: 'warning'
+  })
+  if (!ok) return
+  try {
+    await transferOwner(selectedGroup.value.id, member.userId)
+    toast(`群主已转让给 ${name}`, 'success')
+    await Promise.all([reloadGroupMembers(), loadGroups()])
+    if (selectedGroup.value) selectedGroup.value.ownerId = member.userId
+  } catch (e) {
+    toast(e.response?.data?.error || '转让群主失败', 'error')
+  }
 }
 
 async function saveGroupInfo() {
@@ -4405,8 +4981,56 @@ async function openWithApp(r) {
 .mh-acts { display: flex; align-items: center; gap: 6px; }
 .mh-btn { border: 1px solid var(--nb-line); background: #fff; color: var(--nb-dim); border-radius: 6px; font-size: 12px; padding: 4px 10px; cursor: pointer; }
 .mh-btn:hover { color: var(--brand); border-color: var(--brand-line); }
+/* 会话内检索：输入框在页头那一行里，结果面板挂在页头下面（.main 已经是 relative）。
+   宽度给到 220px 是量过的：再窄，"命中 3 条 · 翻了 322 条 · 50ms · 后端 keyword" 那行就要折行 */
+.mh-search-wrap { position: relative; display: flex; align-items: center; }
+.mh-search { width: 220px; height: 30px; padding: 0 26px 0 10px; font-size: 12px;
+  color: var(--nb-text); background: #fff; border: 1px solid var(--nb-line); border-radius: 6px; }
+.mh-search::placeholder { color: var(--nb-dim-2); }
+.mh-search:focus { outline: none; border-color: var(--brand-line); }
+.ms-busy, .ms-x { position: absolute; right: 8px; font-size: 11px; color: var(--nb-dim-2); }
+.ms-x { border: 0; background: none; padding: 0; cursor: pointer; line-height: 1; }
+.ms-x:hover { color: var(--nb-text); }
+.ms-pop { position: absolute; top: var(--head-h); right: 18px; z-index: 30; width: 420px;
+  max-height: 60vh; overflow-y: auto; background: #fff; border: 1px solid var(--nb-line);
+  border-radius: 8px; padding: 6px 0 8px; }
+.ms-meta { display: flex; gap: 8px; align-items: baseline; padding: 2px 12px 8px;
+  font-size: 11px; color: var(--nb-dim-2); border-bottom: 1px solid var(--nb-line-soft); }
+.ms-note { color: var(--warn); }
+.ms-row { display: grid; grid-template-columns: 76px 62px 1fr; gap: 8px; width: 100%;
+  padding: 7px 12px; border: 0; background: none; text-align: left; cursor: pointer; font-size: 12px; }
+.ms-row:hover { background: var(--row-hover); }
+.ms-who { color: var(--nb-dim); overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+.ms-time { color: var(--nb-dim-2); font-size: 11px; }
+.ms-txt { color: var(--nb-text); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ms-sum { display: flex; align-items: center; gap: 8px; padding: 8px 12px 0; }
+.ms-sum-btn { border: 1px solid var(--nb-line); background: #fff; color: var(--nb-dim);
+  border-radius: 6px; font-size: 12px; padding: 4px 10px; cursor: pointer; }
+.ms-sum-btn:hover:not(:disabled) { color: var(--brand); border-color: var(--brand-line); }
+.ms-sum-btn:disabled { cursor: default; color: var(--nb-dim-2); }
+.ms-sum-meta { font-size: 11px; color: var(--nb-dim-2); }
+.ms-sum-out { margin: 6px 12px 0; padding: 7px 9px; font-size: 12px; line-height: 18px;
+  color: var(--nb-text); background: var(--brand-soft); border-radius: 6px; }
+.ms-sum-out.bad { color: var(--warn); background: color-mix(in srgb, var(--warn) 10%, #fff); }
+/* 点搜索结果跳过去时闪一下：只描边不动几何，闪完自己退回去 */
+/* 命中那一圈：原来是 brand-soft（#eaf1ff），在白底上和没画一样——差只有 (21,14,0)。
+   换成品牌色 45% 落卡片底，和手机端 hit_ring 同一颗混法、同一个数 */
+.msg.hit .bubble { box-shadow: 0 0 0 2px color-mix(in srgb, var(--brand) 45%, var(--nb-bg-1)); }
 .mh-btn.icon { padding: 4px 8px; }
 .m-body { flex: 1; overflow-y: auto; padding: 16px 18px 40px; background: var(--nb-bg-1); }
+/* 通话条：贴在会话头下面的一条常驻状态条。分界只用一条发丝线，底色跟消息区同源 */
+.lk-bar { display: flex; align-items: center; flex-wrap: wrap; gap: 8px;
+  padding: 8px 18px; background: var(--nb-bg-1); border-bottom: 1px solid var(--nb-line); }
+.lk-bar.in { background: var(--nb-bg-3); }
+.lk-label { font-size: 13px; color: var(--nb-text); }
+.lk-peer { font-size: 13px; color: var(--nb-dim); overflow-wrap: anywhere; }
+.lk-timer { font-size: 12px; color: var(--nb-dim-2); font-variant-numeric: tabular-nums; }
+.lk-stage { position: relative; display: flex; gap: 8px; margin-right: 6px; }
+.lk-video { width: 198px; height: 118px; background: #000; border-radius: 8px; object-fit: cover; }
+.lk-video.lk-self { position: absolute; right: 4px; bottom: 4px; width: 74px; height: 52px; }
+/* 远端音频没有可视控件：它是给耳朵的，界面上不该多出一条播放器。
+   按类名藏，不写裸 audio 选择器 —— 免得盖到别的页面 */
+.lk-audio { display: none; }
 /* 没有可显示的消息时的占位：只有一枚浅灰图形，不铺演示对话，也不写文案。
    底色跟着 .m-body 走同一个令牌，气泡上的眼睛才镂得空 */
 .m-empty { height: 100%; display: grid; place-items: center; }
@@ -4450,6 +5074,10 @@ async function openWithApp(r) {
   display: inline-block; padding: 2px 10px; border-radius: 10px; background: var(--nb-bg-3);
   color: var(--nb-dim); font-size: 11px;
 }
+/* 通话那句系统提示和日期块同一副样子：居中小灰药丸，11px，不参与气泡那套 */
+.sys-line { text-align: center; margin: 6px 0 16px; font-size: 11px; color: var(--nb-dim);
+  background: var(--nb-bg-3); display: table; padding: 2px 10px; border-radius: 10px;
+  margin-left: auto; margin-right: auto; }
 .msg { display: flex; align-items: flex-start; gap: 10px; margin-bottom: 16px; }
 /* 自己的消息：DOM 里已经是「气泡在前、头像在后」，所以只靠右对齐，
    不能再 row-reverse —— 两次反转会把头像甩到左边。 */
@@ -4552,6 +5180,10 @@ async function openWithApp(r) {
   width: 16px; height: 16px; flex: 0 0 16px; margin-top: 6px; border-radius: 50%;
   background: var(--danger); color: #fff; font-size: 11px; line-height: 16px; text-align: center; cursor: help;
 }
+/* 已送达、已读都只有一份回执到得了才标，不做持久化：历史里翻出来的旧消息一律不显示状态。
+   两种状态共用这一套字号和颜色，只差那两个字 */
+.msg-read { flex: 0 0 auto; margin-top: 6px; font-size: 11px; line-height: 16px;
+  color: var(--nb-dim-2); white-space: nowrap; cursor: help; }
 /* 消息列不设 max-width、也不居中：左右间隙就是 .m-body 的 18px padding，恒定不变，
    窗口多宽就铺多宽。别再给消息列加回 900px 上限——那会在宽屏右边留一大片死白。 */
 
@@ -4716,6 +5348,19 @@ async function openWithApp(r) {
   background: var(--danger); color: #fff; display: grid; place-items: center; line-height: 0;
 }
 .gs-cell.picking .gs-init { outline: 2px solid var(--danger); outline-offset: 1px; }
+/* 管理模式选中的那一格：中性蓝，红只留给"要被移走" */
+.gs-cell.picked .gs-init { outline: 2px solid var(--brand); outline-offset: 1px; }
+/* 成员操作条 */
+.gs-manage { margin-top: 12px; padding: 10px; border: 1px solid var(--nb-line); border-radius: 8px;
+  background: var(--nb-bg-1); }
+.gs-mg-head { display: flex; align-items: center; gap: 6px; }
+.gs-mg-name { font-size: 13px; color: var(--nb-text); overflow-wrap: anywhere; }
+.gs-mg-role { font-size: 11px; color: var(--nb-dim-2); }
+.gs-mg-muted { font-size: 11px; color: var(--warn); }
+/* .gs-tag 本来是头像角上那个绝对定位的小牌，挪到这一行里要改回流内 */
+.gs-mg-head .gs-tag { position: static; }
+.gs-mg-acts { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 10px; }
+.gs-manage .gs-note { margin-top: 8px; }
 .gs-tile { display: flex; flex-direction: column; align-items: center; gap: 4px;
   border: 0; background: none; padding: 0; cursor: pointer; }
 .gs-box { width: 44px; height: 44px; border-radius: 8px; border: 1px dashed var(--nb-dim-2);

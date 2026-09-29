@@ -76,10 +76,32 @@ object Cfg {
     fun token(ctx: Context): String =
         ctx.getSharedPreferences(PREF, Context.MODE_PRIVATE).getString("token", "") ?: ""
 
-    fun setToken(ctx: Context, value: String, userId: String, username: String) {
+    /** 换票用的那半张票。登录时才有；续期成功要连着新的换回来（后端每次都轮换） */
+    fun refreshToken(ctx: Context): String =
+        ctx.getSharedPreferences(PREF, Context.MODE_PRIVATE).getString("refresh_token", "") ?: ""
+
+    fun setToken(ctx: Context, value: String, userId: String, username: String, refresh: String = "") {
         ctx.getSharedPreferences(PREF, Context.MODE_PRIVATE).edit()
             .putString("token", value).putString("userId", userId).putString("username", username)
+            .putString("refresh_token", refresh)
             .apply()
+    }
+
+    /**
+     * 网关对过期的 access 票直接 401（握手就挡），这里拿本机那张 refresh 票换一张新的。
+     * 后端是轮换的：响应里 refresh 也换了新的，所以两张都要存回去，
+     * 只存 accessToken 的话下一次续期一定失败。换不到返回 null，调用方自己决定别再白敲网关。
+     */
+    fun renewToken(ctx: Context): String? {
+        val rt = refreshToken(ctx)
+        if (rt.isEmpty()) return null
+        return try {
+            val s = Api(apiBase(ctx)).refresh(rt)
+            setToken(ctx, s.token, s.userId, s.username, s.refreshToken)
+            s.token
+        } catch (e: Exception) {
+            null
+        }
     }
 
     fun userId(ctx: Context): String =
@@ -91,6 +113,19 @@ object Cfg {
     fun clearToken(ctx: Context) {
         ctx.getSharedPreferences(PREF, Context.MODE_PRIVATE).edit()
             .remove("token").remove("userId").remove("username").apply()
+    }
+
+    /**
+     * 每台安装一个、杀掉重进不变。原来手机端把 deviceId 写死成 "chat-mobile"，
+     * 而网关按 (userId, deviceId) 占一个连接槽：同一个号在两部手机上登录会无限互相顶号。
+     */
+    fun deviceId(ctx: Context): String {
+        val p = ctx.getSharedPreferences(PREF, Context.MODE_PRIVATE)
+        val saved = p.getString("device_id", "") ?: ""
+        if (saved.isNotEmpty()) return saved
+        val fresh = "mobile-" + java.util.UUID.randomUUID().toString().take(8)
+        p.edit().putString("device_id", fresh).apply()
+        return fresh
     }
 
     /** 设置页「字体大小」那一档：1.0=标准、1.15=大、1.3=特大。存本机。 */

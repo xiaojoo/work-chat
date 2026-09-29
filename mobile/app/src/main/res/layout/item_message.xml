@@ -92,6 +92,22 @@
                     android:contentDescription=""
                     android:visibility="gone" />
             </LinearLayout>
+
+            <!-- 自己这一条的状态：发送中 / 已送达 / 没发出去。
+                 放在气泡下面而不是右边：右边是尾巴和头像那一列，塞进去会把已经认可的行宽几何顶开。
+                 对方那条、以及从历史里翻出来的旧条一律不显示（回执不落库，刷新就没有，和桌面端同一口径）。
+                 已读不做：两端现在都没有发 MESSAGE_READ 的一方，加了就是一颗永远不亮的字。 -->
+            <TextView
+                android:id="@+id/st"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_gravity="end"
+                android:layout_marginTop="2dp"
+                android:textSize="11sp"
+                android:textColor="@color/ink_dim2"
+                android:includeFontPadding="false"
+                android:maxLines="1"
+                android:visibility="gone" />
         </LinearLayout>
 
         <TextView

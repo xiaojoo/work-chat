@@ -6,6 +6,11 @@ public class SendMessageRequest {
     private String messageType;
     private String content;
     private String extra;
+    /**
+     * 客户端为这一笔发送自己生成的 id。发端 outbox 断线重放会拿同一个 id 再来一次，
+     * 服务端按它去重（message_request 表）—— 网关那份 Redis 幂等只保 10 分钟。
+     */
+    private String requestId;
 
     public String getConversationId() { return conversationId; }
     public void setConversationId(String conversationId) { this.conversationId = conversationId; }
@@ -17,4 +22,6 @@ public class SendMessageRequest {
     public void setContent(String content) { this.content = content; }
     public String getExtra() { return extra; }
     public void setExtra(String extra) { this.extra = extra; }
+    public String getRequestId() { return requestId; }
+    public void setRequestId(String requestId) { this.requestId = requestId; }
 }

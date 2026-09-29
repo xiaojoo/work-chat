@@ -1,4 +1,4 @@
-const { app, BrowserWindow, Tray, Notification, shell, ipcMain, protocol, net, nativeImage, dialog, desktopCapturer, clipboard, screen } = require('electron')
+const { app, BrowserWindow, Tray, Notification, shell, ipcMain, protocol, net, nativeImage, dialog, desktopCapturer, clipboard, screen, session } = require('electron')
 const path = require('path')
 const fs = require('fs')
 const crypto = require('crypto')
@@ -951,6 +951,28 @@ if (!app.requestSingleInstanceLock()) {
 
   app.whenReady().then(() => {
     installId = readInstallId()
+
+    // 通话要摄像头/麦克风/屏幕。Electron 在打包后不会替我们弹授权框，
+    // 不挂这两个 handler 的话点"语音通话"是静默失败——LiveKit 连不上、界面也不报错。
+    // 只放行我们自己的来源，别的 origin 一概不给。
+    const oursOrigin = (o) => {
+      const s = String(o || '')
+      return s.startsWith('app://') || s.startsWith('file://') ||
+        (typeof DEV_URL === 'string' && DEV_URL && s.startsWith(DEV_URL))
+    }
+    const ses = session.defaultSession
+    ses.setPermissionCheckHandler((wc, permission, origin) =>
+      (permission === 'media' || permission === 'displayMedia') && oursOrigin(origin))
+    ses.setPermissionRequestHandler((wc, permission, callback, details) => {
+      const url = details && details.requestingUrl
+      const from = url ? new URL(url).origin : ''
+      callback((permission === 'media' || permission === 'displayMedia') && oursOrigin(from))
+    })
+    // 屏幕共享交给系统那份选择器（Electron 30+ 的 useSystemPicker）。
+    // 故意不调 callback：调了就等于替用户默认选了第一块屏，那没过同意。
+    ses.setDisplayMediaRequestHandler((request, callback, userMedia) => {
+      void userMedia
+    }, { useSystemPicker: true })
 
     if (!DEV_URL) {
       protocol.handle('app', (request) => {

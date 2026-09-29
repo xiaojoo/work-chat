@@ -1,0 +1,33 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 一条检索命中：上面那行是"几点 · 谁"，下面是原文预览。
+     点它跳回消息区那一条并闪一下（和桌面端 .ms-row 同一个动作）。
+     预览两行封顶：这一行是入口不是正文，整条内容在跳过去的那颗气泡上。 -->
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@+id/hitRow"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:orientation="vertical"
+    android:background="@drawable/row_bg"
+    android:paddingStart="12dp"
+    android:paddingEnd="12dp"
+    android:paddingTop="7dp"
+    android:paddingBottom="7dp">
+
+    <TextView
+        android:id="@+id/hitWho"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:textSize="11sp"
+        android:textColor="@color/ink_dim2"
+        android:maxLines="1" />
+
+    <TextView
+        android:id="@+id/hitText"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="2dp"
+        android:textSize="13sp"
+        android:textColor="@color/ink"
+        android:maxLines="2"
+        android:ellipsize="end" />
+</LinearLayout>

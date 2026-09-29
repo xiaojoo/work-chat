@@ -99,16 +99,14 @@ class NotifyService : Service() {
         }
     }
 
-    /** 断了 5 秒后再试；MIUI 把进程回收掉的话，START_STICKY 会把这个服务重新拉起来 */
+    /** 重连交给 Ws 自己按退避试；MIUI 把进程回收掉的话，START_STICKY 会把这个服务重新拉起来 */
     private fun open() {
         if (Cfg.token(this).isEmpty()) return
         ws?.close()
-        ws = Ws(Cfg.wsBase(this), Cfg.token(this), "chat-mobile-notify",
+        ws = Ws(Cfg.wsBase(this), Cfg.token(this), "${Cfg.deviceId(this)}-notify",
             onFrame = { onFrame(it) },
-            onState = { s -> main.post {
-                state = s; repaint()
-                if (s != "已连接") main.postDelayed({ open() }, 5_000)
-            } }).also { it.open() }
+            onState = { s -> main.post { state = s; repaint() } },
+            refresh = { Cfg.renewToken(this) }).also { it.open() }
     }
 
     /** 会话名、发信人昵称、未读合计都来自接口：后台线程拉，回到主线程再用。通知不能等网络。 */
@@ -137,6 +135,8 @@ class NotifyService : Service() {
         val d = m.optJSONObject("data") ?: return
         val convId = d.optString("conversationId")
         if (convId.isEmpty()) return
+        // 送达回执走这一条：通知弹不弹、免打扰、当前开着哪条会话，都和"设备收到了"无关
+        Delivery.echo(ws, m, Cfg.userId(this))
         if (d.optString("senderId") == Cfg.userId(this)) return
         if (convId == ChatActivity.liveConv) return
         val text = Notify.render(d)

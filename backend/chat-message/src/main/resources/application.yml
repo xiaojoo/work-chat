@@ -11,6 +11,15 @@ spring:
       max-file-size: 20MB
       max-request-size: 20MB
 
+  # 异步任务总线。实时投递不依赖它，所以连接超时压到 2 秒：
+  # 总线不通时发消息最多多等 2 秒并记一条日志，而不是跟着卡死
+  rabbitmq:
+    host: ${RABBITMQ_HOST:127.0.0.1}
+    port: ${RABBITMQ_PORT:5672}
+    username: ${RABBITMQ_USER:chat}
+    password: ${RABBITMQ_PASS:chat123456}
+    connection-timeout: 2s
+
 cassandra:
   contact-points: localhost
   port: 9042
@@ -18,6 +27,26 @@ cassandra:
   keyspace: chat
 
 # 文件/图片对象存储。endpoint 用 WSL 的 IP：NAT 模式下 Windows 侧 localhost 转不进去
+# 消息检索。provider 按 SearchProvider.name() 挑（一期只有 keyword）；
+# rows-per-day 是代价闸门：一次搜索每个日分区最多翻这么多条，翻满了就如实回 truncated=true。
+search:
+  provider: ${SEARCH_PROVIDER:keyword}
+  rows-per-day: ${SEARCH_ROWS_PER_DAY:500}
+
+# 检索结果的归纳后端。base-url 默认留空 = 不可用，界面那颗按钮会置灰并说清为什么；
+# 这台机器上跑着什么模型服务由 out/start-all.sh 用环境变量给，不烘进版本库。
+llm:
+  base-url: ${LLM_BASE_URL:}
+  model: ${LLM_MODEL:}
+  # 这台机器上的 bonsai-2-27b 是推理型的：实测它要先在 reasoning_content 里想掉 ~530 个 token
+  # 才在 content 里给结论。max-tokens 给 200 的结果是 finish=length、content 空 ——
+  # 看着就像"模型没答"。所以预算按"想 + 答"一起算，超时的量级也跟着抬。
+  timeout-ms: ${LLM_TIMEOUT_MS:90000}
+  max-tokens: ${LLM_MAX_TOKENS:3000}
+
+summary:
+  provider: ${SUMMARY_PROVIDER:llm}
+
 minio:
   endpoint: ${MINIO_ENDPOINT:http://172.20.70.38:19000}
   access-key: ${MINIO_ACCESS_KEY:minioadmin}

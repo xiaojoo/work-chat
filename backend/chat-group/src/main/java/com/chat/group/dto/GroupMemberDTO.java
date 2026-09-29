@@ -9,6 +9,8 @@ public class GroupMemberDTO {
     private Short role;
     private LocalDateTime muteUntil;
     private LocalDateTime joinTime;
+    /** 服务端按自己的时钟算出的瞬时值，不是库里的列；跨语言比对 muteUntil 不可靠 */
+    private boolean muted;
 
     public Long getId() { return id; }
     public void setId(Long id) { this.id = id; }
@@ -22,4 +24,6 @@ public class GroupMemberDTO {
     public void setMuteUntil(LocalDateTime muteUntil) { this.muteUntil = muteUntil; }
     public LocalDateTime getJoinTime() { return joinTime; }
     public void setJoinTime(LocalDateTime joinTime) { this.joinTime = joinTime; }
+    public boolean isMuted() { return muted; }
+    public void setMuted(boolean muted) { this.muted = muted; }
 }

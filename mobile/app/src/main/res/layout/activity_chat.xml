@@ -47,6 +47,17 @@
                 android:textSize="12sp" />
         </LinearLayout>
 
+        <!-- 会话内检索的入口。摆在对象表面上（这条会话的顶栏），不藏进长按菜单里那颗「搜一搜」 -->
+        <ImageView
+            android:id="@+id/searchBtn"
+            android:layout_width="44dp"
+            android:layout_height="44dp"
+            android:padding="13dp"
+            android:scaleType="fitCenter"
+            android:src="@drawable/ic_search"
+            android:tint="@color/ink"
+            android:contentDescription="在本会话中搜索" />
+
         <!-- 右上这颗对应微信聊天页的 ⋯，进去是「聊天信息」 -->
         <Button
             android:id="@+id/more"
@@ -55,6 +66,145 @@
             android:layout_height="44dp"
             android:textSize="20sp"
             android:text="⋯" />
+    </LinearLayout>
+
+    <!-- 会话内检索：上面那颗放大镜点开这两块。
+         搜索条和命中面板都插在标题栏与消息列表之间——列表只是被压矮，一条消息也不会因此看不见。 -->
+    <LinearLayout
+        android:id="@+id/searchBar"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="horizontal"
+        android:gravity="center_vertical"
+        android:background="@color/shell"
+        android:paddingStart="8dp" android:paddingEnd="6dp"
+        android:paddingTop="6dp" android:paddingBottom="6dp"
+        android:visibility="gone">
+
+        <EditText
+            android:id="@+id/searchInput"
+            android:layout_width="0dp"
+            android:layout_height="36dp"
+            android:layout_weight="1"
+            android:background="@drawable/search_bg"
+            android:drawableStart="@drawable/ic_search"
+            android:drawableTint="@color/ink_dim2"
+            android:drawablePadding="6dp"
+            android:paddingStart="10dp" android:paddingEnd="10dp"
+            android:singleLine="true"
+            android:inputType="text"
+            android:imeOptions="actionSearch"
+            android:hint="在本会话中搜索"
+            android:textSize="14sp"
+            android:textColor="@color/ink"
+            android:textColorHint="@color/ink_dim2" />
+
+        <!-- 清空那颗只在有字时给（没字时点它没有对象），但它占的格子一直在，行不抖 -->
+        <Button
+            android:id="@+id/searchClear"
+            style="@style/BackBtn"
+            android:layout_width="40dp"
+            android:layout_height="40dp"
+            android:textSize="16sp"
+            android:textColor="@color/ink_dim"
+            android:text="✕" />
+
+        <Button
+            android:id="@+id/searchCancel"
+            style="@style/BackBtn"
+            android:layout_width="wrap_content"
+            android:layout_height="40dp"
+            android:textSize="14sp"
+            android:text="取消" />
+    </LinearLayout>
+
+    <LinearLayout
+        android:id="@+id/searchPanel"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="vertical"
+        android:background="@color/surface"
+        android:paddingBottom="6dp"
+        android:visibility="gone">
+
+        <!-- 后端报的实数：命中几条、翻了多少条、多久、用的哪个后端。
+             扫到窗口头还没扫完时下面那句改口说"只翻了最近 N 天"，不能把"没搜到"演成"没有" -->
+        <TextView
+            android:id="@+id/searchMeta"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:paddingStart="12dp" android:paddingEnd="12dp"
+            android:paddingTop="8dp"
+            android:textSize="11sp"
+            android:textColor="@color/ink_dim2" />
+
+        <TextView
+            android:id="@+id/searchNote"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:paddingStart="12dp" android:paddingEnd="12dp"
+            android:paddingTop="2dp"
+            android:textSize="11sp"
+            android:textColor="@color/warn"
+            android:visibility="gone" />
+
+        <!-- 面板统一固定高，只有这一列内部滚，外面整页永不滚 -->
+        <androidx.recyclerview.widget.RecyclerView
+            android:id="@+id/searchList"
+            android:layout_width="match_parent"
+            android:layout_height="190dp"
+            android:layout_marginTop="4dp" />
+
+        <LinearLayout
+            android:id="@+id/sumRow"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:gravity="center_vertical"
+            android:paddingStart="8dp" android:paddingEnd="8dp">
+
+            <Button
+                android:id="@+id/sumBtn"
+                android:layout_width="wrap_content"
+                android:layout_height="34dp"
+                android:minWidth="0dp"
+                android:paddingStart="12dp" android:paddingEnd="12dp"
+                android:background="@drawable/btn_brand"
+                android:stateListAnimator="@null"
+                android:textColor="#FFFFFF"
+                android:textSize="13sp"
+                android:textAllCaps="false"
+                android:text="AI 归纳这批" />
+
+            <TextView
+                android:id="@+id/sumMeta"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:layout_marginStart="8dp"
+                android:textSize="11sp"
+                android:textColor="@color/ink_dim2" />
+        </LinearLayout>
+
+        <TextView
+            android:id="@+id/sumOut"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginStart="8dp" android:layout_marginEnd="8dp"
+            android:layout_marginTop="4dp"
+            android:background="@drawable/search_bg"
+            android:paddingStart="10dp" android:paddingEnd="10dp"
+            android:paddingTop="7dp" android:paddingBottom="7dp"
+            android:textSize="13sp"
+            android:textColor="@color/ink"
+            android:visibility="gone" />
+
+        <!-- 面板和消息区同为白底，靠这条分界；它跟着面板一起出现，收起时不会留下一根没人认领的线 -->
+        <View
+            android:layout_width="match_parent"
+            android:layout_height="0.5dp"
+            android:layout_marginTop="6dp"
+            android:background="@color/line" />
     </LinearLayout>
 
     <androidx.recyclerview.widget.RecyclerView
@@ -144,8 +294,7 @@
 
         <ImageView
             android:id="@+id/cameraBtn"
-            android:layout_width="0dp" android="40dp"
-            android:layout_height="40dp"
+            android:layout_width="0dp" android:layout_height="40dp"
             android:layout_weight="1"
             android:scaleType="center"
             android:src="@drawable/ic_camera"

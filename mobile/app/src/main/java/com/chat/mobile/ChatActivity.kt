@@ -37,6 +37,42 @@ class ChatActivity : EdgeBackActivity() {
     private lateinit var adapter: Adapter
     private var pop: android.widget.PopupWindow? = null
 
+    /* ---- 会话内检索 ----
+       走网关的 SEARCH_MESSAGES，不直打消息服务的 REST：成员资格只有网关判得动（成员表在用户服务/群服务），
+       而检索是最宽的读口，一个常用字能把整条会话翻出来。结果按 requestId 认领——
+       连敲两个字时上一次的回执不能把这一次盖掉。口径和桌面端 Chat.vue 那一份对齐。 */
+    private lateinit var searchBar: View
+    private lateinit var searchInput: EditText
+    private lateinit var searchPanel: View
+    private lateinit var searchMeta: TextView
+    private lateinit var searchNote: TextView
+    private lateinit var searchList: RecyclerView
+    private lateinit var sumRow: View
+    private lateinit var sumBtn: Button
+    private lateinit var sumMeta: TextView
+    private lateinit var sumOut: TextView
+    private val hits = ArrayList<JSONObject>()
+    private lateinit var hitAdapter: HitAdapter
+    private var searchReqId = ""
+    private var sumReqId = ""
+    private var sumBusy = false
+    private var sumSecs = 0
+    private var flashId = ""
+    /** 输入停顿 350ms 才真发（和桌面端同一个数），不然每个字敲一次网关、扫一次分区。
+     *  这里必须用静态那颗 Looper：属性初始化跑在 Activity 的构造函数里，那时 base context 还没挂上，
+     *  `mainLooper` 会 NPE（实测：一开会话页整个进程崩掉，回桌面） */
+    private val searchDelay = android.os.Handler(android.os.Looper.getMainLooper())
+    private val runSearchNow = Runnable { runMsgSearch() }
+    /** 归纳在这台机器上实测要 30~66 秒，按钮按下去不给个数就像界面冻住了，所以自己走一秒一跳 */
+    private val sumTick = object : Runnable {
+        override fun run() {
+            if (!sumBusy) return
+            sumSecs++
+            sumBtn.text = "归纳中… ${sumSecs}s"
+            searchDelay.postDelayed(this, 1000)
+        }
+    }
+
     /** 服务端也按 2 分钟判，这里只是不把必然失败的入口摆出来（和桌面端同一个数） */
     private val REVOKE_MS = 2 * 60 * 1000L
 
@@ -63,6 +99,7 @@ class ChatActivity : EdgeBackActivity() {
         findViewById<Button>(R.id.more).setOnClickListener {
             startActivity(Intent(this, ChatInfoActivity::class.java).putExtra("conv", convId))
         }
+        setupSearch()
 
         val input = findViewById<EditText>(R.id.input)
         val send = findViewById<Button>(R.id.send)
@@ -78,19 +115,21 @@ class ChatActivity : EdgeBackActivity() {
             val text = input.text.toString().trim()
             if (text.isEmpty() || convId.isEmpty()) return@setOnClickListener
             // 网关的 MESSAGE_SEND 只认 conversationId / messageType / content / extra 四个键
-            ws?.send("MESSAGE_SEND", JSONObject()
+            val rid = ws?.send("MESSAGE_SEND", JSONObject()
                 .put("conversationId", convId)
                 .put("messageType", "TEXT")
                 .put("content", text)
-                .put("extra", ""))
+                .put("extra", ""), nextReqId())
             /* 网关不会把消息回推给发送方（实测：发完 LOAD_MESSAGES 里才出现它），
                所以自己这条要当场摆上，否则"发出去了但界面上没有"。和桌面端同一条规则 */
-            msgs.add(JSONObject()
+            val local = JSONObject()
                 .put("conversationId", convId)
                 .put("senderId", myId)
                 .put("messageType", "TEXT")
                 .put("content", text)
-                .put("createTime", OffsetDateTime.now(java.time.ZoneOffset.UTC).toString()))
+                .put("createTime", OffsetDateTime.now(java.time.ZoneOffset.UTC).toString())
+            trackSend(rid, local)
+            msgs.add(local)
             rebuildRows(); adapter.notifyDataSetChanged()
             list.scrollToPosition(rows.size - 1)
             input.setText("")
@@ -108,15 +147,14 @@ class ChatActivity : EdgeBackActivity() {
             }
         }
 
-        val w = Ws(Cfg.wsBase(this), Cfg.token(this), "chat-mobile",
-            onFrame = { onFrame(it) }, onState = { runOnUiThread { state.text = it } })
+        val w = Ws(Cfg.wsBase(this), Cfg.token(this), Cfg.deviceId(this),
+            onFrame = { onFrame(it) },
+            onState = { runOnUiThread { state.text = it } },
+            // 首连和每次重连回来都补拉一次：断线期间别人发的那几条，只能靠拉回来
+            onReady = { ws?.send("LOAD_MESSAGES", JSONObject().put("conversationId", convId).put("limit", 50)) },
+            refresh = { Cfg.renewToken(this) })
         ws = w
         w.open()
-        // 连上再拉历史：open 是异步的，这里等一等比把 LOAD 塞进 onOpen 里简单
-        thread(name = "load-delay") {
-            Thread.sleep(1200)
-            runOnUiThread { ws?.send("LOAD_MESSAGES", JSONObject().put("conversationId", convId).put("limit", 50)) }
-        }
     }
 
     /** 面板开的是哪块：0=没开、1=表情、2=文件。同一时刻只开一块 */
@@ -196,6 +234,201 @@ class ChatActivity : EdgeBackActivity() {
         getSystemService(android.view.inputmethod.InputMethodManager::class.java)
             ?.hideSoftInputFromWindow(inputView.windowToken, 0)
     }
+
+    private fun hideKeyboard(v: View) {
+        getSystemService(android.view.inputmethod.InputMethodManager::class.java)
+            ?.hideSoftInputFromWindow(v.windowToken, 0)
+    }
+
+    /** 检索这一摊的接线。入口是顶栏那颗放大镜（不藏在长按菜单的「搜一搜」里），
+     *  面板里做的事只有两件：跳回命中的那条、把这批交给模型归纳一句。 */
+    private fun setupSearch() {
+        searchBar = findViewById(R.id.searchBar)
+        searchInput = findViewById(R.id.searchInput)
+        searchPanel = findViewById(R.id.searchPanel)
+        searchMeta = findViewById(R.id.searchMeta)
+        searchNote = findViewById(R.id.searchNote)
+        searchList = findViewById(R.id.searchList)
+        sumRow = findViewById(R.id.sumRow)
+        sumBtn = findViewById(R.id.sumBtn)
+        sumMeta = findViewById(R.id.sumMeta)
+        sumOut = findViewById(R.id.sumOut)
+        hitAdapter = HitAdapter()
+        searchList.layoutManager = LinearLayoutManager(this)
+        searchList.adapter = hitAdapter
+
+        findViewById<View>(R.id.searchBtn).setOnClickListener {
+            if (searchBar.visibility == View.VISIBLE) closeSearch() else openSearch()
+        }
+        findViewById<View>(R.id.searchCancel).setOnClickListener { closeSearch() }
+        findViewById<View>(R.id.searchClear).setOnClickListener { searchInput.setText("") }
+        searchInput.addTextChangedListener(object : android.text.TextWatcher {
+            override fun beforeTextChanged(s: CharSequence?, a: Int, b: Int, c: Int) {}
+            override fun onTextChanged(s: CharSequence?, a: Int, b: Int, c: Int) {}
+            override fun afterTextChanged(s: android.text.Editable?) = onSearchText()
+        })
+        // 键盘上那颗「搜索」不等 350ms，立刻发
+        searchInput.setOnEditorActionListener { _, actionId, _ ->
+            if (actionId != android.view.inputmethod.EditorInfo.IME_ACTION_SEARCH) return@setOnEditorActionListener false
+            searchDelay.removeCallbacks(runSearchNow); runMsgSearch(); true
+        }
+        sumBtn.setOnClickListener { runMsgSummary() }
+        // ✕ 的初始态：这会儿还没字，画淡、不给点。onSearchText 只在字变了以后才跑，得先给一次
+        findViewById<View>(R.id.searchClear).alpha = 0.4f
+        findViewById<View>(R.id.searchClear).isClickable = false
+    }
+
+    private fun onSearchText() {
+        val has = searchInput.text.toString().trim().isNotEmpty()
+        // 清空那颗没字时画淡、不给点：格子一直占着，这一行不抖（工具栏那六颗同一口径）
+        val clear = findViewById<View>(R.id.searchClear)
+        clear.alpha = if (has) 1f else 0.4f
+        clear.isClickable = has
+        searchDelay.removeCallbacks(runSearchNow)
+        if (!has) { clearResults(); return }
+        searchMeta.text = "检索中…"
+        searchNote.visibility = View.GONE
+        searchPanel.visibility = View.VISIBLE
+        hits.clear(); hitAdapter.notifyDataSetChanged()
+        hideSum()
+        searchDelay.postDelayed(runSearchNow, 350)
+    }
+
+    private fun openSearch() {
+        // 表情/＋ 那块面板先收下去：它和键盘抢的是同半屏
+        if (panelKind != 0) showPanel(0)
+        searchBar.visibility = View.VISIBLE
+        searchInput.requestFocus()
+        getSystemService(android.view.inputmethod.InputMethodManager::class.java)
+            ?.showSoftInput(searchInput, android.view.inputmethod.InputMethodManager.SHOW_IMPLICIT)
+    }
+
+    private fun closeSearch() {
+        searchDelay.removeCallbacks(runSearchNow)
+        stopSum()
+        searchBar.visibility = View.GONE
+        searchInput.setText("")
+        clearResults()
+        searchPanel.visibility = View.GONE
+        hideKeyboard(searchInput)
+    }
+
+    private fun clearResults() {
+        hits.clear(); hitAdapter.notifyDataSetChanged()
+        searchMeta.text = ""; searchNote.visibility = View.GONE
+        searchPanel.visibility = View.GONE
+        hideSum()
+        flashId = ""
+    }
+
+    private fun runMsgSearch() {
+        val q = searchInput.text.toString().trim()
+        if (q.isEmpty()) return
+        searchReqId = nextReqId()
+        val rid = ws?.send("SEARCH_MESSAGES", JSONObject()
+            .put("conversationId", convId)
+            .put("keyword", q)
+            .put("limit", 50)
+            .put("days", 30), searchReqId)
+        // 发不出去就说发不出去，别让面板挂着"检索中…"演成在跑
+        if (rid == null) {
+            searchMeta.text = ""
+            searchNote.text = "连接断了，检索没发出去"
+            searchNote.visibility = View.VISIBLE
+            searchPanel.visibility = View.VISIBLE
+        }
+    }
+
+    /** 后端报的实数摆在最上面：命中几条、翻了多少条、多久、用的哪个后端。
+     *  days 不在响应里（网关把上限夹在 30），所以那句提示里的天数用发出去的那个值 */
+    private fun metaLine(d: JSONObject, n: Int): String {
+        val bits = ArrayList<String>()
+        bits.add("命中 $n 条")
+        bits.add("翻了 ${d.optInt("scanned")} 条")
+        bits.add("${d.optLong("tookMs")}ms")
+        bits.add("后端 ${d.optString("provider")}")
+        return bits.joinToString(" · ")
+    }
+
+    /** 点一条命中：滚到消息区那一条并闪一圈。命中的那条不在本机拉到的窗口里就直说，
+     *  不偷偷改成"搜不到"——这一页只 LOAD_MESSAGES 50 条，往上没有翻页 */
+    private fun jumpToHit(h: JSONObject) {
+        val mid = h.optString("messageId")
+        val msg = msgs.firstOrNull { (it.opt("messageId") ?: it.opt("id"))?.toString() == mid }
+        if (msg == null) {
+            shout("这条不在本机已加载的 50 条里，跳不过去")
+            return
+        }
+        val pos = rows.indexOfFirst { it is MsgRow && it.m === msg }
+        if (pos < 0) return
+        flashId = mid
+        adapter.notifyDataSetChanged()
+        /* 键盘先收下去：不收的话消息区只剩面板底下一小条，跳过来的那条会藏在那一小条外面。
+           只 hide 不够——搜索框还持有焦点，MIUI 会把键盘再顶回来（实测这张图里键盘又在），
+           所以先把焦点交出去。定位用「钉在消息区顶边」（offset 0），不用屏幕高度的三分之一——
+           实测按屏幕算会把带光圈的那一条顶到检索面板底下去，屏幕上根本看不见（上一版就是这个样子）。
+           面板留着不关：还要接着点第二条。 */
+        searchInput.clearFocus()
+        hideKeyboard(searchInput)
+        (list.layoutManager as LinearLayoutManager).scrollToPositionWithOffset(pos, 0)
+        searchDelay.postDelayed({
+            if (flashId == mid && !isFinishing) { flashId = ""; adapter.notifyDataSetChanged() }
+        }, 1800)
+    }
+
+    /* 归纳这一批：客户端只交 (messageId, messageDate)，原文由消息服务自己从库里读——
+       不然这颗按钮就成了往模型提示词里塞话的入口。取前 8 条，和桌面端同一个数。 */
+    private fun runMsgSummary() {
+        if (hits.isEmpty() || sumBusy) return
+        val items = org.json.JSONArray()
+        for (i in 0 until minOf(8, hits.size)) {
+            val h = hits[i]
+            items.put(JSONObject()
+                .put("id", h.optString("messageId"))
+                .put("date", h.optString("messageDate")))
+        }
+        sumReqId = nextReqId()
+        sumBusy = true; sumSecs = 0
+        sumBtn.isEnabled = false; sumBtn.alpha = 0.4f; sumBtn.text = "归纳中… 0s"
+        sumOut.visibility = View.GONE; sumMeta.text = ""
+        searchDelay.postDelayed(sumTick, 1000)
+        val rid = ws?.send("SEARCH_SUMMARY", JSONObject()
+            .put("conversationId", convId)
+            .put("keyword", searchInput.text.toString().trim())
+            .put("items", items), sumReqId)
+        if (rid == null) { stopSum(); sumResult("连接断了，归纳没发出去", true) }
+    }
+
+    private fun stopSum() {
+        searchDelay.removeCallbacks(sumTick)
+        sumBusy = false
+        sumBtn.isEnabled = true; sumBtn.alpha = 1f; sumBtn.text = "AI 归纳这批"
+    }
+
+    private fun hideSum() {
+        stopSum()
+        sumRow.visibility = View.GONE
+        sumOut.visibility = View.GONE
+        sumOut.text = ""
+    }
+
+    private fun sumResult(text: String, bad: Boolean) {
+        sumOut.text = text
+        sumOut.setTextColor(getColor(if (bad) R.color.warn else R.color.ink))
+        sumOut.visibility = View.VISIBLE
+    }
+
+    /** 网关有时把 data 塞成字符串（桌面端也是两种都认） */
+    private fun dataOf(m: JSONObject): JSONObject? = when (val raw = m.opt("data")) {
+        is JSONObject -> raw
+        is String -> runCatching { JSONObject(raw) }.getOrNull()
+        else -> null
+    }
+
+    /** org.json 的 optString 会把 JSON 的 null 读成字符串 "null"（实测：归纳失败那支
+     *  后端回 summary:null + error:"模型服务没答上…"，界面上就印了两个字母 null 当成结论）。
+     *  所以判"有没有"必须走 isNull，不能判空串。 */
+    private fun str(o: JSONObject, k: String): String = if (o.isNull(k)) "" else o.optString(k)
 
     /** 表情排成轮播：一页 4 行 × 7 列 = 28 个，页宽等于视口宽，装不下的往左右翻，松手吸附到整页。
      *  点一下往输入框接一个字，长按那一格出含义气泡。
@@ -328,21 +561,59 @@ class ChatActivity : EdgeBackActivity() {
     /** 发一条文件/图片消息：内容存 JSON 引用、类型按 contentType 分 IMAGE/FILE，
      *  和桌面端 sendMediaFile 同一形状。自己这条照样当场摆上（网关不回推给发送方） */
     private fun sendMedia(ref: Api.FileRef) {
-        ws?.send("MESSAGE_SEND", JSONObject()
+        val rid = ws?.send("MESSAGE_SEND", JSONObject()
             .put("conversationId", convId)
             .put("messageType", ref.type())
             .put("content", ref.content())
-            .put("extra", ""))
-        msgs.add(JSONObject()
+            .put("extra", ""), nextReqId())
+        val local = JSONObject()
             .put("conversationId", convId)
             .put("senderId", myId)
             .put("messageType", ref.type())
             .put("content", ref.content())
-            .put("createTime", OffsetDateTime.now(java.time.ZoneOffset.UTC).toString()))
+            .put("createTime", OffsetDateTime.now(java.time.ZoneOffset.UTC).toString())
+        trackSend(rid, local)
+        msgs.add(local)
         rebuildRows(); adapter.notifyDataSetChanged()
         list.scrollToPosition(rows.size - 1)
         state.text = ""
         showPanel(0)
+    }
+
+    /** 我发出去、还没等到回执的那几行：requestId -> 界面上这一条 */
+    private val pendingRows = HashMap<String, JSONObject>()
+    private var reqSeq = 0
+
+    private fun nextReqId(): String {
+        reqSeq++
+        return "m$reqSeq-" + System.currentTimeMillis()
+    }
+
+    /**
+     * 挂上"发送中"：rid 为 null 说明连 socket 都没有（或写不出去），那就是没发出去，
+     * 不能挂着"发送中"骗人。messageId 先占一个本地值，ACK 到了换成服务端那个 timeuuid。
+     */
+    private fun trackSend(rid: String?, row: JSONObject) {
+        if (rid == null) {
+            row.put("messageId", "lost-" + System.nanoTime())
+            row.put("status", "FAILED")
+        } else {
+            row.put("messageId", rid)
+            row.put("status", "PENDING")
+            pendingRows[rid] = row
+        }
+    }
+
+    /** 按 messageId 改这几行的状态，改动了才重画 */
+    private fun markStatus(ids: Set<String>, from: String, to: String) {
+        if (ids.isEmpty()) return
+        var hit = false
+        for (row in msgs) {
+            if (row.optString("messageId") in ids && row.optString("status") == from) {
+                row.put("status", to); hit = true
+            }
+        }
+        if (hit) runOnUiThread { adapter.notifyDataSetChanged() }
     }
 
     private fun shout(msg: String) =
@@ -358,16 +629,19 @@ class ChatActivity : EdgeBackActivity() {
                     else -> return
                 }
                 // 服务端给的是新→旧，界面要倒过来（和桌面端 data.reverse() 一致）
-                val got = ArrayList<JSONObject>()
-                for (i in 0 until arr.length()) got.add(arr.getJSONObject(i))
-                msgs.clear(); msgs.addAll(got.reversed())
+                val split = ConvRows.split(arr, convId)
+                msgs.clear(); msgs.addAll(split.kept.reversed())
                 rebuildRows(); adapter.notifyDataSetChanged()
-                state.text = "${msgs.size} 条消息"
+                /* 状态行是这一页"我到底装了什么"的唯一出口：外来行被丢掉这件事必须在这行上看得见，
+                   不然页面变空时没人分得清是"没消息"还是"被过滤了" */
+                state.text = if (split.dropped == 0) "${msgs.size} 条消息"
+                             else "${msgs.size} 条消息 · 另有 ${split.dropped} 条不是本会话的，已丢掉"
                 if (rows.isNotEmpty()) list.scrollToPosition(rows.size - 1)
             }
 
             "MESSAGE_RECEIVE" -> {
                 val d = m.optJSONObject("data") ?: return
+                Delivery.echo(ws, m, myId)
                 if (d.optString("conversationId") != convId) return
                 msgs.add(d)
                 rebuildRows(); adapter.notifyDataSetChanged()
@@ -383,7 +657,76 @@ class ChatActivity : EdgeBackActivity() {
 
             "MESSAGE_ACK" -> {
                 val d = m.optJSONObject("data") ?: return
-                state.text = if (d.optString("status") == "SENT") "已送达" else "发送失败：${d.optString("status")}"
+                /* ACK=SENT 说的是"服务器收下了这条"，不是"对方收到了"——原先这里写成"已送达"是在说谎。
+                   送达回执是另一条帧（MESSAGE_DELIVERED），本机两边都处理：自己发的那条会亮"已送达"，
+                   收到的那条由 Delivery.echo 替对方点起同一颗。 */
+                val ok = d.optString("status") == "SENT"
+                state.text = if (ok) "已发送" else "发送失败：${d.optString("status")}"
+                val row = pendingRows.remove(m.optString("requestId"))
+                if (row != null) {
+                    if (ok) {
+                        val mid = d.optString("messageId")
+                        if (mid.isNotEmpty()) row.put("messageId", mid)
+                        row.put("status", "SENT")
+                    } else {
+                        row.put("status", "FAILED")
+                    }
+                    adapter.notifyDataSetChanged()
+                }
+            }
+
+            "MESSAGE_DELIVERED" -> {
+                // 只有当前这条会话的回执才认：列表里同时开着好几条时会串
+                val d = m.optJSONObject("data") ?: return
+                if (d.optString("conversationId") != convId) return
+                val arr = d.optJSONArray("messageIds") ?: return
+                val ids = HashSet<String>()
+                for (i in 0 until arr.length()) ids.add(arr.optString(i))
+                markStatus(ids, "SENT", "DELIVERED")
+            }
+
+            "SEARCH_RESULT" -> {
+                if (m.optString("requestId") != searchReqId) return
+                val d = dataOf(m) ?: return
+                val err = str(d, "error")
+                if (err.isNotEmpty()) {
+                    clearResults()
+                    searchNote.text = err
+                    searchNote.visibility = View.VISIBLE
+                    searchPanel.visibility = View.VISIBLE
+                    return
+                }
+                val arr = d.optJSONArray("hits") ?: org.json.JSONArray()
+                hits.clear()
+                for (i in 0 until arr.length()) hits.add(arr.getJSONObject(i))
+                hitAdapter.notifyDataSetChanged()
+                searchMeta.text = metaLine(d, hits.size)
+                searchNote.text = when {
+                    d.optBoolean("truncated") -> "只翻了最近 30 天，更早的没查"
+                    hits.isEmpty() -> "这条会话里没搜到，换个词试试"
+                    else -> ""
+                }
+                searchNote.visibility = if (searchNote.text.isEmpty()) View.GONE else View.VISIBLE
+                searchPanel.visibility = View.VISIBLE
+                hideSum()
+                if (hits.isNotEmpty()) sumRow.visibility = View.VISIBLE
+            }
+
+            "SEARCH_SUMMARY_RESULT" -> {
+                if (m.optString("requestId") != sumReqId) return
+                stopSum()
+                val d = dataOf(m) ?: return
+                val sum = str(d, "summary")
+                val err = str(d, "error")
+                when {
+                    sum.isNotEmpty() -> {
+                        sumResult(sum, false)
+                        sumMeta.text = "${str(d, "provider")} · ${d.optLong("tookMs")}ms"
+                    }
+                    // 没结论就不标模型和耗时：那两颗是"这次归纳是谁跑的、跑了多久"的凭据，不是错误的一部分
+                    err.isNotEmpty() -> { sumMeta.text = ""; sumResult(err, true) }
+                    else -> { sumMeta.text = ""; sumResult("模型没给结论", true) }
+                }
             }
         }
     }
@@ -392,6 +735,7 @@ class ChatActivity : EdgeBackActivity() {
     private sealed interface Row
     private data class MsgRow(val m: JSONObject) : Row
     private data class TimeRow(val text: String) : Row
+    private data class NoticeRow(val text: String) : Row
 
     private val rows = ArrayList<Row>()
 
@@ -404,7 +748,9 @@ class ChatActivity : EdgeBackActivity() {
             val t = tsOf(m)
             if ((i == 0 || prev == 0L || t - prev >= 5 * 60 * 1000L) && t > 0L) rows.add(TimeRow(divider(t)))
             if (t > 0L) prev = t
-            rows.add(MsgRow(m))
+            /* 通话留下的那句是会话里的一条 SYSTEM 消息：居中小灰药丸，
+               不进气泡、不带头像、也不给长按弹框（它不是能撤回/引用的东西） */
+            if (m.optString("messageType") == "SYSTEM") rows.add(NoticeRow(m.optString("content"))) else rows.add(MsgRow(m))
         }
     }
 
@@ -455,20 +801,53 @@ class ChatActivity : EdgeBackActivity() {
     }
 
     private inner class Adapter : RecyclerView.Adapter<RecyclerView.ViewHolder>() {
-        override fun getItemViewType(p: Int) = if (rows[p] is TimeRow) 1 else 0
+        override fun getItemViewType(p: Int) = when (rows[p]) {
+            is TimeRow -> 1
+            is NoticeRow -> 2
+            else -> 0
+        }
 
         override fun onCreateViewHolder(parent: ViewGroup, type: Int): RecyclerView.ViewHolder =
-            if (type == 1) TimeVH(layoutInflater.inflate(R.layout.item_time, parent, false))
-            else VH(layoutInflater.inflate(R.layout.item_message, parent, false))
+            when (type) {
+                1 -> TimeVH(layoutInflater.inflate(R.layout.item_time, parent, false))
+                2 -> NoticeVH(layoutInflater.inflate(R.layout.item_notice, parent, false))
+                else -> VH(layoutInflater.inflate(R.layout.item_message, parent, false))
+            }
 
         override fun getItemCount(): Int = rows.size
 
         override fun onBindViewHolder(h: RecyclerView.ViewHolder, i: Int) {
             when (val r = rows[i]) {
                 is TimeRow -> (h as TimeVH).at.text = r.text
+                is NoticeRow -> (h as NoticeVH).nt.text = r.text
                 is MsgRow -> bindMsg(h as VH, r.m)
             }
         }
+    }
+
+    /** 命中列表的一行：上面"几点 · 谁"，下面原文预览。点一下跳回消息区。 */
+    private inner class HitAdapter : RecyclerView.Adapter<HitVH>() {
+        override fun onCreateViewHolder(parent: ViewGroup, type: Int): HitVH =
+            HitVH(layoutInflater.inflate(R.layout.item_search_hit, parent, false))
+
+        override fun getItemCount(): Int = hits.size
+
+        override fun onBindViewHolder(h: HitVH, i: Int) {
+            val m = hits[i]
+            h.who.text = "${Times.conv(m.optString("createTime"))} · ${hitSender(m)}"
+            val raw = m.optString("content")
+            h.txt.text = Api.fileRef(raw)?.preview() ?: raw
+            h.itemView.isClickable = true
+            h.itemView.setOnClickListener { jumpToHit(m) }
+        }
+    }
+
+    /** 命中行的发送人：自己那条写"我"，别人的先查好友表，查不到再去补（和气泡同一条路） */
+    private fun hitSender(m: JSONObject): String {
+        val id = m.opt("senderId")?.toString() ?: ""
+        if (id.isEmpty()) return "系统"
+        if (id == myId) return "我"
+        return names[id]?.takeIf { it.isNotEmpty() } ?: nameOf(id).ifEmpty { "用户${id.takeLast(4)}" }
     }
 
     private fun bindMsg(h: VH, m: JSONObject) {
@@ -479,7 +858,15 @@ class ChatActivity : EdgeBackActivity() {
            按桌面端 previewOf 那句改成 [图片] xxx.png / [文件] 报告.pdf */
         val raw = m.optString("content")
         h.bubble.text = Api.fileRef(raw)?.preview() ?: raw
-        h.bubble.setBackgroundResource(if (self) R.drawable.bubble_self else R.drawable.bubble_other)
+        /* 检索命中跳过来的那一条闪一圈：只加一圈颜色，气泡本身的形状、位置、字号一个字都不动
+           （桌面端 .msg.hit 也是 box-shadow，不参与布局） */
+        val flashed = flashId.isNotEmpty() && mId(m) == flashId
+        h.bubble.setBackgroundResource(when {
+            flashed && self -> R.drawable.bubble_flash_self
+            flashed -> R.drawable.bubble_flash_other
+            self -> R.drawable.bubble_self
+            else -> R.drawable.bubble_other
+        })
         h.bubble.setTextColor(if (self) 0xFFFFFFFF.toInt() else getColor(R.color.ink))
         /* 群聊才印发送人名；单聊不印（桌面端 .msg-who 也是这个口径）。
            名字就在行内那一列的头，所以有名字时整行改成顶部对齐——名字的顶边就和头像的顶边一条线。
@@ -508,6 +895,19 @@ class ChatActivity : EdgeBackActivity() {
            以前那个 60dp 是给「整行之上」那种排法让头像的，名字进了列里就不需要了 */
         val tailW = (6 * resources.displayMetrics.density).toInt()
         h.who.setPadding(if (self) 0 else tailW, 0, if (self) tailW else 0, 0)
+        /* 自己这一条的状态字：发送中 / 已送达 / 没发出去。
+           从历史里翻出来的条没有 status 键，所以一律不显示（回执不落库，和桌面端同一口径）。
+           "已发送"不给字：它和"没有任何字"是同一件事，多一颗反而抢戏（桌面端也是这么定的）。
+           已读不做：两端现在都没有发 MESSAGE_READ 的一方，加了就是一颗永远不亮的字。 */
+        val stTxt = if (self) when (m.optString("status")) {
+            "PENDING" -> "发送中"
+            "DELIVERED" -> "已送达"
+            "FAILED" -> "没发出去"
+            else -> ""
+        } else ""
+        h.st.text = stTxt
+        h.st.visibility = if (stTxt.isEmpty()) View.GONE else View.VISIBLE
+        h.st.setTextColor(getColor(if (stTxt == "没发出去") R.color.danger else R.color.ink_dim2))
         /* 长按要挂在整行、不能挂在气泡上：气泡是 TextView，MIUI 的「文本识别」会先吃掉
            TextView 自己的长按（实测弹出来的是系统的识别条，我们的菜单根本没出现）。
            整行是 LinearLayout，没有这套内置处理。 */
@@ -661,6 +1061,8 @@ class ChatActivity : EdgeBackActivity() {
     }
 
     override fun onDestroy() {
+        // 检索的延时发、归纳的秒表都挂在这个 Handler 上，页面没了就不能再往回砸
+        searchDelay.removeCallbacksAndMessages(null)
         ws?.close(); ws = null
         super.onDestroy()
     }
@@ -674,10 +1076,20 @@ class ChatActivity : EdgeBackActivity() {
         val avaR: TextView = v.findViewById(R.id.avaR)
         val tailL: ImageView = v.findViewById(R.id.tailL)
         val tailR: ImageView = v.findViewById(R.id.tailR)
+        val st: TextView = v.findViewById(R.id.st)
     }
 
     private class TimeVH(v: View) : RecyclerView.ViewHolder(v) {
         val at: TextView = v.findViewById(R.id.at)
+    }
+
+    private class HitVH(v: View) : RecyclerView.ViewHolder(v) {
+        val who: TextView = v.findViewById(R.id.hitWho)
+        val txt: TextView = v.findViewById(R.id.hitText)
+    }
+
+    private class NoticeVH(v: View) : RecyclerView.ViewHolder(v) {
+        val nt: TextView = v.findViewById(R.id.nt)
     }
 
     companion object {

@@ -23,6 +23,9 @@ func main() {
 	connection.InitManager(cfg)
 
 	go connection.Heartbeat()
+	// 跨实例投递总线：没有它，收件人连在另一个网关实例上时发送方照样拿到 SENT，
+	// 而对方屏幕上什么都没有
+	go connection.GetManager().ServeFanout()
 
 	r := router.Setup(cfg, handler.HandleWebSocket)
 

@@ -21,6 +21,10 @@
     <color name="shell_soft">#F0F2F6</color>   <!-- 顶栏底色淡一档：shell(225,229,236) 与白各 50% = (240,242,246)。桌面端那颗 shell 令牌没动。搜索格也用这一颗 -->
     <color name="row_hover">#E0E4EC</color>    <!-- 行按下：mix(dim-2 16%, bg-3) -->
     <color name="row_active">#D5E1FA</color>   <!-- 选中行：mix(brand 20%, bg-1) -->
+    <!-- 检索命中那一圈"就在这条"的光圈。原来吃 brand_soft(#EAF1FF)，实测和白底只差 (21,14,0)、
+         和对方气泡 #F0F3F8 只差 (6,2,7)——画了等于没画。改成品牌色 45% 落白：
+         (43,107,232)*0.45 + 255*0.55 = (159,188,245)，和白底差 (96,67,10)，一眼看得见 -->
+    <color name="hit_ring">#9FBCF5</color>
     <color name="danger">#D94860</color>       <!-- danger -->
     <color name="ok">#1F9D55</color>           <!-- ok -->
     <color name="warn">#B76E10</color>         <!-- warn -->

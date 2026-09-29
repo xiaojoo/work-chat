@@ -26,6 +26,15 @@
             <artifactId>spring-boot-starter-web</artifactId>
         </dependency>
 
+        <!-- 异步任务总线。Boot 4 把 RabbitMQ 的自动配置拆进了独立模块，
+             只加 spring-rabbit 不会有 RabbitTemplate bean（试过一次：启动直接失败
+             "Parameter 0 of constructor in MessageAuditPublisher required a bean of type RabbitTemplate"），
+             必须用 starter 把 spring-boot-rabbitmq 那块带进来 -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-amqp</artifactId>
+        </dependency>
+
         <dependency>
             <groupId>com.datastax.oss</groupId>
             <artifactId>java-driver-core</artifactId>

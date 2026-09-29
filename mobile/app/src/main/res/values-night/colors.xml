@@ -22,6 +22,9 @@
     <color name="line_soft">#242934</color>
     <color name="row_hover">#313643</color>
     <color name="row_active">#1E2E4E</color>
+    <!-- 命中光圈：同一条混法在深底上重算，mix(brand 45%, 卡片底 #1B1F27) = (34,65,126)。
+         和深底差 (7,34,87)，蓝的那一维差 87 档，看得见 -->
+    <color name="hit_ring">#22417E</color>
     <color name="brand_soft">#1E2A44</color>
     <color name="brand_dim">#234588</color>
 </resources>

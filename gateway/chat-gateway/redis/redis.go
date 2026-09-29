@@ -58,3 +58,54 @@ func GetUserGateway(userID int64) string {
 	result, _ := rdb.Get(ctx, key).Result()
 	return result
 }
+
+// FanoutChannel 是网关实例之间的投递总线：
+// 收件人连在另一个实例上时，本实例投不到，就把帧广播出去让持有它的那个实例投。
+// 没有这条总线时，"对方在另一实例"表现成发送方拿到 SENT、对方屏幕上什么都没有。
+const FanoutChannel = "gateway:fanout"
+
+func PublishFanout(payload []byte) error {
+	return rdb.Publish(ctx, FanoutChannel, payload).Err()
+}
+
+// SubscribeFanout 单独占一条订阅连接：Redis 的订阅连接上不能再跑普通命令，
+// 不能复用 rdb 的那些调用
+func SubscribeFanout() *redis.PubSub {
+	return rdb.Subscribe(ctx, FanoutChannel)
+}
+
+// 幂等窗口：客户端重发同一条消息（弱网重试、点了两次）不应该在库里多出第二条。
+// 主流聊天软件都是客户端给自己那条一个 id、服务端按它去重；这里的 key 用的是
+// 客户端本来就在生成的 requestId，所以三个端都不用改就能受益。
+const idemPrefix = "msg:idem:"
+
+func IdemClaim(key string, ttl time.Duration) bool {
+	ok, err := rdb.SetNX(ctx, idemPrefix+key, "PENDING", ttl).Result()
+	if err != nil {
+		// Redis 不通时不能假装去重成功，也不能因此不让发：交给调用方按"没去重"继续
+		log.Printf("idem claim failed: %s err=%v", key, err)
+		return true
+	}
+	return ok
+}
+
+func IdemPeek(key string) string {
+	v, err := rdb.Get(ctx, idemPrefix+key).Result()
+	if err != nil {
+		return ""
+	}
+	return v
+}
+
+func IdemFinish(key, messageId string, ttl time.Duration) {
+	if err := rdb.Set(ctx, idemPrefix+key, messageId, ttl).Err(); err != nil {
+		log.Printf("idem finish failed: %s err=%v", key, err)
+	}
+}
+
+// IdemRelease 落库失败要把占位撤掉，否则这次失败会占住窗口、让合法重试一直看到 PENDING
+func IdemRelease(key string) {
+	if err := rdb.Del(ctx, idemPrefix+key).Err(); err != nil {
+		log.Printf("idem release failed: %s err=%v", key, err)
+	}
+}

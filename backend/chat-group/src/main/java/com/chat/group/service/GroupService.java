@@ -237,11 +237,55 @@ public class GroupService {
             throw new RuntimeException("只有群主可以设置角色");
         }
 
+        // 群主由 chat_group.owner_id 单独决定，把某人 role 改成 2 只会造出两个 2，
+        // owner_id 却还指着原群主 —— 换群主必须走 transferOwner，两个地方一起改。
+        if (role == null || role < 0 || role > 1) {
+            throw new RuntimeException("只能设置普通成员或管理员，换群主请用转让群主");
+        }
+
         GroupMember target = groupMemberRepository.findByGroupIdAndUserId(groupId, targetUserId)
                 .orElseThrow(() -> new RuntimeException("对方不是群成员"));
 
+        if (target.getRole() == 2) {
+            throw new RuntimeException("群主不用设角色，请用转让群主");
+        }
+
         target.setRole(role);
         groupMemberRepository.save(target);
+    }
+
+    /**
+     * 转让群主。leaveGroup 的文案一直写着"请先转让群主"，但此前没有任何入口，
+     * 群主只剩解散一条路可走。
+     */
+    @Transactional
+    public void transferOwner(Long groupId, Long operatorId, Long targetUserId) {
+        Group group = groupRepository.findById(groupId)
+                .orElseThrow(() -> new RuntimeException("群组不存在"));
+
+        if (!group.getOwnerId().equals(operatorId)) {
+            throw new RuntimeException("只有群主可以转让群主");
+        }
+        if (operatorId.equals(targetUserId)) {
+            throw new RuntimeException("已经是群主了");
+        }
+
+        GroupMember target = groupMemberRepository.findByGroupIdAndUserId(groupId, targetUserId)
+                .orElseThrow(() -> new RuntimeException("对方不是群成员"));
+
+        GroupMember oldOwner = groupMemberRepository.findByGroupIdAndUserId(groupId, operatorId)
+                .orElseThrow(() -> new RuntimeException("你不是群成员"));
+
+        oldOwner.setRole((short) 0);
+        groupMemberRepository.save(oldOwner);
+
+        target.setRole((short) 2);
+        // 转让后原群主被降权，若还挂着禁言会立刻变成"管理员被禁言"这种自相矛盾的状态
+        target.setMuteUntil(null);
+        groupMemberRepository.save(target);
+
+        group.setOwnerId(targetUserId);
+        groupRepository.save(group);
     }
 
     /**
@@ -263,7 +307,9 @@ public class GroupService {
             throw new RuntimeException("没有权限禁言该成员");
         }
 
-        target.setMuteUntil(muteUntil);
+        // null 或过去的时间就是解禁：界面上一颗"取消禁言"要能落到这里，
+        // 否则被禁言的人只能等到点自动恢复，谁都没有手动放行入口。
+        target.setMuteUntil(muteUntil != null && muteUntil.isAfter(LocalDateTime.now()) ? muteUntil : null);
         groupMemberRepository.save(target);
     }
 
@@ -349,6 +395,7 @@ public class GroupService {
         dto.setUserId(member.getUserId());
         dto.setRole(member.getRole());
         dto.setMuteUntil(member.getMuteUntil());
+        dto.setMuted(member.getMuteUntil() != null && member.getMuteUntil().isAfter(LocalDateTime.now()));
         dto.setJoinTime(member.getJoinTime());
         return dto;
     }

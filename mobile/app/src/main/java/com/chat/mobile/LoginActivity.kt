@@ -49,7 +49,7 @@ class LoginActivity : ScaleActivity() {
             thread(name = "login") {
                 try {
                     val s = Api(base).login(user, pass)
-                    Cfg.setToken(this, s.token, s.userId, s.username)
+                    Cfg.setToken(this, s.token, s.userId, s.username, s.refreshToken)
                     runOnUiThread {
                         submit.isEnabled = true
                         status.text = "登录成功 ${s.username}"

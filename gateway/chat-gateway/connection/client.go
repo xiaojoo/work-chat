@@ -1,6 +1,7 @@
 package connection
 
 import (
+	"chat-gateway/config"
 	"encoding/json"
 	"log"
 	"sync"
@@ -16,7 +17,10 @@ type Client struct {
 	Conn         *websocket.Conn
 	Send         chan []byte
 	LastActive   time.Time
+	pingEvery    time.Duration
+	readWindow   time.Duration
 	mu           sync.Mutex
+	closed       bool
 }
 
 type Message struct {
@@ -25,7 +29,8 @@ type Message struct {
 	Data      json.RawMessage `json:"data,omitempty"`
 }
 
-func NewClient(userID int64, deviceID, connectionID string, conn *websocket.Conn) *Client {
+func NewClient(cfg *config.Config, userID int64, deviceID, connectionID string, conn *websocket.Conn) *Client {
+	interval := time.Duration(cfg.HeartbeatInterval) * time.Second
 	return &Client{
 		UserID:       userID,
 		DeviceID:     deviceID,
@@ -33,7 +38,21 @@ func NewClient(userID int64, deviceID, connectionID string, conn *websocket.Conn
 		Conn:         conn,
 		Send:         make(chan []byte, 256),
 		LastActive:   time.Now(),
+		pingEvery:    interval,
+		readWindow:   interval * 2,
 	}
+}
+
+// shutdown 幂等地关掉发送通道：被同设备新连接顶掉的那一条，稍后还会从自己
+// ReadPump 的 defer 里走一遍 Remove，那时再 close 就是 close of closed channel。
+func (c *Client) shutdown() {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	if c.closed {
+		return
+	}
+	c.closed = true
+	close(c.Send)
 }
 
 // enqueue 非阻塞入队。阻塞发送会让 ReadPump 停摆，这条连接连 PING 都读不到，
@@ -58,12 +77,12 @@ func (c *Client) ReadPump(manager *Manager) {
 	}()
 
 	c.Conn.SetReadLimit(65536)
-	c.Conn.SetReadDeadline(time.Now().Add(60 * time.Second))
+	c.Conn.SetReadDeadline(time.Now().Add(c.readWindow))
 	c.Conn.SetPongHandler(func(string) error {
 		c.mu.Lock()
 		c.LastActive = time.Now()
 		c.mu.Unlock()
-		c.Conn.SetReadDeadline(time.Now().Add(60 * time.Second))
+		c.Conn.SetReadDeadline(time.Now().Add(c.readWindow))
 		return nil
 	})
 
@@ -93,7 +112,7 @@ func (c *Client) ReadPump(manager *Manager) {
 }
 
 func (c *Client) WritePump() {
-	ticker := time.NewTicker(30 * time.Second)
+	ticker := time.NewTicker(c.pingEvery)
 	defer func() {
 		ticker.Stop()
 		c.Conn.Close()

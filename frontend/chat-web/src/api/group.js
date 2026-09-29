@@ -66,3 +66,12 @@ export function muteMember(groupId, targetUserId, muteUntil) {
   const userId = localStorage.getItem('userId')
   return api.post(`/group/${groupId}/member/${targetUserId}/mute?userId=${encodeURIComponent(userId || '')}`, { muteUntil })
 }
+
+/** muteUntil 传 null 就是解禁 */
+export function unmuteMember(groupId, targetUserId) {
+  return muteMember(groupId, targetUserId, null)
+}
+
+export function transferOwner(groupId, targetUserId) {
+  return api.post(`/group/${groupId}/transfer`, { targetUserId })
+}
