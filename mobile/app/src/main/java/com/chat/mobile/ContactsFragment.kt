@@ -41,6 +41,12 @@ class ContactsFragment : Fragment() {
     private var shownHeads = 0
     private var shownPeople = 0
 
+    companion object {
+        /** 「添加好友」那页加成功了就置一次。原来这页只在一条好友都没有时才拉，
+         *  加完人回到这页看不见，会以为没加上（和 ChatsFragment.needsReload 同一手法） */
+        var needsReload = false
+    }
+
     override fun onCreateView(i: LayoutInflater, c: ViewGroup?, s: Bundle?): View =
         i.inflate(R.layout.fragment_contacts, c, false)
 
@@ -55,6 +61,14 @@ class ContactsFragment : Fragment() {
         list.adapter = Adapter()
         refresh.setOnRefreshListener { load() }
         refresh.setColorSchemeColors(requireContext().getColor(R.color.brand))
+        /* 右上角这颗 = 添加好友。走的是转群/建群那棵同一份组织树（/api/user/org），
+           把已有的好友**和我自己**当 have 传进去：后端对"自己加自己"回"不能添加自己为好友"，
+           那就不该把这一格摆出来给人点（桌面端同一颗，两边一起拦） */
+        v.findViewById<View>(R.id.plusBtn).setOnClickListener {
+            startActivity(Intent(requireContext(), AddMembersActivity::class.java)
+                .putExtra("mode", "friend")
+                .putExtra("have", (friends.map { f -> f.id } + Cfg.userId(requireContext())).joinToString(",")))
+        }
         list.addOnScrollListener(object : RecyclerView.OnScrollListener() {
             override fun onScrolled(rv: RecyclerView, dx: Int, dy: Int) {
                 if (dy <= 0) {
@@ -103,7 +117,10 @@ class ContactsFragment : Fragment() {
 
     private fun rank(letter: String): Int = LETTERS.indexOf(letter).let { if (it < 0) LETTERS.size else it }
 
-    override fun onResume() { super.onResume(); if (friends.isEmpty()) load() }
+    override fun onResume() {
+        super.onResume()
+        if (needsReload || friends.isEmpty()) { needsReload = false; load() }
+    }
 
     private fun load() {
         val base = Cfg.apiBase(requireContext()); val tk = Cfg.token(requireContext())

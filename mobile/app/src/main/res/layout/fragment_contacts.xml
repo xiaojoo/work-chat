@@ -10,6 +10,16 @@
             android:layout_gravity="center"
             android:text="通讯录" android:textSize="16sp" android:textStyle="bold"
             android:textColor="@color/ink" />
+
+        <!-- 右上角这颗 = 添加好友，和会话页那颗 ＋ 同一长相同一尺寸。
+             后端 /api/friend/add 早就有、桌面端也早就接了，手机端一直没摆出来 = 这端没做 -->
+        <ImageView android:id="@+id/plusBtn"
+            android:layout_width="40dp" android:layout_height="40dp"
+            android:layout_gravity="end|center_vertical" android:layout_marginEnd="6dp"
+            android:padding="7dp"
+            android:src="@drawable/ic_plus_circle"
+            android:tint="@color/ink"
+            android:contentDescription="添加好友" />
     </FrameLayout>
 
     <FrameLayout android:layout_width="match_parent" android:layout_height="0dp"

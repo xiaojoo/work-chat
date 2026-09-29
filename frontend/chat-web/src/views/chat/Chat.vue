@@ -2735,8 +2735,10 @@ document.addEventListener('contextmenu', (e) => {
   }
 })
 
-/** 已有好友不再出现在候选里：/friend/add 对重复添加会抛「已经是好友」，不如一开始就不给选 */
-const friendExcludeIds = computed(() => friends.value.map(f => f.friendId ?? f.id).filter(Boolean))
+/** 已有好友不再出现在候选里：/friend/add 对重复添加会抛「已经是好友」，不如一开始就不给选。
+    自己也一起排除：后端对"自己加自己"回「不能添加自己为好友」，摆出来就是一颗点了必然失败的格子 */
+const friendExcludeIds = computed(() =>
+  [...friends.value.map(f => f.friendId ?? f.id), userStore.userId].filter(Boolean))
 
 async function onAddFriendsSubmit({ ids }) {
   // 后端是直接互加（两边各写一条 status=1），不是请求-同意，所以文案说「已添加」

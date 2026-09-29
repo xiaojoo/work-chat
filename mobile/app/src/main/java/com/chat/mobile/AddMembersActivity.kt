@@ -33,6 +33,9 @@ class AddMembersActivity : EdgeBackActivity() {
     private var convert = false
     /** 顶栏 ＋ →「创建群聊」进来的：不是往已有会话里加人，也不是把私聊转群，是就地新建一个两人群 */
     private var fresh = false
+    /** 通讯录右上角那颗 ＋ 进来的：加的是好友（POST /api/friend/add），和群没关系。
+     *  桌面端那颗复用同一棵组织树，这里也照同一件事做，不另开一个搜索弹窗 */
+    private var friend = false
     private var mine = ""
     private var target = ""
     private var targetName = ""
@@ -44,6 +47,8 @@ class AddMembersActivity : EdgeBackActivity() {
         have = (intent.getStringExtra("have") ?: "").split(',').filter { it.isNotEmpty() }.toSet()
         convert = intent.getStringExtra("mode") == "convert"
         fresh = intent.getStringExtra("mode") == "new"
+        friend = intent.getStringExtra("mode") == "friend"
+        if (friend) findViewById<TextView>(R.id.ptitle).text = "添加好友"
         mine = intent.getStringExtra("mine") ?: ""
         target = intent.getStringExtra("target") ?: ""
         targetName = intent.getStringExtra("targetName") ?: ""
@@ -96,7 +101,8 @@ class AddMembersActivity : EdgeBackActivity() {
                     rows = built
                     list.adapter?.notifyDataSetChanged()
                     status.text = "${built.count { it is Person }} 人可添加 · " +
-                        (if (fresh) "点一个人就建一个两人群（我 + 它）"
+                        (if (friend) "点一个人就加为好友（已经是好友的和自己不列出）"
+                         else if (fresh) "点一个人就建一个两人群（我 + 它）"
                          else if (convert) "我和 $targetName 已在里面，不列出来"
                          else "已在群里的 ${have.size} 人不列出")
                 }.onFailure { status.text = "读取失败：${it.message}" }
@@ -106,6 +112,16 @@ class AddMembersActivity : EdgeBackActivity() {
     }
 
     private fun confirm(p: Api.OrgPerson, nm: String) {
+        if (friend) {
+            AlertDialog.Builder(this)
+                .setTitle("添加 $nm 为好友")
+                .setMessage("调 POST /api/friend/add（friendId=${p.id}）：后端把我这条和它那条一起落上，" +
+                    "加完通讯录立刻多这一条。")
+                .setNegativeButton("取消") { d, _ -> d.dismiss() }
+                .setPositiveButton("添加") { _, _ -> doAddFriend(p, nm) }
+                .show()
+            return
+        }
         if (fresh) {
             AlertDialog.Builder(this)
                 .setTitle("新建群聊")
@@ -132,6 +148,25 @@ class AddMembersActivity : EdgeBackActivity() {
             .setNegativeButton("取消") { d, _ -> d.dismiss() }
             .setPositiveButton("邀请") { _, _ -> doInvite(p, nm) }
             .show()
+    }
+
+    /** 加完好友要回通讯录重打一次 /friend/list：那边 onResume 原来只在"一条都没有"时才拉，
+     *  所以留一个 needsReload 让这一次改动认得出来（和建群那条 needsReload 同一手法） */
+    private fun doAddFriend(p: Api.OrgPerson, nm: String) {
+        val base = Cfg.apiBase(this); val tk = Cfg.token(this)
+        thread(name = "add-friend") {
+            val res = runCatching { Api(base, tk).addFriend(p.id) }
+            runOnUiThread {
+                if (isFinishing) return@runOnUiThread
+                res.onSuccess {
+                    Toast.makeText(this, "已添加 $nm", Toast.LENGTH_SHORT).show()
+                    ContactsFragment.needsReload = true
+                    finish()
+                }.onFailure {
+                    Toast.makeText(this, "添加失败：${it.message}", Toast.LENGTH_LONG).show()
+                }
+            }
+        }
     }
 
     /** 转群：memberIds 不带我自己——后端把创建者落成群主，和桌面端一样只发 [对方, 选的人] */

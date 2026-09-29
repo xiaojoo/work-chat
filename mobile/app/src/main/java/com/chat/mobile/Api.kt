@@ -146,6 +146,16 @@ class Api(private val base: String, private val token: String = "") {
         }
     }
 
+    /** 加好友：POST /api/friend/add。后端的 friendId 是 Long，所以能当数字发就当数字发，
+     *  不依赖 Jackson 把字符串掰成 Long。重复添加后端抛「已经是好友」，
+     *  所以选人页先把已有好友整批滤掉再摆出来。 */
+    fun addFriend(friendId: String) {
+        val body = JSONObject()
+        if (friendId.all { it.isDigit() }) body.put("friendId", friendId.toLong())
+        else body.put("friendId", friendId)
+        call("/api/friend/add", body.toString())
+    }
+
     data class Profile(
         val id: String, val username: String, val nickname: String, val avatar: String,
         val department: String, val position: String, val email: String, val phone: String, val bio: String)
