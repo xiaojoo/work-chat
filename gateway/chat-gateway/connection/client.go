@@ -58,7 +58,17 @@ func (c *Client) shutdown() {
 // enqueue 非阻塞入队。阻塞发送会让 ReadPump 停摆，这条连接连 PING 都读不到，
 // 256 帧的缓冲就变成永久死锁；缓冲满说明对端已经不健康，断开让它重连后
 // 用 LOAD_MESSAGES 补齐，比静默丢帧更可查证。
+//
+// 判 closed 和发送必须放在同一把锁里：被同设备的新连接顶掉时，另一个 goroutine 正在
+// shutdown() 里 close(Send)（它持的就是这把锁）。分成"先看一眼没关、再发"就会踩中中间
+// 那一毫秒 —— 实测 panic: send on closed channel，整个网关进程跟着没了，所有在线的人一起掉线
+// （手机每秒重连那一阵子踩中的正是这条）。
 func (c *Client) enqueue(data []byte) bool {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	if c.closed {
+		return false
+	}
 	select {
 	case c.Send <- data:
 		return true

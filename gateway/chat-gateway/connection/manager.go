@@ -210,6 +210,8 @@ func (m *Manager) HandleMessage(client *Client, msg *Message) {
 		m.handleCallReject(client, msg)
 	case "CALL_HANGUP":
 		m.handleCallHangup(client, msg)
+	case "CALL_SHARE":
+		m.handleCallShare(client, msg)
 	default:
 		log.Printf("Unknown message type: %s", msg.Type)
 	}
@@ -860,13 +862,24 @@ func (m *Manager) endCall(room string, who int64, reason string, convId string, 
 	} else {
 		text = "未接听"
 	}
-	if saved, err := httpclient.SaveMessage(m.cfg.MessageServiceUrl, who, &httpclient.SendMessageRequest{
-		ConversationId: convId, SenderId: who, MessageType: "SYSTEM", Content: text,
-	}); err != nil {
-		log.Printf("call notice not stored: room=%s conv=%s err=%v", room, convId, err)
+	m.notice(convId, who, peer, text)
+}
+
+// notice 往这条会话里落一句系统提示：存库 + 实时推给对面 + 会话列表那句跟着走。
+// 通话结束、共享屏幕起止、远程控制请求都走这一条，措辞由调用方给。
+// 不推的话对面只能等自己补拉，看起来就像"我这有那句、他那没有"。
+func (m *Manager) notice(convId string, who int64, peer int64, text string) {
+	if convId == "" {
 		return
-	} else if saved != nil && saved.MessageId != "" {
-		// 实时推给对面：不推的话对面只能等自己补拉，看起来就像"我这有那句、他那没有"
+	}
+	saved, err := httpclient.SaveMessage(m.cfg.MessageServiceUrl, who, &httpclient.SendMessageRequest{
+		ConversationId: convId, SenderId: who, MessageType: "SYSTEM", Content: text,
+	})
+	if err != nil {
+		log.Printf("notice not stored: conv=%s text=%q err=%v", convId, text, err)
+		return
+	}
+	if saved != nil && saved.MessageId != "" {
 		payload, _ := json.Marshal(map[string]interface{}{
 			"messageId": saved.MessageId, "conversationId": convId, "senderId": who,
 			"messageType": "SYSTEM", "content": text, "extra": "",
@@ -876,7 +889,7 @@ func (m *Manager) endCall(room string, who int64, reason string, convId string, 
 	}
 	// 会话列表上那句和未读角标跟着走：和发一条普通消息同一套路
 	if err := httpclient.UpdateLastMessage(m.cfg.UserServiceUrl, who, convId, text); err != nil {
-		log.Printf("call notice last-message update failed: conv=%s err=%v", convId, err)
+		log.Printf("notice last-message update failed: conv=%s err=%v", convId, err)
 	}
 }
 
@@ -1009,6 +1022,30 @@ func (m *Manager) handleCallReject(client *Client, msg *Message) {
 	m.endCall(s.Room, client.UserID, "REJECT", s.ConvId, s.CallerId)
 	m.push(s.CallerId, "CALL_REJECTED", map[string]interface{}{"room": s.Room})
 	client.enqueue(ackFrame(msg.RequestId, "CALL_ACK", map[string]interface{}{"status": "ok"}))
+}
+
+// handleCallShare 一边点了「共享屏幕」：另一边要立刻知道（换画面 + 那颗状态要跟着变），
+// 并且这条会话里要留下那一句——和 QQ 一样摆在消息流里，不是一个只有通话条知道的秘密。
+func (m *Manager) handleCallShare(client *Client, msg *Message) {
+	var data struct {
+		Room string `json:"room"`
+		On   bool   `json:"on"`
+	}
+	if err := json.Unmarshal(msg.Data, &data); err != nil {
+		return
+	}
+	s := m.calls.ByUser(client.UserID)
+	if s == nil || (data.Room != "" && s.Room != data.Room) {
+		client.enqueue(ackFrame(msg.RequestId, "CALL_ACK", map[string]interface{}{
+			"status": "FAILED", "error": "NO_SUCH_CALL",
+		}))
+		return
+	}
+	other := otherOf(s, client.UserID)
+	m.push(other, "CALL_SHARE", map[string]interface{}{"room": s.Room, "on": data.On, "peerId": client.UserID})
+	client.enqueue(ackFrame(msg.RequestId, "CALL_ACK", map[string]interface{}{"status": "ok"}))
+	m.notice(s.ConvId, client.UserID, other, map[bool]string{true: "开始共享屏幕", false: "停止共享屏幕"}[data.On])
+	log.Printf("Call share: room=%s on=%v by=%d", s.Room, data.On, client.UserID)
 }
 
 func (m *Manager) handleCallHangup(client *Client, msg *Message) {

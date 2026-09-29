@@ -7,6 +7,9 @@ contextBridge.exposeInMainWorld('chatDesktop', {
   // 同名会互相顶号，所以不能像网页那样写死 'web'
   deviceId: () => ipcRenderer.invoke('chat:device-id'),
   notify: (payload) => ipcRenderer.send('chat:notify', payload),
+  // 来电那两声：卡片是渲染端画的，"把窗口从别的程序后面抬出来"只有壳做得到
+  callIn: () => ipcRenderer.send('chat:call-in'),
+  callEnd: () => ipcRenderer.send('chat:call-end'),
   // 托盘自绘菜单要画"当前是哪个状态"，所以渲染端状态一变就送过来
   presence: (key) => ipcRenderer.send('chat:presence', key),
   onTrayPresence: (cb) => {

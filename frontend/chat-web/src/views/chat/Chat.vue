@@ -210,8 +210,15 @@
           <video ref="lkRemoteVideo" class="lk-video" autoplay playsinline></video>
           <video ref="lkLocalVideo" class="lk-video lk-self" muted playsinline></video>
         </div>
+        <!-- 屏幕那一路单独一块大画面（谁在共享都占这一格）：以前它被挂到 <audio> 上，
+             对面只看得到一片黑，共享成没成只有发起方自己知道 -->
+        <div v-if="lkInCall && (lkSharing || lkPeerSharing)" class="lk-stage">
+          <video ref="lkScreenVideo" class="lk-video lk-screen" autoplay playsinline muted></video>
+        </div>
         <audio ref="lkRemoteAudio" class="lk-audio" autoplay></audio>
         <span class="lk-label">{{ lkLabel }}</span>
+        <span v-if="lkInCall && (lkSharing || lkPeerSharing)" class="lk-peer">
+          {{ lkPeerSharing ? '对方正在共享屏幕' : '你正在共享屏幕' }}</span>
         <span v-if="lkName" class="lk-peer">{{ lkName }}</span>
         <span v-if="lkInCall" class="lk-timer">{{ lkTime }}</span>
         <template v-if="lkPhase === 'in'">
@@ -849,6 +856,21 @@
       <button class="iv-x" type="button" title="关闭" @click="closeImageView">✕</button>
     </div>
 
+    <!-- 来电卡片：钉在屏幕右下角，不管你现在翻到哪一页。QQ 那一张就在这个位置。
+         通话条（.lk-bar）是"这条会话里正在发生的通话"，这张是"有人在敲你"——两件事两个地方。
+         桌面壳收到这颗还会把窗口从别的程序后面抬出来（chat:call-in），抢不到前台就闪任务栏。 -->
+    <div v-if="lkPhase === 'in' && lkCall" class="call-pop" role="alertdialog" aria-label="来电">
+      <div class="cp-ava">{{ (lkName || '?').charAt(0).toUpperCase() }}</div>
+      <div class="cp-txt">
+        <div class="cp-who">{{ lkName || '未知来电' }}</div>
+        <div class="cp-sub">{{ lkCall.mediaType === 'VIDEO' ? '邀请你视频通话' : '邀请你语音通话' }}</div>
+      </div>
+      <div class="cp-acts">
+        <button type="button" class="cp-btn pick" @click="lkAccept">接听</button>
+        <button type="button" class="cp-btn hang" @click="lkReject">挂断</button>
+      </div>
+    </div>
+
   </div>
 </template>
 
@@ -1107,11 +1129,14 @@ function replayOutbox() {
 const lkRemoteVideo = ref(null)
 const lkRemoteAudio = ref(null)
 const lkLocalVideo = ref(null)
+const lkScreenVideo = ref(null)
 const lkEls = {
-  remoteVideo: lkRemoteVideo, remoteAudio: lkRemoteAudio, localVideo: lkLocalVideo
+  remoteVideo: lkRemoteVideo, remoteAudio: lkRemoteAudio,
+  localVideo: lkLocalVideo, screenVideo: lkScreenVideo
 }
 const {
   phase: lkPhase, label: lkLabel, inCall: lkInCall, call: lkCall,
+  peerSharing: lkPeerSharing,
   micOn: lkMicOn, sharing: lkSharing,
   invite: lkInvite, accept: lkAccept, reject: lkReject,
   cancel: lkCancel, hangup: lkHangup, toggleMic: lkToggleMic, toggleShare: lkToggleShare
@@ -1130,6 +1155,12 @@ const lkName = computed(() => {
 const lkTime = computed(() => {
   const s = lkCall.value?.secs || 0
   return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`
+})
+/* 响铃时通知桌面壳把窗口抬起来（卡片是渲染端画的，"从别的程序后面出来"只有壳做得到）；
+   一旦不再响铃（接了、拒了、对方撤了、超时了）就把借来的置顶和闪烁一起还回去 */
+watch(lkPhase, (p) => {
+  if (p === 'in') window.chatDesktop?.callIn?.()
+  else window.chatDesktop?.callEnd?.()
 })
 const { isTokenValid, validateToken, redirectToLogin } = useTokenValidation()
 
@@ -5052,9 +5083,31 @@ async function openWithApp(r) {
 .lk-stage { position: relative; display: flex; gap: 8px; margin-right: 6px; }
 .lk-video { width: 198px; height: 118px; background: #000; border-radius: 8px; object-fit: cover; }
 .lk-video.lk-self { position: absolute; right: 4px; bottom: 4px; width: 74px; height: 52px; }
+/* 屏幕那一路要给到能看清字的大小，比摄像头那格大一档；只换尺寸，不加 hover 效果 */
+.lk-video.lk-screen { width: 320px; height: 190px; }
 /* 远端音频没有可视控件：它是给耳朵的，界面上不该多出一条播放器。
    按类名藏，不写裸 audio 选择器 —— 免得盖到别的页面 */
 .lk-audio { display: none; }
+
+/* 来电那张右下角卡片。分界只用 1px 描边、不铺散投影（和长按弹框同一颗规矩）；
+   两个动作色一颗绿一颗红，hover 只压暗底色，不长宽、不变厚、不加光圈 */
+.call-pop { position: fixed; right: 18px; bottom: 18px; z-index: 90;
+  display: flex; align-items: center; gap: 10px;
+  padding: 12px 14px; background: var(--nb-bg-1);
+  border: 1px solid var(--nb-line); border-radius: 10px; }
+.cp-ava { width: 40px; height: 40px; flex: 0 0 40px; border-radius: 10px;
+  background: var(--brand); color: #fff; display: grid; place-items: center; font-size: 15px; font-weight: 600; }
+.cp-txt { min-width: 96px; }
+.cp-who { font-size: 14px; font-weight: 600; color: var(--nb-text); max-width: 210px;
+  overflow-wrap: anywhere; }
+.cp-sub { font-size: 12px; color: var(--nb-dim); margin-top: 2px; }
+.cp-acts { display: flex; gap: 8px; }
+.cp-btn { height: 34px; padding: 0 14px; border: 0; border-radius: 8px;
+  color: #fff; font-size: 13px; cursor: pointer; }
+.cp-btn.pick { background: var(--ok); }
+.cp-btn.pick:hover { background: color-mix(in srgb, var(--ok) 84%, #000); }
+.cp-btn.hang { background: var(--danger); }
+.cp-btn.hang:hover { background: color-mix(in srgb, var(--danger) 84%, #000); }
 /* 没有可显示的消息时的占位：只有一枚浅灰图形，不铺演示对话，也不写文案。
    底色跟着 .m-body 走同一个令牌，气泡上的眼睛才镂得空 */
 .m-empty { height: 100%; display: grid; place-items: center; }

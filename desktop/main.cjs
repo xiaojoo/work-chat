@@ -17,6 +17,8 @@ let windowSeq = 0
 let tray = null
 let quitting = false
 let mainWin = null
+/** 来电那 15 秒的置顶定时器；收线或超时都要把它撤掉，不然窗口一直压着别人的界面 */
+let callTopTimer = null
 
 const log = (...args) => console.log('[desktop]', new Date().toISOString().slice(11, 19), ...args)
 
@@ -1013,6 +1015,31 @@ if (!app.requestSingleInstanceLock()) {
       else log('窗口在前台，只弹气泡不闪')
     })
     // 自绘托盘菜单的点击回传，以及渲染端把当前状态同步过来（菜单要画勾选）
+    /* 来电：右下角那张卡片是渲染端画的，但"窗口排在别的程序后面"这件事只有壳能治。
+       置顶只借 15 秒——一直置顶会压住人家所有窗口，收线一定要撤；
+       抢不到前台时（Windows 会拒绝后台进程 SetForegroundWindow）退化成任务栏 + 托盘闪。 */
+    ipcMain.on('chat:call-in', (event) => {
+      const w = BrowserWindow.fromWebContents(event.sender) || focusMainWindow()
+      if (!w || w.isDestroyed()) return
+      if (w.isMinimized()) w.restore()
+      if (!w.isVisible()) w.show()
+      w.setAlwaysOnTop(true, 'floating')
+      app.focus({ steal: true })
+      if (!w.isFocused()) { w.flashFrame(true); startTrayFlash(); log('来电：抢不到前台，改任务栏+托盘闪') }
+      else log('来电：窗口已抬到前台')
+      clearTimeout(callTopTimer)
+      callTopTimer = setTimeout(() => {
+        if (!w.isDestroyed()) w.setAlwaysOnTop(false)
+      }, 15000)
+    })
+    ipcMain.on('chat:call-end', (event) => {
+      clearTimeout(callTopTimer)
+      const w = BrowserWindow.fromWebContents(event.sender)
+      if (!w || w.isDestroyed()) return
+      w.setAlwaysOnTop(false)
+      w.flashFrame(false)
+      stopTrayFlash()
+    })
     ipcMain.on('chat:tray-menu-pick', (event, id) => handleTrayMenuPick(id))
     ipcMain.on('chat:presence', (event, key) => {
       const k = String(key || 'ONLINE')
