@@ -82,6 +82,22 @@
                     android:text="发消息" android:textSize="15sp" android:textColor="@color/brand" />
             </LinearLayout>
 
+            <View android:layout_width="match_parent" android:layout_height="0.5dp"
+                android:background="@color/line" />
+
+            <!-- 删除好友：后端 /friend/remove/{id} 早就有，两端一直没摆出来 = 这端等于没做。
+                 只有 /friend/check 说"是好友"这一行才出现——不是好友没得删，摆一颗灰的在那儿是骗人的 -->
+            <LinearLayout android:id="@+id/delRow"
+                android:layout_width="match_parent" android:layout_height="wrap_content"
+                android:orientation="horizontal" android:gravity="center"
+                android:minHeight="52dp" android:background="@color/surface"
+                android:clickable="true" android:focusable="true"
+                android:visibility="gone">
+
+                <TextView android:layout_width="wrap_content" android:layout_height="wrap_content"
+                    android:text="删除好友" android:textSize="15sp" android:textColor="@color/danger" />
+            </LinearLayout>
+
             <TextView android:id="@+id/status"
                 android:layout_width="match_parent" android:layout_height="wrap_content"
                 android:padding="12dp" android:textSize="11sp" android:textColor="@color/ink_dim2" />

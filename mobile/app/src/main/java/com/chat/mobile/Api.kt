@@ -156,6 +156,16 @@ class Api(private val base: String, private val token: String = "") {
         call("/api/friend/add", body.toString())
     }
 
+    /** 删好友：DELETE /api/friend/remove/{id}。后端两边各删一条（和"直接互加"对称），
+     *  会话和它的聊天记录不动 */
+    fun removeFriend(friendId: String) {
+        call("/api/friend/remove/$friendId", null, "DELETE")
+    }
+
+    /** GET /api/friend/check/{id} → {"isFriend":true}：决定好友信息页那行「删除好友」出不出 */
+    fun isFriend(userId: String): Boolean =
+        JSONObject(call("/api/friend/check/$userId")).optBoolean("isFriend")
+
     data class Profile(
         val id: String, val username: String, val nickname: String, val avatar: String,
         val department: String, val position: String, val email: String, val phone: String, val bio: String)

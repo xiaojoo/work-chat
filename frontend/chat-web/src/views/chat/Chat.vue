@@ -802,6 +802,8 @@
         </div>
         <div class="modal-foot">
           <button class="btn btn-primary" @click="chatFromFriendCard">发消息</button>
+          <!-- 后端 /friend/remove/{id} 早就有，两端一直没摆出来 = 这端等于没做 -->
+          <button class="btn btn-danger" @click="removeFromFriendCard">删除好友</button>
         </div>
       </div>
     </div>
@@ -859,7 +861,7 @@ import { useCall } from '../../websocket/useCall'
 import { useTokenValidation } from '../../composables/useTokenValidation'
 import { notifyDesktop } from '../../config'
 import { getConversationList, createConversation, clearUnread, deleteConversation } from '../../api/conversation'
-import { getFriendList, addFriend, checkFriend } from '../../api/friend'
+import { getFriendList, addFriend, removeFriend, checkFriend } from '../../api/friend'
 import { createGroup, getMyGroups, getGroup, getGroupMembers, inviteMembers, removeMember, leaveGroup, dissolveGroup, updateGroup, setMemberRole, muteMember, transferOwner } from '../../api/group'
 import { getUserProfile, searchUser, updateProfile, getMe, getOrg, getOnline } from '../../api/user'
 import { uploadFile, fileObjectUrl, parseFileRef, previewOf } from '../../api/file'
@@ -2751,6 +2753,26 @@ async function onAddFriendsSubmit({ ids }) {
   if (failed.length) toast(`已添加 ${ok} 人，${failed.length} 人失败（${failed[0]}）`, 'warning')
   else toast(`已添加 ${ok} 人为好友`, 'success')
   if (ok) showAddFriend.value = false
+}
+
+/** 删除好友：后端是两边各删一条（和"直接互加"对称），这条会话和它的聊天记录原样留着，
+ *  所以措辞照真实行为写，不写成"聊天记录一起没" */
+async function removeFromFriendCard() {
+  const f = friendCard.value
+  if (!f) return
+  const nm = friendCardInfo.value.nickname || friendCardInfo.value.username || ''
+  const ok = await confirmBox({
+    title: `删除好友 ${nm}`,
+    message: '两边同时从各自的好友列表里去掉（后端各删一条）。这条会话和它的聊天记录原样留着。',
+    confirmText: '删除', cancelText: '取消', type: 'warning'
+  })
+  if (!ok) return
+  try {
+    await removeFriend(f.friendId)
+    friendCard.value = null
+    await loadFriends()
+    toast(`已删除好友 ${nm}`, 'success')
+  } catch (e) { toast(e.response?.data?.error || '删除失败', 'error') }
 }
 
 const friendName = f => f.nickname || f.username || ''

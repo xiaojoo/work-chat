@@ -38,23 +38,37 @@ public class FriendService {
             throw new RuntimeException("用户不存在");
         }
 
-        if (friendRepository.existsByUserIdAndFriendId(userId, friendId)) {
+        if (friendRepository.existsByUserIdAndFriendIdAndStatus(userId, friendId, (short) 1)) {
             throw new RuntimeException("已经是好友");
         }
+        linkBothWays(userId, friendId);
+    }
 
-        Friend friend1 = new Friend();
-        friend1.setId(ids.nextId());
-        friend1.setUserId(userId);
-        friend1.setFriendId(friendId);
-        friend1.setStatus((short) 1);
-        friendRepository.save(friend1);
+    /**
+     * 两个方向各落一条（设计文档第六节：A→B、B→A 分别保存，查列表才不用两边拼）。
+     * <p>
+     * 这一对之间可能已经有一条 status=0 的软删记录——删除好友是软删，不是删行。
+     * 那种情况把那条复活，别再插一条：表上有 uk_friend(user_id, friend_id) 唯一键，
+     * 插第二条会直接撞（实测：删掉 probeB 之后再加，旧代码回"已经是好友"，人就永远加不回来了）。
+     */
+    private void linkBothWays(Long a, Long b) {
+        link(a, b);
+        link(b, a);
+    }
 
-        Friend friend2 = new Friend();
-        friend2.setId(ids.nextId());
-        friend2.setUserId(friendId);
-        friend2.setFriendId(userId);
-        friend2.setStatus((short) 1);
-        friendRepository.save(friend2);
+    private void link(Long owner, Long other) {
+        Friend found = friendRepository.findByUserIdAndFriendId(owner, other).orElse(null);
+        if (found != null) {
+            found.setStatus((short) 1);
+            friendRepository.save(found);
+            return;
+        }
+        Friend f = new Friend();
+        f.setId(ids.nextId());
+        f.setUserId(owner);
+        f.setFriendId(other);
+        f.setStatus((short) 1);
+        friendRepository.save(f);
     }
 
     @Transactional
@@ -99,7 +113,9 @@ public class FriendService {
         return result;
     }
 
+    /** 只看成立的关系：软删过的那条不算。好友信息页的「删除好友」一行就是靠这个决定出不出，
+     *  带 status=0 也返回 true 的话，删完之后那行还挂在页上骗人 */
     public boolean areFriends(Long userId, Long friendId) {
-        return friendRepository.existsByUserIdAndFriendId(userId, friendId);
+        return friendRepository.existsByUserIdAndFriendIdAndStatus(userId, friendId, (short) 1);
     }
 }
