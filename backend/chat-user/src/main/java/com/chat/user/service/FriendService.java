@@ -49,7 +49,7 @@ public class FriendService {
      * <p>
      * 这一对之间可能已经有一条 status=0 的软删记录——删除好友是软删，不是删行。
      * 那种情况把那条复活，别再插一条：表上有 uk_friend(user_id, friend_id) 唯一键，
-     * 插第二条会直接撞（实测：删掉 probeB 之后再加，旧代码回"已经是好友"，人就永远加不回来了）。
+     * 插第二条会直接撞（实测：删掉第二个测试号之后再加，旧代码回"已经是好友"，人就永远加不回来了）。
      */
     private void linkBothWays(Long a, Long b) {
         link(a, b);

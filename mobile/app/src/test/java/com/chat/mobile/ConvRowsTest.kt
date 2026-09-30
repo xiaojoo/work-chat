@@ -9,12 +9,13 @@ import org.junit.Test
  * LOAD_MESSAGES 回包的按会话认领。判的是"外来行进不进得来"和"丢了几行数不数得准"——
  * 这一页拿到回包是整批替换本地列表的，过滤失效的症状是**别人的聊天记录摆在这条会话里**，
  * 界面上不会有任何异常，所以只能靠这一条把它钉住。
- * 会话 id 用真机上量到的那两条（全公司 / admin、probeA 等3人）。
+ * 会话 id 用两个同形状的假号：这里判的是"带 g 前缀的群会话 id 认领得对不对"，
+ * 换成任何两个不同的字符串结论都一样，不需要是真机上那两条。
  */
 class ConvRowsTest {
 
-    private val mine = "g1904165428179968"
-    private val other = "g1904719281447936"
+    private val mine = "g1900000000000001"
+    private val other = "g1900000000000002"
 
     private fun row(conv: String, id: String, withConv: Boolean = true) = JSONObject().apply {
         put("messageId", id)

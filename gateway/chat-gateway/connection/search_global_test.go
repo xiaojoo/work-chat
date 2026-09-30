@@ -21,7 +21,7 @@ func hitOf(id, at, text string) map[string]interface{} {
 
 func TestMergeOrdersByTimeAcrossConversations(t *testing.T) {
 	out := []convResult{
-		{convId: "1", convName: "孙丽", body: bodyOf("keyword", 100, 20,
+		{convId: "1", convName: "同事甲", body: bodyOf("keyword", 100, 20,
 			hitOf("a", "2026-09-28T01:00:00.000Z", "早的"),
 			hitOf("b", "2026-09-30T09:00:00.000Z", "最新的"))},
 		{convId: "2", convName: "项目组", body: bodyOf("keyword", 50, 41,
@@ -50,7 +50,7 @@ func TestMergeOrdersByTimeAcrossConversations(t *testing.T) {
 // 命中要带着自己来自哪条会话：点它的人要先找到那条会话
 func TestMergeStampsConversationOntoEachHit(t *testing.T) {
 	out := []convResult{
-		{convId: "7", convName: "孙丽", body: bodyOf("keyword", 3, 5, hitOf("x", "2026-09-30T01:00:00.000Z", "一"), hitOf("y", "2026-09-30T02:00:00.000Z", "二"))},
+		{convId: "7", convName: "同事甲", body: bodyOf("keyword", 3, 5, hitOf("x", "2026-09-30T01:00:00.000Z", "一"), hitOf("y", "2026-09-30T02:00:00.000Z", "二"))},
 		{convId: "8", convName: "项目组", body: bodyOf("keyword", 3, 5, hitOf("z", "2026-09-30T03:00:00.000Z", "三"))},
 	}
 	hits, _ := mergeConvResults(out, 30)
@@ -70,7 +70,7 @@ func TestMergeStampsConversationOntoEachHit(t *testing.T) {
 // "翻了 21/22 条会话"和"翻了 22 条"是两句不同的话
 func TestMergeCountsSkippedConversations(t *testing.T) {
 	out := []convResult{
-		{convId: "1", convName: "孙丽", body: bodyOf("keyword", 9, 7, hitOf("a", "2026-09-30T01:00:00.000Z", "在"))},
+		{convId: "1", convName: "同事甲", body: bodyOf("keyword", 9, 7, hitOf("a", "2026-09-30T01:00:00.000Z", "在"))},
 		{convId: "2", convName: "坏了", err: "search failed: status 500"},
 		{convId: "3", convName: "也坏", body: nil},
 	}
@@ -89,7 +89,7 @@ func TestMergeCountsSkippedConversations(t *testing.T) {
 // 超过上限要截，而且 truncated 必须翻真 —— 否则界面上"没有更多了"是假的
 func TestMergeTruncatesAtLimit(t *testing.T) {
 	out := []convResult{
-		{convId: "1", convName: "孙丽", body: bodyOf("keyword", 30, 9,
+		{convId: "1", convName: "同事甲", body: bodyOf("keyword", 30, 9,
 			hitOf("a", "2026-09-30T01:00:00.000Z", "1"),
 			hitOf("b", "2026-09-30T02:00:00.000Z", "2"),
 			hitOf("c", "2026-09-30T03:00:00.000Z", "3"))},
