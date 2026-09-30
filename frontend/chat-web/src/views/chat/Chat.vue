@@ -1785,6 +1785,11 @@ const olderEnd = ref(false)
 const olderErr = ref('')
 const olderWaiters = new Map()
 
+/* 「回包里混进别的会话的行」这两句每切一次会话就会重复一次 —— 脏在哪个会话上就每次都脏，
+   第二遍已经不是在告诉他新情况了。所以每一类只说一次；两类分开记，
+   不拿"另一类说过"当理由把这一句也吞掉（那是另一件事：一次整批替换、一次往头顶接）。 */
+const dirtyDropWarned = { history: false, older: false }
+
 const olderLabel = computed(() => olderBusy.value ? '正在往前翻…' : '看更早的消息')
 
 function oldestCursor() {
@@ -1819,7 +1824,10 @@ async function loadOlderOnce() {
   // 和 LOAD_MESSAGES 同一条规矩：回包里先按会话认一次领，别把别人的记录摆进这条会话
   const rows = cid ? all.filter(r => String(r.conversationId) === cid) : all
   if (all.length && rows.length !== all.length) {
-    toast(`往前翻的回包里有 ${all.length - rows.length} 条不是本会话的，已丢掉`, 'info')
+    if (!dirtyDropWarned.older) {
+      dirtyDropWarned.older = true
+      toast(`往前翻的回包里有 ${all.length - rows.length} 条不是本会话的，已丢掉`, 'info')
+    }
   }
   if (d.error) { olderErr.value = d.error; return 0 }
   if (d.exhausted || !rows.length) { olderEnd.value = true; return 0 }
@@ -2508,7 +2516,8 @@ onMounted(async () => {
           // 没选中会话时不判：那时连"该留谁的"都没有，宁可照旧摆出来也别整批吞掉变成空白
           const cid = currentConversation.value ? String(currentConversation.value.id) : ''
           const rows = cid ? data.filter(r => String(r.conversationId) === cid) : data
-          if (rows.length !== data.length) {
+          if (rows.length !== data.length && !dirtyDropWarned.history) {
+            dirtyDropWarned.history = true
             toast(`历史回包里有 ${data.length - rows.length} 条不是本会话的，已丢掉`, 'info')
           }
           messages.value = rows.reverse()
@@ -5183,8 +5192,10 @@ async function openWithApp(r) {
   max-width: 340px;
 }
 /* 成员弹框底部那四颗：弹框内容宽 300px，原来写"语音通话/视频通话"四颗要 362px，
-   必然折成两行。名字缩成操作名（228px）+ 字号 14→12 + 内边距收窄 + nowrap 兜底，一行摆平 */
-.modal-foot.act4 { gap: 8px; justify-content: center; }
+   必然折成两行。名字缩成操作名（228px）+ 字号 14→12 + 内边距收窄 + nowrap 兜底，一行摆平。
+   对齐跟着别的弹框走：.modal-foot 本来就是 flex-end + 右内边距 20px，这里只调间距，
+   不再单独把它摆到中间 */
+.modal-foot.act4 { gap: 8px; }
 .modal-foot.act4 > .btn { font-size: 12px; padding: 6px 12px; white-space: nowrap; }
 /* 群聊发起语音/视频/投屏/控制时的选人框：一列成员，点一个就发 */
 .pick-modal { width: 340px; max-width: 92vw; height: 400px; }
