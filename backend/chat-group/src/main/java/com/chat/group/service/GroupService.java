@@ -13,10 +13,12 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpEntity;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
+import org.springframework.http.client.SimpleClientHttpRequestFactory;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.client.RestTemplate;
 
+import java.time.Duration;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -44,7 +46,12 @@ public class GroupService {
         this.groupMemberRepository = groupMemberRepository;
         this.internalTokens = internalTokens;
         this.ids = ids;
-        this.restTemplate = new RestTemplate();
+        /* 和 ConversationService 同一件事：没有超时的出站调用会把工作线程挂死，
+           一个下游故障变成整个服务不响应。连接 2 秒、读 5 秒。 */
+        SimpleClientHttpRequestFactory http = new SimpleClientHttpRequestFactory();
+        http.setConnectTimeout(Duration.ofMillis(2000));
+        http.setReadTimeout(Duration.ofMillis(5000));
+        this.restTemplate = new RestTemplate(http);
     }
 
     /**

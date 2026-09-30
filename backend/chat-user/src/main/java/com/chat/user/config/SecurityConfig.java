@@ -41,7 +41,13 @@ public class SecurityConfig {
                         "/api/conversation/bind-group",
                         "/api/conversation/unread/inc",
                         "/api/conversation/update-last-message",
-                        "/api/conversation/users/**")
+                        "/api/conversation/users/**",
+                        /* 控制面话单只有网关能写：这些接口的 initiatorId/targetId 来自请求体，
+                           浏览器可达就等于任何人都能替别人签一条"我控制了你"的记录。
+                           网关那一路走 X-Internal-Token（短期、sub 是数字 userId）。
+                           /api/control/records 目前没有客户端在调（话单已经改成会话流里那句 SYSTEM），
+                           哪天真要给界面读，再单独开一个"只读自己那几场"的口，别放开整组 */
+                        "/api/control/**")
                     .hasAuthority(JwtAuthenticationFilter.INTERNAL_AUTHORITY)
                 .anyRequest().authenticated()
             )

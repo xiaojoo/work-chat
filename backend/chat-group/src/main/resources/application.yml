@@ -22,7 +22,8 @@ spring:
 
 # 校验浏览器 access token，必须与 chat-user 的 jwt.secret 一致
 jwt:
-  secret: ${JWT_SECRET:chat-system-jwt-secret-key-must-be-at-least-256-bits-long-for-hs256}
+  # 签发/校验用户令牌的密钥：只从环境变量来，没给就不起服务（这把以前是硬编码默认值，而仓库是公开的）
+  secret: ${JWT_SECRET:}
 
 # 校验/签发服务间短期令牌，必须与 chat-gateway 的 INTERNAL_JWT_SECRET 一致
 internal:

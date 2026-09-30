@@ -8,11 +8,17 @@ import (
 	"chat-gateway/httpclient"
 	"chat-gateway/redis"
 	"chat-gateway/router"
+	"chat-gateway/safego"
 	"log"
 )
 
 func main() {
 	cfg := config.Load()
+	if cfg.JwtSecret == "" {
+		// 没有这把密钥，签出去/验回来的用户令牌就无从判断真假；
+		// 更不能退化成"用仓库里那把公开过的默认值"——那等于谁都能自签
+		log.Fatal("JWT_SECRET is not set, refusing to start")
+	}
 	if cfg.InternalJwtSecret == "" {
 		// 没有可验证的身份就没有服务间调用，宁可不起服务也不要退化成自报家门
 		log.Fatal("INTERNAL_JWT_SECRET is not set, refusing to start")
@@ -28,10 +34,10 @@ func main() {
 
 	connection.InitManager(cfg)
 
-	go connection.Heartbeat()
+	safego.Run("heartbeat", connection.Heartbeat)
 	// 跨实例投递总线：没有它，收件人连在另一个网关实例上时发送方照样拿到 SENT，
 	// 而对方屏幕上什么都没有
-	go connection.GetManager().ServeFanout()
+	safego.Run("fanout", func() { connection.GetManager().ServeFanout() })
 
 	r := router.Setup(cfg, handler.HandleWebSocket)
 

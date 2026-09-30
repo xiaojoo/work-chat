@@ -11,8 +11,10 @@ import com.chat.user.util.IdGenerator;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.http.client.SimpleClientHttpRequestFactory;
 import org.springframework.web.client.RestTemplate;
 
+import java.time.Duration;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
@@ -48,7 +50,13 @@ public class ConversationService {
         this.userRepository = userRepository;
         this.internalTokens = internalTokens;
         this.ids = ids;
-        this.restTemplate = new RestTemplate();
+        /* 出站调用必须带超时：没有超时的话，群服务/消息服务一卡，这里的线程就永久挂着。
+           Tomcat 默认 200 个工作线程，挂满就是整个用户服务对所有人停止响应 —— 一个下游故障
+           会变成全站故障。连接 2 秒、读 5 秒：够容忍慢服务，也够快把线程还回来。 */
+        SimpleClientHttpRequestFactory http = new SimpleClientHttpRequestFactory();
+        http.setConnectTimeout(Duration.ofMillis(2000));
+        http.setReadTimeout(Duration.ofMillis(5000));
+        this.restTemplate = new RestTemplate(http);
     }
 
     /**

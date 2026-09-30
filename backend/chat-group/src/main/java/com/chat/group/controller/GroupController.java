@@ -32,6 +32,15 @@ public class GroupController {
         return userId == null ? null : (Long) userId;
     }
 
+    /** 要写操作时用的那一个：拿不到签名身份就是没登录，宁可报错也不许退化成"调用方自报" */
+    private Long needUser(HttpServletRequest request) {
+        Long uid = getUserId(request);
+        if (uid == null) {
+            throw new RuntimeException("用户ID不能为空");
+        }
+        return uid;
+    }
+
     /**
      * 创建群
      */
@@ -67,11 +76,9 @@ public class GroupController {
     public ResponseEntity<GroupDTO> updateGroup(
             HttpServletRequest request,
             @PathVariable Long groupId,
-            @org.springframework.web.bind.annotation.RequestParam(required = false) Long userId,
             @RequestBody Map<String, String> body) {
-        if (userId == null) {
-            userId = getUserId(request);
-        }
+        // 操作者只认令牌里的身份。原来这里收 ?userId=，谁都能报一个别人的 id 来改别人的群
+        Long userId = needUser(request);
         return ResponseEntity.ok(groupService.updateGroup(groupId, userId,
                 body.get("name"), body.get("avatar"), body.get("announcement")));
     }
@@ -82,14 +89,9 @@ public class GroupController {
     @DeleteMapping("/{groupId}")
     public ResponseEntity<Map<String, String>> dissolveGroup(
             HttpServletRequest request,
-            @PathVariable Long groupId,
-            @org.springframework.web.bind.annotation.RequestParam(required = false) Long userId) {
-        // 优先从查询参数获取 userId，否则从 header 获取
-        if (userId == null) {
-            userId = getUserId(request);
-        }
-
-        groupService.dissolveGroup(groupId, userId);
+            @PathVariable Long groupId) {
+        // 同上：解散谁都能报一个别人的群 id，但"你是不是群主"得按令牌里这个人来判
+        groupService.dissolveGroup(groupId, needUser(request));
         return ResponseEntity.ok(Map.of("message", "群已解散"));
     }
 
@@ -119,12 +121,8 @@ public class GroupController {
     public ResponseEntity<Map<String, String>> removeMember(
             HttpServletRequest request,
             @PathVariable Long groupId,
-            @PathVariable Long targetUserId,
-            @org.springframework.web.bind.annotation.RequestParam(required = false) Long userId) {
-        if (userId == null) {
-            userId = getUserId(request);
-        }
-        groupService.removeMember(groupId, userId, targetUserId);
+            @PathVariable Long targetUserId) {
+        groupService.removeMember(groupId, needUser(request), targetUserId);
         return ResponseEntity.ok(Map.of("message", "已移除"));
     }
 
@@ -134,12 +132,8 @@ public class GroupController {
     @PostMapping("/{groupId}/leave")
     public ResponseEntity<Map<String, String>> leaveGroup(
             HttpServletRequest request,
-            @PathVariable Long groupId,
-            @org.springframework.web.bind.annotation.RequestParam(required = false) Long userId) {
-        if (userId == null) {
-            userId = getUserId(request);
-        }
-        groupService.leaveGroup(groupId, userId);
+            @PathVariable Long groupId) {
+        groupService.leaveGroup(groupId, needUser(request));
         return ResponseEntity.ok(Map.of("message", "已退出"));
     }
 
@@ -202,17 +196,7 @@ public class GroupController {
      * 获取用户所在的群列表
      */
     @GetMapping("/my")
-    public ResponseEntity<List<GroupDTO>> getMyGroups(
-            HttpServletRequest request,
-            @org.springframework.web.bind.annotation.RequestParam(required = false) Long userId) {
-        // 优先从查询参数获取 userId，否则从 header 获取
-        Long actualUserId = userId;
-        if (actualUserId == null) {
-            actualUserId = getUserId(request);
-        }
-        if (actualUserId == null) {
-            throw new RuntimeException("用户ID不能为空");
-        }
-        return ResponseEntity.ok(groupService.getUserGroups(actualUserId));
+    public ResponseEntity<List<GroupDTO>> getMyGroups(HttpServletRequest request) {
+        return ResponseEntity.ok(groupService.getUserGroups(needUser(request)));
     }
 }

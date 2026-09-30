@@ -31,7 +31,8 @@ spring:
       password: redis123456
 
 jwt:
-  secret: ${JWT_SECRET:chat-system-jwt-secret-key-must-be-at-least-256-bits-long-for-hs256}
+  # 签发/校验用户令牌的密钥：只从环境变量来，没给就不起服务（这把以前是硬编码默认值，而仓库是公开的）
+  secret: ${JWT_SECRET:}
   access-token-expiration: 86400000
   refresh-token-expiration: 604800000
 

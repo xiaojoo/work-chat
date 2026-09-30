@@ -6,6 +6,7 @@ import (
 	"chat-gateway/control"
 	"chat-gateway/httpclient"
 	"chat-gateway/redis"
+	"chat-gateway/safego"
 	"encoding/json"
 	"fmt"
 	"log"
@@ -115,7 +116,7 @@ func (m *Manager) Remove(client *Client) {
 				m.push(other, "CALL_HANGUP", map[string]interface{}{
 					"room": s.Room, "peerId": client.UserID, "reason": "DISCONNECTED",
 				})
-				go m.calls.DeleteRoom(s.Room)
+				safego.Run("delete-room-on-disconnect", func() { m.calls.DeleteRoom(s.Room) })
 				m.endCall(s.Room, client.UserID, "DISCONNECTED", s.ConvId, otherOf(s, client.UserID))
 				log.Printf("Call ended by disconnect: room=%s by=%d", s.Room, client.UserID)
 			}
@@ -825,6 +826,8 @@ func (m *Manager) handleSearchGlobal(client *Client, msg *Message) {
 		wg.Add(1)
 		go func(i int, id, name string) {
 			defer wg.Done()
+			// 这一路崩了不能带走整个进程：结果格是预分配的，崩在半路最多这一条会话没结果
+			defer safego.Guard("search-fanout")()
 			sem <- struct{}{}
 			defer func() { <-sem }()
 			body, e := httpclient.SearchMessages(m.cfg.MessageServiceUrl, client.UserID, id, keyword, perConv, days)
@@ -1050,16 +1053,37 @@ func (m *Manager) handlePresenceSet(client *Client, msg *Message) {
 	client.enqueue(ackFrame(msg.RequestId, "PRESENCE_ACK", map[string]interface{}{"status": data.Status}))
 }
 
+/* LOAD_MESSAGES 是这四个读口里最后一个没判成员资格的：补发、往前翻、检索、归纳都问
+   conversationUserIds，只有这条"打开会话时那一次整批加载"拿着 conversationId 直接去问消息服务。
+   等于前门有锁、后门开着 —— 拿自己的令牌连上，随便报一个别人的会话 id 就能把那 50 条拖走。
+   问不出结果时也按"不是成员"处理（回空）：把别人的记录摆在这条会话里，比这一屏暂时空白严重得多。 */
 func (m *Manager) handleLoadMessages(client *Client, msg *Message) {
 	var data struct {
 		ConversationId string `json:"conversationId"`
 		Limit          int    `json:"limit"`
 	}
 	json.Unmarshal(msg.Data, &data)
+	if data.ConversationId == "" {
+		return
+	}
+
+	member, err := m.isMemberOf(client.UserID, data.ConversationId)
+	if err != nil {
+		log.Printf("load messages member check failed: conv=%s err=%v", data.ConversationId, err)
+	}
+	if err != nil || !member {
+		log.Printf("load messages denied: user=%d not a member of conv=%s", client.UserID, data.ConversationId)
+		m.replyMessages(client, msg.RequestId, []httpclient.MessageResponse{})
+		return
+	}
 
 	limit := data.Limit
 	if limit <= 0 {
 		limit = 50
+	}
+	// 上限夹住：不夹的话一条会话可以一次整表拖走（补发那条路早就夹在 200）
+	if limit > 200 {
+		limit = 200
 	}
 
 	msgs, err := httpclient.GetMessages(m.cfg.MessageServiceUrl, client.UserID, data.ConversationId, limit)
@@ -1067,12 +1091,16 @@ func (m *Manager) handleLoadMessages(client *Client, msg *Message) {
 		log.Printf("Get messages error: %v", err)
 		msgs = []httpclient.MessageResponse{}
 	}
+	m.replyMessages(client, msg.RequestId, msgs)
+}
 
-	msgList, _ := json.Marshal(msgs)
+// replyMessages 把一批消息原样回给发起这次加载的那条连接
+func (m *Manager) replyMessages(client *Client, requestId string, msgs []httpclient.MessageResponse) {
+	list, _ := json.Marshal(msgs)
 	resp, _ := json.Marshal(Message{
 		Type:      "LOAD_MESSAGES",
-		RequestId: msg.RequestId,
-		Data:      msgList,
+		RequestId: requestId,
+		Data:      list,
 	})
 	client.enqueue(resp)
 }
@@ -1336,7 +1364,7 @@ func (m *Manager) handleCallHangup(client *Client, msg *Message) {
 	}
 	m.push(other, "CALL_HANGUP", map[string]interface{}{"room": s.Room, "peerId": client.UserID})
 	client.enqueue(ackFrame(msg.RequestId, "CALL_ACK", map[string]interface{}{"status": "ok"}))
-	go m.calls.DeleteRoom(s.Room)
+	safego.Run("delete-room-on-hangup", func() { m.calls.DeleteRoom(s.Room) })
 	m.endCall(s.Room, client.UserID, "HANGUP", s.ConvId, otherOf(s, client.UserID))
 	log.Printf("Call ended: room=%s by=%d", s.Room, client.UserID)
 }
@@ -1362,7 +1390,7 @@ func (m *Manager) handleControlRequest(client *Client, msg *Message) {
 		return
 	}
 	// 发起也落一条事件到 chat-user（控制端）
-	go func() {
+	safego.Run("ledger-request", func() {
 		err := control.PostControlLedger("/api/control/request", map[string]any{
 			"targetId":   data.PeerId,
 			"sessionId":  s.ID,
@@ -1371,7 +1399,7 @@ func (m *Manager) handleControlRequest(client *Client, msg *Message) {
 		if err != nil {
 			log.Printf("control ledger request err=%v", err)
 		}
-	}()
+	})
 	if m.deviceCount(data.PeerId) == 0 {
 		m.controls.ForceStop(s.ID)
 		client.enqueue(ackFrame(msg.RequestId, "CONTROL_ACK", map[string]interface{}{

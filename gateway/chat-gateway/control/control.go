@@ -7,6 +7,7 @@
 package control
 
 import (
+	"chat-gateway/safego"
 	"bytes"
 	"crypto/rand"
 	"encoding/hex"
@@ -267,23 +268,23 @@ func (m *Manager) Accept(id string, by int64, agree bool) (*Session, string) {
 		delete(m.byId, s.ID)
 		delete(m.byPair, s.pairKey())
 		// 拒绝也落一条事件到 chat-user
-		go ledger("/api/control/reject", map[string]any{
+		safego.Run("ledger-reject", func() { ledger("/api/control/reject", map[string]any{
 			"sessionId":      id,
 			"initiatorId":    s.ControllerId,
 			"targetId":       s.ControlledId,
 			"conversationId": s.ConvId,
-		}, by)
+		}, by) })
 		return s, ""
 	}
 	s.State = Active
 	s.Since = time.Now()
 	// 同意也落一条事件到 chat-user
-	go ledger("/api/control/accept", map[string]any{
+	safego.Run("ledger-accept", func() { ledger("/api/control/accept", map[string]any{
 		"sessionId":      id,
 		"initiatorId":    s.ControllerId,
 		"targetId":       s.ControlledId,
 		"conversationId": s.ConvId,
-	}, by)
+	}, by) })
 	return s, ""
 }
 
@@ -369,12 +370,12 @@ func (m *Manager) finish(id string, by int64) *Session {
 	m.prov.Release(s)
 	// 断开也落一条事件到 chat-user
 	if by > 0 {
-		go ledger("/api/control/stop", map[string]any{
+		safego.Run("ledger-stop", func() { ledger("/api/control/stop", map[string]any{
 			"sessionId":      id,
 			"initiatorId":    s.ControllerId,
 			"targetId":       s.ControlledId,
 			"conversationId": s.ConvId,
-		}, by)
+		}, by) })
 	}
 	return s
 }
@@ -391,12 +392,12 @@ func (m *Manager) ExpirePending(id string) *Session {
 	delete(m.byPair, s.pairKey())
 	m.mu.Unlock()
 	// 超时也落一条事件到 chat-user
-	go ledger("/api/control/timeout", map[string]any{
+	safego.Run("ledger-timeout", func() { ledger("/api/control/timeout", map[string]any{
 		"sessionId":      id,
 		"initiatorId":    s.ControllerId,
 		"targetId":       s.ControlledId,
 		"conversationId": s.ConvId,
-	}, s.ControllerId)
+	}, s.ControllerId) })
 	return s
 }
 
