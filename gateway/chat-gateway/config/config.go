@@ -19,6 +19,14 @@ type Config struct {
 	LivekitUrl        string
 	LivekitApiKey     string
 	LivekitApiSecret  string
+	// 远程控制的可插拔注入点。一期只有 "none"（不接任何第三方通道），
+	// 但"发起 → 对方同意 → 一次性票据 → 停止"这条控制链路是我们自己的、已经在跑：
+	// 换 RustDesk 还是自研 Remote Agent 都不该改动网关里那几条状态转移。
+	// ControlSecret 不给默认值：没给就每次进程随机一把，签出去的票重启即失效
+	ControlProvider string
+	ControlSecret   string
+	// V3.0: 远程控制的落库服务地址，chat-user API，可选；没配的话控制面照样工作只是不落库
+	ControlUserAPI string
 	// 集群里每个实例要有一个能区分自己的名字：跨实例广播靠它跳过自己发的那条
 	GatewayId string
 }
@@ -40,6 +48,11 @@ func Load() *Config {
 		LivekitUrl:       getEnv("LIVEKIT_URL", "ws://127.0.0.1:7880"),
 		LivekitApiKey:    getEnv("LIVEKIT_API_KEY", ""),
 		LivekitApiSecret: getEnv("LIVEKIT_API_SECRET", ""),
+		// 一期只有 none；CONTROL_TOKEN_SECRET 没给就每次进程随机一把（票重启即失效）
+		ControlProvider: getEnv("CONTROL_PROVIDER", "none"),
+		ControlSecret:   getEnv("CONTROL_TOKEN_SECRET", ""),
+		// V3.0：远程控制的落库服务地址（chat-user）。没配 = 不落库，控制链路照跑
+		ControlUserAPI: getEnv("CONTROL_USER_API", ""),
 		// 多实例要靠这个 id 分辨"这条 fanout 是不是我自己发的"，
 		// 一台机上起两个实例必须给两个不同的 GATEWAY_ID
 		GatewayId: getEnv("GATEWAY_ID", "gateway-01"),

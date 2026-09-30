@@ -16,6 +16,7 @@ import androidx.recyclerview.widget.RecyclerView
 import androidx.swiperefreshlayout.widget.SwipeRefreshLayout
 import android.widget.ArrayAdapter
 import android.widget.ListPopupWindow
+import org.json.JSONObject
 import kotlin.concurrent.thread
 
 class ChatsFragment : Fragment() {
@@ -180,9 +181,41 @@ class ChatsFragment : Fragment() {
         closeGateway()
         paintState("连接中", R.color.warn)
         gw = Ws(Cfg.wsBase(ctx), Cfg.token(ctx), "${Cfg.deviceId(ctx)}-list",
-            onFrame = { Delivery.echo(gw, it, Cfg.userId(ctx)) },
+            onFrame = { f ->
+                Delivery.echo(gw, f, Cfg.userId(ctx))
+                // 回执之外这一页还得对这一帧做点事，见 onIncoming
+                onIncoming(f)
+            },
             onState = { s -> activity?.runOnUiThread { if (isAdded) applyState(s) } },
+            /* 每一次连上（首连和退避之后重连都算）都要重打一次接口：
+               断线那几十秒里进来的消息本机摊不出来 —— 桌面端有 SYNC_MISSING 那条补发路，
+               手机端还没接，先靠"回来就重拉"把列表和角标对上。 */
+            onReady = { if (isAdded) load() },
             refresh = { Cfg.renewToken(ctx) }).also { it.open() }
+    }
+
+    /**
+     * 实时到的一条要在这一页上留痕。原来这一页收到 MESSAGE_RECEIVE 只回一个"送达"就把帧丢了：
+     * 人坐在列表上，消息进来行不动、角标不涨（真机量过：18 秒内一个字都没变），
+     * 非得退出这一页再进来才看得见。桌面端是同一帧里改摘要 + 涨未读，两边一个规则。
+     */
+    private fun onIncoming(f: JSONObject) {
+        if (f.optString("type") != "MESSAGE_RECEIVE") return
+        val d = f.optJSONObject("data") ?: return
+        val convId = if (d.isNull("conversationId")) "" else d.optString("conversationId")
+        if (convId.isEmpty()) return
+        val i = all.indexOfFirst { it.id == convId }
+        // 本机这一页没有这条会话（刚被拉进群、或新建的那条）：整表重打，不自己猜它排第几
+        if (i < 0) { load(); return }
+        val c = all[i]
+        all[i] = c.copy(
+            lastMessage = Notify.render(d),
+            lastMessageTime = if (d.isNull("createTime")) c.lastMessageTime else d.optString("createTime"))
+        // 自己从别的设备发出去的那条不涨未读：和服务端算未读时跳过 senderId 是同一条规则
+        if (d.opt("senderId")?.toString() != Cfg.userId(requireContext())) {
+            unreadOverride[convId] = unreadOf(c) + 1
+        }
+        filter()
     }
 
     private fun closeGateway() { gw?.close(); gw = null }

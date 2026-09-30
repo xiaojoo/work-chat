@@ -161,6 +161,13 @@ export function useWebSocket() {
 
   function onMessage(callback) {
     messageCallbacks.push(callback)
+    // 必须把"取消订阅"交回去：这个数组是模块级的，注册方卸载/热更新时不摘掉自己，
+    // 旧回调就一直留在里面 —— 一条帧被处理两次。远程控制那一路被这个坑过：
+    // 第二次的 phase 已经不是 idle，处理器会自己把这一场拒掉，界面上只看见一句"对方拒绝了"。
+    return () => {
+      const i = messageCallbacks.indexOf(callback)
+      if (i >= 0) messageCallbacks.splice(i, 1)
+    }
   }
 
   function startHeartbeat() {

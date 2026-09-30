@@ -41,6 +41,8 @@ gateway/**/*.out
 /out/
 /.npm-cache/
 frontend/chat-web/debug-*.png
+# 换 dist 前留下的上一版快照：运行时产物，不是源码
+**/dist.bak-*/
 /obsidian-skills/
 /kepano-obsidian-skills/
 

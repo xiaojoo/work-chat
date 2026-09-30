@@ -17,7 +17,8 @@ import org.json.JSONObject
  * 两条渠道：
  *  - msg：高优先级。下拉里有横幅、锁屏给看内容（`VISIBILITY_PUBLIC`——你要的就是不解锁也能读，
  *    代价是手机躺在桌上时别人能看到消息正文）。
- *  - svc：常驻通道那条。最低优先级，不响不弹横幅，只说明那条连接活着。
+ *  - svc：常驻通道那条。**MIUI 硬伤**：IMPORTANCE_MIN 的 channel 仍会显示"前台服务"图标，
+ *    用户手动关掉更彻底（设置→应用管理→消息→通知→后台辅助功能）。这里只给一个"可选开"的标识。
  *
  * 角标：Android 原生没有"往桌面图标写数字"的公开 API。这里两路都试——
  *  `setNumber(未读合计)` 走通知自带的那个数，MIUI 再单独敲它桌面那个 badge provider；
@@ -58,6 +59,10 @@ object Notify {
             NotificationManager.IMPORTANCE_MIN).apply {
                 description = "后台那条长连接，不响不弹横幅、不震动"
                 setShowBadge(false)
+                /* MIUI 硬伤：IMPORTANCE_MIN 的渠道在这台 MIUI 14 上仍会占一条"前台服务"通知，
+                 *  折叠/隐藏都没有公开 API（NotificationChannel 上没有 setShowAsCollapsed 这类开关，
+                 *  上一版照着印象写了一行，编译直接 unresolved reference）。
+                 *  要彻底藏掉只能用户手动：设置→应用管理→聊天→通知→关闭"后台横幅/常驻"。 */
             })
     }
 

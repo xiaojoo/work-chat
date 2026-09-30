@@ -1,7 +1,7 @@
 // 通话这一摊：信令走聊天网关的 CALL_* 帧，媒体直连 LiveKit（不经网关）。
 // 抽成一个模块而不是塞进 Chat.vue，是因为状态机（响铃/应答/超时/两端各自的票）
 // 和 LiveKit 的订阅回调混在界面里会没人能读出"到底连上了没有"。
-import { ref, computed, onScopeDispose } from 'vue'
+import { ref, computed, getCurrentScope, onScopeDispose } from 'vue'
 import { Room, RoomEvent, Track } from 'livekit-client'
 import { toast } from '../utils/ui'
 
@@ -23,6 +23,12 @@ export function useCall({ send, onMessage, els, onEnded }) {
   const phase = ref('idle')
   const call = ref(null)          // {room, peerId, mediaType, status, secs}
   const peerSharing = ref(false)  // 对面这一路屏幕共享在不在
+  /* 自己这两颗状态原本是 computed，里面读的是闭包变量 room —— Vue 追不到非响应式变量，
+     这种 computed 只在第一次求值时算一遍就定住不动了。实测屏幕真发出去了、对面也看见了，
+     自己这端的"你正在共享屏幕"和那颗按钮却一辈子写着"共享屏幕"。
+     改成由 LiveKit 的发布/撤发布事件写进 ref，界面跟着事件走 */
+  const micOn = ref(false)
+  const sharing = ref(false)
 
   let room = null
   let tick = null
@@ -45,11 +51,24 @@ export function useCall({ send, onMessage, els, onEnded }) {
     if (tick) { clearInterval(tick); tick = null }
   }
 
+  /* 这一帧说的到底是不是"我这一通"。同一个人可以有多个页面同时连着网关（多个标签页、
+     桌面壳 + 浏览器），而信令是按人投的、不是按那条拨号的连接投的。不认这一条的话，
+     一个根本没拨号的页面也会拿着刚收到的票进房 —— LiveKit 一间房里一个身份只留一条
+     连接，后进的把先进的那条踢下线（reason=DUPLICATE_IDENTITY），被踢那页的 Disconnected
+     又去收线，一通好好的通话就被第三个页面替它挂了。
+     房间名是这里唯一的身份：call 没建起来的页面一定不是这通的一方。 */
+  function isMine(d) {
+    if (!call.value) return false
+    return !d.room || !call.value.room || d.room === call.value.room
+  }
+
   function reset() {
     stopTick()
     phase.value = 'idle'
     call.value = null
     peerSharing.value = false
+    micOn.value = false
+    sharing.value = false
     pending = null
     joined = false
   }
@@ -99,11 +118,20 @@ export function useCall({ send, onMessage, els, onEnded }) {
     })
     // 自己这一路用发布事件挂：v2 里没有稳当的 getVideoTracks()，发布回调上的 kind/track 才是定的
     room.on(RoomEvent.LocalTrackPublished, (pub) => {
+      if (pub.source === Track.Source.ScreenShare) sharing.value = true
+      else if (pub.kind === 'Microphone') micOn.value = true
       if (pub.source === Track.Source.ScreenShare && els.screenVideo.value && pub.track) {
         pub.track.attach(els.screenVideo.value)
       } else if (pub.kind === 'Camera' && els.localVideo.value && pub.track) {
         pub.track.attach(els.localVideo.value)
       }
+    })
+    // 自己这一路撤发布：静音/停止共享都在这把 ref 落回 false（按钮和状态字靠它）。
+    // 事件名是 LocalTrackUnpublished —— livekit-client 2.22.3 里没有 LocalTrackUnsubscribed，
+    // 写错的那个键 room.on(undefined) 不报错，只是永远不响
+    room.on(RoomEvent.LocalTrackUnpublished, (pub) => {
+      if (pub.source === Track.Source.ScreenShare) sharing.value = false
+      else if (pub.kind === 'Microphone') micOn.value = false
     })
     room.on(RoomEvent.Disconnected, () => {
       /* 只有真进过房间，Disconnected 才算"通话断了"。还在 connect() 里的时候它可能只是
@@ -112,17 +140,29 @@ export function useCall({ send, onMessage, els, onEnded }) {
          不是服务器的问题（实测被叫这一路正好就是这么没的） */
       if (joined && phase.value === 'live') teardown('CALL_HANGUP', { room: call.value?.room })
     })
+    // 卡在哪一步要说得出来：连上服务器 / 开摄像头 / 开麦克风是三件事，
+    // 原来只印一句 e.message，被叫那路永远是一条没头没尾的 "Client initiated disconnect"
+    let step = '连上语音服务器'
     try {
       await room.connect(d.url, d.token)
       joined = true
-      if (call.value.mediaType === 'VIDEO') await room.localParticipant.setCameraEnabled(true)
+      if (call.value.mediaType === 'VIDEO') {
+        step = '打开摄像头'
+        await room.localParticipant.setCameraEnabled(true)
+      }
+      step = '打开麦克风'
       await room.localParticipant.setMicrophoneEnabled(true)
+      step = ''
       phase.value = 'live'
     } catch (e) {
       // 麦克风/摄像头被拒是用户要看见的事，不是可以吞掉的异常
-      const m = String(e && e.message || e)
-      toast(m.includes('Permission') || m.includes('PermissionDenied')
-        ? '浏览器没给麦克风/摄像头权限，通话没起来' : '连不上语音服务器：' + m, 'error')
+      const why = [e && e.name, e && e.message, e && e.error && e.error.reason, e && e.reason]
+        .filter(Boolean).join(' / ')
+      const state = room ? room.connectionState : '?'
+      console.warn('[call] 接通失败', { step, why, state, joined, room: d.room })
+      const perm = /Permission|NotAllowed|denied/i.test(why)
+      toast(perm ? '浏览器没给麦克风/摄像头权限，通话没起来'
+                 : `${step}这一步没成：${why}（连接状态 ${state}）`, 'error')
       await teardown(null)
       return
     }
@@ -147,13 +187,19 @@ export function useCall({ send, onMessage, els, onEnded }) {
         if (d.status === 'FAILED') {
           toast(CALLED_ERRORS[d.error] || ('通话没起来：' + (d.error || '未知原因')), 'error')
           reset()
+          break
         }
+        // 主叫要到这条回信里才知道房间名。不记下来，后面每一处"是不是我这一通"的
+        // 判定都只能看 call.room=undefined，取消/挂断发出去的 room 也是 undefined
+        if (d.status === 'RINGING' && call.value && d.room) call.value.room = d.room
         break
       case 'CALL_ACCEPTED':
+        if (!isMine(d)) break
         if (d.status === 'FAILED') { toast(CALLED_ERRORS[d.error] || '对方没接进来', 'error'); reset(); break }
         lkConnect(d)
         break
       case 'CALL_REJECTED':
+        if (!isMine(d)) break
         toast('对方拒绝了', 'info'); teardown('CALL_HANGUP', { room: d.room }); break
       case 'CALL_CANCELLED':
         if (phase.value === 'in') { toast('对方取消了呼叫', 'info'); reset() }
@@ -163,6 +209,7 @@ export function useCall({ send, onMessage, els, onEnded }) {
         break
       case 'CALL_SHARE':
         // 对面那一路屏幕的开关。状态以信令为准（轨道订阅回调也置一次，两处谁先到都算）
+        if (!isMine(d)) break
         peerSharing.value = !!d.on
         toast(d.on ? '对方开始共享屏幕' : '对方停止了共享屏幕', 'info')
         break
@@ -175,7 +222,13 @@ export function useCall({ send, onMessage, els, onEnded }) {
     }
   }
 
-  onMessage(onFrame)
+  // 卸载/热更新时必须把自己从帧分发里摘掉：这个数组是模块级的，不摘就会累积，
+  // 一条帧被处理两次 —— 远程控制那一路因此自己把自己拒了（界面上只看见"对方拒绝了"）
+  const offFrame = onMessage(onFrame)
+  // 只在确实有活动作用域时才挂注销：Chat.vue 的 setup 里有"await 完六个接口再挂处理器"
+  // 那种历史写法，作用域那时可能已经停了 —— 直接 onScopeDispose 会当场执行，
+  // 等于这一页从来没订阅过帧（实测：被控方收到了 CONTROL_REQUEST 却不处理，门禁从 14/16 掉到 9/16）
+  if (getCurrentScope()) onScopeDispose(offFrame)
 
   function invite(peerId, mediaType = 'AUDIO', conversationId = '') {
     if (phase.value !== 'idle') { toast('你已经在一通通话里', 'info'); return }
@@ -245,13 +298,17 @@ export function useCall({ send, onMessage, els, onEnded }) {
 
   onScopeDispose(() => {
     stopTick()
-    if (room) { try { room.disconnect() } catch (e) {} }
+    if (room) {
+      /* 连接中途被 dispose 会把 connect() 掐成 "Client initiated disconnect"，
+         界面上只剩一句没头没尾的报错。留一行日志：谁在通话还没落地的时候把这页拆了。 */
+      console.warn('[call] 组件卸载时通话还没落地，主动断开', { phase: phase.value, joined })
+      try { room.disconnect() } catch (e) { /* 已经断了 */ }
+    }
   })
 
   return {
     phase, call, label, inCall, peerSharing,
     invite, accept, reject, cancel, hangup, toggleMic, toggleShare,
-    micOn: computed(() => !!(room && room.localParticipant.isMicrophoneEnabled)),
-    sharing: computed(() => !!(room && room.localParticipant.isScreenShareEnabled))
+    micOn, sharing
   }
 }

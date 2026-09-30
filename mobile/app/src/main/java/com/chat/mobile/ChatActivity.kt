@@ -189,29 +189,39 @@ class ChatActivity : EdgeBackActivity() {
     }
 
     /** ＋ 面板八颗格子照图全摆。真接得通的只有两颗：相册（挑图）和文件（挑任意文件），
-     *  都走系统选择器再上传；其余六颗后端没有对应消息类型，画淡 0.4、不给点，
-     *  和长按菜单"十项全摆八项灰"是同一口径。 */
+     *  都走系统选择器再上传；其余六颗后端没有对应消息类型，画淡 0.4，
+     *  和长按菜单"十项全摆八项灰"是同一口径。
+     *
+     *  「视频通话」这一格单独一档：通话信令（CALL_INVITE）后端是有的、桌面端也打得通，
+     *  缺的是手机端这侧 —— 没有 LiveKit 媒体面，接起来双方没画面没声音。
+     *  所以它画淡但**给点**，点了把这句实话讲出来，而不是静默不响应：
+     *  灰掉不给点是"这能力不存在"，点了回一句是"这能力有、这端还没接"，两件事不一样。
+     *  相册没丢：输入框上方工具栏第二颗就是它的快捷入口。 */
     private fun buildPlus() {
         val px = resources.displayMetrics.density
         val tiles = listOf(
-            "相册" to R.drawable.ic_wb_image, "拍摄" to R.drawable.ic_camera,
+            "视频通话" to R.drawable.ic_video_call, "拍摄" to R.drawable.ic_camera,
             "位置" to R.drawable.ic_pin, "语音输入" to R.drawable.ic_mic,
             "收藏" to R.drawable.ic_cube, "个人名片" to R.drawable.ic_person,
             "文件" to R.drawable.ic_wb_folder, "音乐" to R.drawable.ic_music)
         val real = mapOf(
-            "相册" to { pick("image/*", REQ_ALBUM) },
             "文件" to { pick("*/*", REQ_FILE) })
         tiles.forEach { (name, icon) ->
             val cell = layoutInflater.inflate(R.layout.tile_pick, plusGrid, false)
             cell.findViewById<ImageView>(R.id.tic).setImageResource(icon)
             cell.findViewById<TextView>(R.id.tname).text = name
             val act = real[name]
-            if (act == null) {
-                cell.alpha = 0.4f
-                cell.isClickable = false
-            } else {
+            if (act != null) {
                 cell.isClickable = true
                 cell.setOnClickListener { act() }
+            } else {
+                cell.alpha = 0.4f
+                if (name == "视频通话") {
+                    cell.isClickable = true
+                    cell.setOnClickListener {
+                        shout("手机端还没接通话通道（没有音视频那一层），先在桌面客户端打这通")
+                    }
+                } else cell.isClickable = false
             }
             plusGrid.addView(cell, GridLayout.LayoutParams().apply {
                 width = 0; columnSpec = GridLayout.spec(GridLayout.UNDEFINED, 1f)
@@ -735,7 +745,10 @@ class ChatActivity : EdgeBackActivity() {
     private sealed interface Row
     private data class MsgRow(val m: JSONObject) : Row
     private data class TimeRow(val text: String) : Row
-    private data class NoticeRow(val text: String) : Row
+    /** call=true 的那几句是通话话单（通话时长 / 未接听 / 已拒绝），左边多一颗电话听筒，
+     *  和桌面端那颗胶囊同一副样子；判据用整句等值而不是"包含"——
+     *  "已拒绝"这三个字远程控制那一路也在写（拒绝了远程控制），用包含会把控制那句也画成电话。 */
+    private data class NoticeRow(val text: String, val call: Boolean = false) : Row
 
     private val rows = ArrayList<Row>()
 
@@ -749,10 +762,19 @@ class ChatActivity : EdgeBackActivity() {
             if ((i == 0 || prev == 0L || t - prev >= 5 * 60 * 1000L) && t > 0L) rows.add(TimeRow(divider(t)))
             if (t > 0L) prev = t
             /* 通话留下的那句是会话里的一条 SYSTEM 消息：居中小灰药丸，
-               不进气泡、不带头像、也不给长按弹框（它不是能撤回/引用的东西） */
-            if (m.optString("messageType") == "SYSTEM") rows.add(NoticeRow(m.optString("content"))) else rows.add(MsgRow(m))
+               不进气泡、不带头像、也不给长按弹框（它不是能撤回/引用的东西）。
+               话单那几句左边多一颗电话听筒，其余系统提示不带。 */
+            if (m.optString("messageType") == "SYSTEM") {
+                val c = m.optString("content")
+                rows.add(NoticeRow(c, isCallLog(c)))
+            } else rows.add(MsgRow(m))
         }
     }
+
+    /** 和桌面端 CALL_LOG_TEXT 同一条判据：整句等值，不用"包含" */
+    private fun isCallLog(text: String): Boolean =
+        Regex("""^通话时长 \d{2}:\d{2}$""").matches(text.trim()) ||
+            text.trim() == "未接听" || text.trim() == "已拒绝"
 
     private fun divider(ms: Long): String {
         val z = java.time.Instant.ofEpochMilli(ms).atZone(java.time.ZoneId.systemDefault())
@@ -819,7 +841,12 @@ class ChatActivity : EdgeBackActivity() {
         override fun onBindViewHolder(h: RecyclerView.ViewHolder, i: Int) {
             when (val r = rows[i]) {
                 is TimeRow -> (h as TimeVH).at.text = r.text
-                is NoticeRow -> (h as NoticeVH).nt.text = r.text
+                is NoticeRow -> {
+                    val h2 = h as NoticeVH
+                    h2.nt.text = r.text
+                    // 不是话单就把图标 gone 掉：它不占位，药丸宽度和居中节奏和加图标之前完全一致
+                    h2.tic.visibility = if (r.call) View.VISIBLE else View.GONE
+                }
                 is MsgRow -> bindMsg(h as VH, r.m)
             }
         }
@@ -929,11 +956,16 @@ class ChatActivity : EdgeBackActivity() {
 
     /** 长按一条消息 → 桌面端右键那几项，这里改成五列一行的格子（微信那种双行排法）。
      *  真能做的只有「复制」和「撤回」，其余按桌面端同样的口径画淡、点了不响应。
-     *  弹的位置自己算：底下放不下就翻到上面，并把那颗三角挪到正对着这条消息的气泡。 */
+     *  弹的位置自己算：底下放不下就翻到上面，并把那颗三角挪到正对着这条消息的气泡。
+     *  V3.0：增加「远程控制」—— 单聊才亮（群聊没这能力），后端控制面能力有了就启用 */
     private fun showMsgMenu(anchor: View, m: JSONObject, self: Boolean) {
         val isText = (m.optString("messageType").ifEmpty { "TEXT" }) == "TEXT"
         val canRevoke = self && !mId(m).startsWith("local-") && mId(m).isNotEmpty() &&
             System.currentTimeMillis() - tsOf(m) <= REVOKE_MS
+        // 远程控制的入口：信令和话单后端都通了，缺的是手机端这一侧的状态条，所以画淡 + 点了回一句实话。
+        // 群聊没有"那一个人"可以控制，这一档连点都不给（那句"只有单聊能发起"是另一回事）。
+        val ctlTip = if (isGroup) "只有单聊能发起远程控制"
+                     else "手机端还没做远程控制的状态条，先在桌面客户端发起这一场"
         val items = listOf(
             MItem("复制", R.drawable.ic_m_copy, isText) { copyMsg(m) },
             MItem("放大阅读", R.drawable.ic_m_zoom, false),
@@ -944,7 +976,8 @@ class ChatActivity : EdgeBackActivity() {
             MItem("多选", R.drawable.ic_m_multi, false),
             MItem("提醒", R.drawable.ic_m_remind, false),
             MItem("引用", R.drawable.ic_m_quote, false),
-            MItem("撤回", R.drawable.ic_m_undo, canRevoke) { confirmRevoke(m) }
+            MItem("撤回", R.drawable.ic_m_undo, canRevoke) { confirmRevoke(m) },
+            MItem("远程控制", R.drawable.ic_remote_control, false, ctlTip)
         )
         val root = layoutInflater.inflate(R.layout.popup_msg_menu, null) as FrameLayout
         val grid = root.findViewById<GridLayout>(R.id.grid)
@@ -953,8 +986,14 @@ class ChatActivity : EdgeBackActivity() {
             cell.findViewById<ImageView>(R.id.ic).setImageResource(it0.icon)
             cell.findViewById<TextView>(R.id.name).text = it0.name
             cell.alpha = if (it0.on) 1f else 0.4f
-            if (it0.on) cell.setOnClickListener { pop?.dismiss(); it0.run() }
-            else cell.isClickable = false
+            when {
+                it0.on -> { cell.isClickable = true; cell.setOnClickListener { pop?.dismiss(); it0.run() } }
+                it0.tip.isNotEmpty() -> {
+                    cell.isClickable = true
+                    cell.setOnClickListener { pop?.dismiss(); shout(it0.tip) }
+                }
+                else -> cell.isClickable = false
+            }
             grid.addView(cell, GridLayout.LayoutParams().apply {
                 width = 0
                 columnSpec = GridLayout.spec(GridLayout.UNDEFINED, 1f)
@@ -1011,11 +1050,20 @@ class ChatActivity : EdgeBackActivity() {
         p.showAtLocation(window.decorView, Gravity.NO_GRAVITY, px, py)
     }
 
-    private data class MItem(val name: String, val icon: Int, val on: Boolean, val run: () -> Unit = {})
+    /** on=false 就是画淡。再带一句 tip 的，画淡但**给点**，点了把这句实话讲出来：
+     *  "灰掉不给点"说的是这能力不存在，"点了回一句"说的是这能力有、这端还没接 —— 两件事不一样。 */
+    private data class MItem(val name: String, val icon: Int, val on: Boolean,
+                             val tip: String = "", val run: () -> Unit = {})
 
     /** 服务端回来的这条消息的 id：本地回显的那份是 local- 开头，没有可撤回的对象 */
     private fun mId(m: JSONObject): String =
         (m.opt("messageId") ?: m.opt("id"))?.toString() ?: ""
+
+    /** 远程控制这一格不走这里发信令：网关的 CONTROL_REQUEST 和话单落库都通了（桌面端能发起、能应答），
+     *  缺的是手机端这一侧的状态条 —— 发出去本机没地方显示"等待对方同意/你正在控制对方"，
+     *  也接不了对方发来的那一场。所以长按那颗画淡、点了回一句实话（见 MItem.tip）。
+     *  真要发是 ws.send 一个 CONTROL_REQUEST 帧，和桌面端 useControl 同一条路；
+     *  chat-user 上那组 control 接口是话单落库那侧的，拿它当发起入口是错的。 */
 
     private fun tsOf(m: JSONObject): Long = try {
         val t = m.optString("createTime")
@@ -1090,6 +1138,7 @@ class ChatActivity : EdgeBackActivity() {
 
     private class NoticeVH(v: View) : RecyclerView.ViewHolder(v) {
         val nt: TextView = v.findViewById(R.id.nt)
+        val tic: ImageView = v.findViewById(R.id.ntic)
     }
 
     companion object {

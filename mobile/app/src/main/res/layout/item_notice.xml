@@ -1,11 +1,19 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- 通话留下的那句系统提示（未接听 / 已拒绝 / 通话时长 00:12）。
+<!-- 系统提示那一行（未接听 / 已拒绝 / 通话时长 00:12，以及远程控制、屏幕共享那几句）。
      和桌面端 .sys-line 同一副样子：整行居中、11sp、灰字在 nb-bg-3 圆角药丸上，
-     不参与头像/气泡/尾巴那套，也进不了长按弹框。 -->
+     不参与头像/气泡/尾巴那套，也进不了长按弹框。
+
+     通话话单那几句左边多一颗电话听筒（桌面端那颗胶囊同形状）；其余系统提示没这个图标，
+     ImageView 直接 gone 掉，不占位 —— 药丸的宽度和居中节奏因此和加图标之前完全一致。 -->
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
     android:layout_width="match_parent" android:layout_height="wrap_content"
     android:orientation="horizontal" android:gravity="center"
     android:paddingTop="6dp" android:paddingBottom="16dp">
+
+    <ImageView android:id="@+id/ntic"
+        android:layout_width="14dp" android:layout_height="14dp"
+        android:layout_marginEnd="6dp" android:visibility="gone"
+        android:src="@drawable/ic_call_log" android:contentDescription="" />
 
     <TextView android:id="@+id/nt"
         android:layout_width="wrap_content" android:layout_height="wrap_content"

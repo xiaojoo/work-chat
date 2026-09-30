@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- ＋ 面板那颗「视频通话」：机身 + 右侧那块三角，线性描边，和面板里其余几颗同一档粗细。 -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="26dp" android:height="26dp"
+    android:viewportWidth="24" android:viewportHeight="24">
+    <path
+        android:pathData="M5,6.4 L13.2,6.4 A2.4,2.4 0 0 1 15.6,8.8 L15.6,15.2 A2.4,2.4 0 0 1 13.2,17.6 L5,17.6 A2.4,2.4 0 0 1 2.6,15.2 L2.6,8.8 A2.4,2.4 0 0 1 5,6.4 z"
+        android:strokeColor="#FF8A94A6" android:strokeWidth="1.7"
+        android:strokeLineCap="round" android:strokeLineJoin="round"
+        android:fillColor="#00000000" />
+    <path
+        android:pathData="M15.6,10.6 L20.8,7.7 L20.8,16.3 L15.6,13.4 z"
+        android:strokeColor="#FF8A94A6" android:strokeWidth="1.7"
+        android:strokeLineCap="round" android:strokeLineJoin="round"
+        android:fillColor="#00000000" />
+</vector>

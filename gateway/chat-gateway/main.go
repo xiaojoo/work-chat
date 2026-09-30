@@ -3,6 +3,7 @@ package main
 import (
 	"chat-gateway/config"
 	"chat-gateway/connection"
+	"chat-gateway/control"
 	"chat-gateway/handler"
 	"chat-gateway/httpclient"
 	"chat-gateway/redis"
@@ -17,6 +18,11 @@ func main() {
 		log.Fatal("INTERNAL_JWT_SECRET is not set, refusing to start")
 	}
 	httpclient.Init(cfg.InternalJwtSecret)
+
+	// V3.0: 远程控制的落库接口（可选）
+	if cfg.ControlUserAPI != "" {
+		control.InitControlLedger(cfg.ControlUserAPI, cfg.InternalJwtSecret)
+	}
 
 	redis.Init(cfg.RedisAddr, cfg.RedisPassword)
 

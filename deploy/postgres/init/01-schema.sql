@@ -139,3 +139,34 @@ CREATE TABLE chat_call_record (
 );
 
 CREATE INDEX idx_call_record_user ON chat_call_record(user_id, create_time DESC);
+
+-- V3.0 远程控制话单：一场控制一行，逐动作进 chat_control_event。
+-- 只写流水、不参与鉴权，口径和 chat_call 那一组一致。
+CREATE TABLE chat_control_session (
+    id BIGINT PRIMARY KEY,
+    initiator_id BIGINT NOT NULL,
+    target_id BIGINT NOT NULL,
+    conversation_id VARCHAR(64),
+    session_id VARCHAR(64) NOT NULL,
+    status VARCHAR(16) NOT NULL,
+    request_time TIMESTAMP NOT NULL,
+    accept_time TIMESTAMP,
+    stop_time TIMESTAMP,
+    end_reason VARCHAR(24),
+    duration_sec INT NOT NULL DEFAULT 0,
+    create_time TIMESTAMP NOT NULL DEFAULT NOW(),
+    update_time TIMESTAMP NOT NULL DEFAULT NOW()
+);
+CREATE UNIQUE INDEX uk_ctl_session ON chat_control_session(session_id);
+CREATE INDEX idx_ctl_initiator ON chat_control_session(initiator_id, request_time DESC);
+CREATE INDEX idx_ctl_target ON chat_control_session(target_id, request_time DESC);
+
+CREATE TABLE chat_control_event (
+    id BIGINT PRIMARY KEY,
+    session_id VARCHAR(64) NOT NULL,
+    actor_id BIGINT NOT NULL,
+    event_type VARCHAR(20) NOT NULL,
+    create_time TIMESTAMP NOT NULL DEFAULT NOW()
+);
+CREATE INDEX idx_ctl_event_session ON chat_control_event(session_id);
+CREATE INDEX idx_ctl_event_actor ON chat_control_event(actor_id, create_time DESC);

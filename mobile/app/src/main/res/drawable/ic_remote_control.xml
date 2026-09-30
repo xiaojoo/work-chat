@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 长按菜单那颗「远程控制」：一块屏幕 + 一个指上去的鼠标箭头，
+     和桌面端会话头那颗同一形状（24 视口 / 1.7 描边 / 不填）。 -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="24dp" android:height="24dp" android:viewportWidth="24" android:viewportHeight="24">
+    <path android:fillColor="#00000000" android:strokeColor="@color/ink" android:strokeWidth="1.7"
+        android:strokeLineCap="round" android:strokeLineJoin="round"
+        android:pathData="M2.6 4h18.8v12.4H2.6z M9 20h6 M12 16.4V20" />
+    <path android:fillColor="#00000000" android:strokeColor="@color/ink" android:strokeWidth="1.7"
+        android:strokeLineCap="round" android:strokeLineJoin="round"
+        android:pathData="M10.4 8.2l4.4 2.1-2 .7-.6 2.1z" />
+</vector>

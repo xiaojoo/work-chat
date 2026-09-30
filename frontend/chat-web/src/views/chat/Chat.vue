@@ -46,6 +46,8 @@
         <div class="side-acts">
           <button v-if="activeTab === 'friend'" class="side-act" title="添加好友" @click="openFriendPicker">＋</button>
           <button v-else-if="activeTab === 'group'" class="side-act" title="创建群" @click="showCreateGroup = true">＋</button>
+          <!-- 通话记录不再单独开一页：话单本来就是会话流里的一条 SYSTEM，
+               点那条胶囊就直接回拨（回拨入口从弹框搬进胶囊，不是被删掉） -->
         </div>
       </header>
 
@@ -54,6 +56,23 @@
         <input v-model="listSearch" :id="listSearchId" name="list-search" class="ss-input" type="text"
                :placeholder="listSearchPlaceholder" autocomplete="off" />
         <span v-if="listSearch" class="ss-clear" @click="listSearch = ''">✕</span>
+      </div>
+
+      <!-- 跨会话检索：搜的是消息正文（会话名那一层本地就在筛）。
+           顶上这句是后端报的实数：翻了几条会话、扫了多少条、几条没扫动、用的哪个后端 ——
+           没扫到和没有是两件事，得让看的人分得清 -->
+      <div v-if="activeTab === 'chat' && (globalBusy || globalMeta)" class="xg-pop">
+        <div class="xg-meta">
+          <span>{{ globalMetaLine }}</span>
+          <span v-if="globalNote" class="xg-note">{{ globalNote }}</span>
+        </div>
+        <div v-if="!globalBusy && !globalHits.length && !globalMeta?.error" class="xg-none">词在所有会话的消息正文里都没出现</div>
+        <button v-for="h in globalHits" :key="h.conversationId + ':' + h.messageId" class="xg-row" type="button"
+                :data-mid="String(h.messageId)" @click="openGlobalHit(h)">
+          <span class="xg-conv">{{ h.conversationName }}</span>
+          <span class="xg-time">{{ formatConvTime(h.createTime) }}</span>
+          <span class="xg-txt">{{ previewOf(h.content) }}</span>
+        </button>
       </div>
 
       <!-- 列表区外框：让索引条按"列表区"居中，而不是按整条侧栏居中（联系人页那条就是按列表区居中的）。
@@ -164,16 +183,49 @@
         <div class="mh-acts">
           <!-- 会话内检索的入口常驻在这一行，不藏进 ☰ 也不藏右键菜单（藏起来等于没做）。
                自己画的清空叉，不用 type=search：原生那颗 ✕ 是 UA 的样式，改不动 -->
-          <div class="mh-search-wrap">
-            <input class="mh-search" type="text" v-model="msgSearchText" placeholder="搜索本会话"
-                   aria-label="搜索本会话消息" autocomplete="off" spellcheck="false"
+          <!-- 会话内检索的入口常驻在这一行（藏进 ☰ 或右键菜单等于没做），但那一格输入框不再常驻：
+               它一直占着 220px，会把右边那排图标挤窄。改成先一颗放大镜，点开才展开输入框并自动聚焦；
+               清空、按 ESC、或点 ✕ 都收回去。从跨会话那一栏点进来时会自动展开（见 jumpFromGlobalSearch），
+               否则人跳过来了、关键词却藏在一颗图标后面看不见。
+               自己画的清空叉，不用 type=search：原生那颗 ✕ 是 UA 的样式，改不动 -->
+          <button v-if="!searchExpanded" class="mh-ico" type="button" :title="'搜索本会话'"
+                  aria-label="搜索本会话" @click="openMsgSearch">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="10.8" cy="10.8" r="6.3"/><path d="M15.4 15.4 20 20"/></svg>
+          </button>
+          <div v-else class="mh-search-wrap">
+            <input ref="msgSearchInputRef" class="mh-search" type="text" v-model="msgSearchText" placeholder="搜索本会话"
+                   aria-label="搜索本会话" autocomplete="off" spellcheck="false"
                    @input="queueMsgSearch" @keydown.esc="closeMsgSearch" @focus="msgSearchOpen = !!msgSearchHits.length" />
             <span v-if="msgSearchBusy" class="ms-busy">查中…</span>
             <button v-else-if="msgSearchText" class="ms-x" type="button" aria-label="清空搜索"
                     @click="closeMsgSearch">✕</button>
+            <button v-else class="ms-x" type="button" aria-label="收起搜索" @click="closeMsgSearch">✕</button>
           </div>
-          <button class="mh-btn icon" @click="drawerOpen = !drawerOpen"
-                  :title="drawerOpen ? '收起详情' : currentConversation?.type === 2 ? '内容详情' : '会话详情'">☰</button>
+          <!-- 会话头这一排全是图标（照微信那一排）：语音、视频、共享屏幕、远程控制、更多。
+               图标是手画的 inline SVG，不走图标库 —— 库里有没有对应名字这件事不该由我猜，
+               猜错的表现是 Vue 只警告不报错、那一格永远不出现。
+               群聊也能发起这四件事 —— 后端是 1v1 的（房间限两人），所以群里点先选人，
+               选定之后是这两个人之间的事：对方接受或拒绝，群里其他人不受影响，
+               也不给他们刷一句系统提示。悬浮气泡只写操作名，一句话说不清的交给点击后的回执。 -->
+          <button class="mh-ico" type="button" :disabled="lkPhase !== 'idle'"
+                  :title="'语音'" @click="headAsk('AUDIO')">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6.2 3.6 8.9 3.2l1.5 3.9-2 1.6c.7 2.3 2.6 4.2 4.9 4.9l1.6-2 3.9 1.5-.4 2.7c-.2 1.2-1.3 2-2.5 1.8C10.6 16.9 7 13.3 4.4 6.1c-.3-1.2.6-2.3 1.8-2.5z"/></svg>
+          </button>
+          <button class="mh-ico" type="button" :disabled="lkPhase !== 'idle'"
+                  :title="'视频'" @click="headAsk('VIDEO')">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="2.6" y="6.4" width="12.6" height="11.2" rx="2.4"/><path d="M15.2 10.6l5.2-2.9v8.6l-5.2-2.9z"/></svg>
+          </button>
+          <button class="mh-ico" type="button" :title="'投屏'" @click="headAsk('SHARE')">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="2.6" y="4" width="18.8" height="12.4" rx="2.2"/><path d="M9 20h6M12 16.4V20"/><path d="M9.4 10.2h4.4m-1.6-1.8 1.8 1.8-1.8 1.8"/></svg>
+          </button>
+          <button class="mh-ico" type="button" :title="'控制'" @click="headAsk('CONTROL')">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="2.6" y="4" width="18.8" height="12.4" rx="2.2"/><path d="M9 20h6M12 16.4V20"/><path d="M8.2 12.6 12 8.4l3.8 4.2"/></svg>
+          </button>
+          <button class="mh-ico" type="button" :class="{ on: drawerOpen }"
+                  :title="drawerOpen ? '收起详情' : '内容详情'"
+                  @click="drawerOpen = !drawerOpen">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="5.4" cy="12" r="1.5" fill="currentColor" stroke="none"/><circle cx="12" cy="12" r="1.5" fill="currentColor" stroke="none"/><circle cx="18.6" cy="12" r="1.5" fill="currentColor" stroke="none"/></svg>
+          </button>
         </div>
       </header>
 
@@ -185,7 +237,7 @@
           <span v-if="msgSearchNote" class="ms-note">{{ msgSearchNote }}</span>
         </div>
         <button v-for="h in msgSearchHits" :key="h.messageId" class="ms-row" type="button"
-                @click="jumpToMsgHit(h)">
+                :data-mid="String(h.messageId)" @click="jumpToMsgHit(h)">
           <span class="ms-who">{{ msgSearchSender(h) }}</span>
           <span class="ms-time">{{ formatConvTime(h.createTime) }}</span>
           <span class="ms-txt">{{ previewOf(h.content) }}</span>
@@ -235,14 +287,63 @@
         </template>
       </div>
 
+      <!-- 远程控制条：和通话条同一种样子，但各说各的事 —— 没有通话也能发起控制。
+           方向必须写明白（谁在动谁的机器），"通道未接入"那句也必须留着：
+           对方同意是真的、屏幕已经过去了不是，这两件事不能糊成一句"控制中" -->
+      <div v-if="ctlPhase !== 'idle'" class="lk-bar ctl" :class="ctlPhase">
+        <span class="lk-label">{{ ctlLabel }}</span>
+        <span v-if="ctlWho" class="lk-peer">{{ ctlWho }}</span>
+        <span v-if="ctlPhase === 'active'" class="lk-timer">{{ ctlTime }}</span>
+        <span v-if="ctlNoChannel" class="ctl-note">这台还没接远程控制通道，只有授权这一路是真的</span>
+        <!-- 票据会不会过期和通道接没接是两件事，原来写成 v-else-if，
+             于是"没接通道"的那一面就把"票据 60 秒作废"这句挤掉了 —— 而那句恰恰是安全口径 -->
+        <span v-if="ctlTtl" class="ctl-note">临时票据 {{ ctlTtl }} 秒内有效，过期要重新同意</span>
+        <template v-if="ctlPhase === 'in'">
+          <button type="button" class="btn btn-primary" @click="ctlAccept">同意控制</button>
+          <button type="button" class="btn btn-neutral" @click="ctlRefuse">拒绝</button>
+        </template>
+        <template v-else-if="ctlPhase === 'out'">
+          <button type="button" class="btn btn-neutral" @click="ctlStop">取消</button>
+        </template>
+        <template v-else>
+          <button type="button" class="btn btn-danger" @click="ctlStop">停止控制</button>
+        </template>
+      </div>
+
       <div class="m-body" ref="messagesRef" @contextmenu.prevent="openBgMenu($event)">
+        <!-- 往前翻：一开会话只拉最近 50 条，更早的原来在界面上根本到不了（检索命中它们也只能提示一句
+             "不在已加载的窗口里"）。翻到底就把那句写死在这儿，不藏起来 —— 消失会让人以为还能再点 -->
+        <div v-if="currentConversation" class="older-bar">
+          <button v-if="!olderEnd" type="button" class="btn btn-neutral"
+                  :disabled="olderBusy || !messages.length" @click="loadOlderOnce()">{{ olderLabel }}</button>
+          <span v-else class="older-end">到最早的一条了</span>
+          <span v-if="olderErr" class="older-err">{{ olderErr }}</span>
+        </div>
         <!-- 有真实消息走真实 -->
         <template v-if="currentConversation && messages.length">
           <template v-for="(msg, index) in messages" :key="msg.messageId">
             <div v-if="shouldShowTime(msg, index)" class="day-split"><span>{{ formatTimeDivider(msg.timestamp || msg.createTime) }}</span></div>
             <!-- 通话留下的那句系统提示（未接听 / 已拒绝 / 通话时长 03:12）：
                  它是消息流里的一条 SYSTEM，不进头像、气泡、右键那套 -->
-            <div v-if="msg.messageType === 'SYSTEM'" class="sys-line">{{ bodyText(msg) }}</div>
+            <!-- 通话/控制/共享留下的那句系统提示：它也是消息流里的一条，
+                 检索跳过来时得落得下来 —— 原来它既没有 data-mid 也没有命中圈，
+                 点一条系统提示的命中就是"跳了，但什么也没发生" -->
+            <!-- 通话留下的那一句（通话时长 / 未接听 / 已拒绝）做成一颗带电话图标的胶囊，
+                 点它就是回拨 —— 原来那个"通话记录"弹框没有别的信息，回拨这件事在话单本身上直达。
+                 话单里没写这通是语音还是视频（网关那三句文案不带媒体类型），所以一律按语音回拨，
+                 不猜。其余 SYSTEM（远程控制、屏幕共享那几句）仍是居中的灰字那一档。 -->
+            <button v-if="isCallLog(msg)" class="sys-line call-chip" type="button"
+                    :class="{ hit: msgSearchJumped && String(msg.messageId) === msgSearchJumped }"
+                    :data-mid="String(msg.messageId || '')"
+                    :disabled="lkPhase !== 'idle'"
+                    title="回拨"
+                    @click="callBackFromMsg(msg)">
+              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6.2 3.6 8.9 3.2l1.5 3.9-2 1.6c.7 2.3 2.6 4.2 4.9 4.9l1.6-2 3.9 1.5-.4 2.7c-.2 1.2-1.3 2-2.5 1.8C10.6 16.9 7 13.3 4.4 6.1c-.3-1.2.6-2.3 1.8-2.5z"/></svg>
+              <span class="cc-t">{{ bodyText(msg) }}</span>
+            </button>
+            <div v-else-if="msg.messageType === 'SYSTEM'" class="sys-line"
+                 :class="{ hit: msgSearchJumped && String(msg.messageId) === msgSearchJumped }"
+                 :data-mid="String(msg.messageId || '')">{{ bodyText(msg) }}</div>
             <div v-if="msg.messageType !== 'SYSTEM'" class="msg"
                  :class="{ self: String(msg.senderId) === String(userStore.userId), hit: msgSearchJumped && String(msg.messageId) === msgSearchJumped }"
                  :data-mid="String(msg.messageId || '')">
@@ -699,6 +800,29 @@
     <!-- 设置：个人信息 / 账号 / 通知 / 安全 / 外观 -->
     <SettingsModal :open="showProfile" @close="showProfile = false" @saved="onSettingsSaved" />
 
+
+    <!-- 群聊里点语音/视频/投屏/控制：先选一个人。后端这四项都是 1v1 的，
+         所以这一屏不是"拉全群"，是把这件事落到某一个人头上 -->
+    <div v-if="pickOpen" class="modal-overlay" @click.self="pickOpen = false">
+      <div class="modal pick-modal">
+        <div class="modal-head">
+          <div>
+            <div class="modal-title">{{ pickTitle }}</div>
+            <div class="modal-kicker">PICK ONE · 群成员 {{ pickList.length }} 人（不含你）</div>
+          </div>
+          <button class="btn btn-link btn-sm" aria-label="关闭" @click="pickOpen = false">✕</button>
+        </div>
+        <div class="modal-body pick-body">
+          <div v-if="!pickList.length" class="pick-empty">这个群里没有别的成员可选</div>
+          <button v-for="m in pickList" :key="m.userId" class="pick-row" type="button"
+                  @click="pickPeer(m)">
+            <span class="ava">{{ (m.name || '?').charAt(0).toUpperCase() }}</span>
+            <span class="pk-name">{{ m.name }}</span>
+          </button>
+        </div>
+      </div>
+    </div>
+
     <!-- 成员信息弹框 -->
     <div v-if="selectedMember" class="modal-overlay" @click.self="selectedMember = null">
       <div class="modal member-info-modal">
@@ -731,10 +855,12 @@
             </div>
           </div>
         </div>
-        <div class="modal-foot">
+        <!-- 四颗一排挤在弹框底部，原来写"语音通话/视频通话"四个字会折成两行。
+             改成操作名 + 字号调小 + 不许折行（nowrap），四颗一行摆平 -->
+        <div class="modal-foot act4">
           <button class="btn btn-ghost" @click="handleShareMember">分享</button>
-          <button class="btn btn-ghost" @click="handleCallMember('AUDIO')">语音通话</button>
-          <button class="btn btn-ghost" @click="handleCallMember('VIDEO')">视频通话</button>
+          <button class="btn btn-ghost" @click="handleCallMember('AUDIO')">语音</button>
+          <button class="btn btn-ghost" @click="handleCallMember('VIDEO')">视频</button>
           <button class="btn btn-primary" @click="handleSendMessage(selectedMember)">发消息</button>
         </div>
       </div>
@@ -880,6 +1006,7 @@ import { useRouter } from 'vue-router'
 import { useUserStore } from '../../stores/user'
 import { useWebSocket } from '../../websocket/client'
 import { useCall } from '../../websocket/useCall'
+import { useControl } from '../../websocket/useControl'
 import { useTokenValidation } from '../../composables/useTokenValidation'
 import { notifyDesktop } from '../../config'
 import { getConversationList, createConversation, clearUnread, deleteConversation } from '../../api/conversation'
@@ -894,7 +1021,7 @@ import AlphaList from '../../components/AlphaList.vue'
 import AlphaRail from '../../components/AlphaRail.vue'
 import { pinyinInitial } from '../../utils/pinyin'
 import { toast, confirmBox } from '../../utils/ui'
-import { Minus, PictureOne, FolderUpload, MessageEmoji, Scissors, Mail, MicrophoneOne, People, History, Down, Pin, MessageUnread, Mute, Windows, PreviewClose, Delete, Copy, Clipboard, Undo, Redo, FullSelection, ZoomIn, Translate, Search, Share, Star, Selected, AlarmClock, Quote, Save, Refresh, Clear, PreviewOpen, CameraOne, Home, Checklist, FileText, Robot } from '@icon-park/vue-next'
+import { Minus, PictureOne, FolderUpload, MessageEmoji, Scissors, Mail, MicrophoneOne, People, History, Down, Pin, MessageUnread, Mute, Windows, PreviewClose, Delete, Copy, Clipboard, Undo, Redo, FullSelection, ZoomIn, Translate, Search, Share, Star, Selected, AlarmClock, Quote, Save, Refresh, Clear, PreviewOpen, CameraOne, Home, Checklist, FileText, Robot, PhoneOne } from '@icon-park/vue-next'
 import { docDetail, docTasks, docScores, docRelated } from '../../mock/workbench'
 
 const router = useRouter()
@@ -963,6 +1090,14 @@ const msgSearchText = ref('')
 const msgSearchHits = ref([])
 const msgSearchMeta = ref(null)
 const msgSearchOpen = ref(false)
+/* 那一格输入框收在一颗放大镜后面：展开才渲染，展开即聚焦。
+   它是"输入框开没开"，和 msgSearchOpen（结果面板开没开）是两件事，不能合成一个开关。 */
+const searchExpanded = ref(false)
+const msgSearchInputRef = ref(null)
+function openMsgSearch() {
+  searchExpanded.value = true
+  nextTick(() => msgSearchInputRef.value?.focus())
+}
 const msgSearchBusy = ref(false)
 const msgSearchJumped = ref('')
 let msgSearchTimer = 0
@@ -985,10 +1120,77 @@ const msgSearchNote = computed(() => {
   return msgSearchHits.value.length ? '' : '这条会话里没搜到，换个词或把天数放大'
 })
 
+/* ---- 跨会话检索 ----
+   会话内那一路（SEARCH_MESSAGES）只扫一条会话的分区；跨会话是把这个人所有会话摊开各扫一遍，
+   扇出在网关做（人脉只有网关有）。这一栏报的是后端给的实数：扫了几条会话、多少条消息、
+   几条没扫动、用的哪个后端 —— 有上限就有 note，不能把"没扫到"演成"没有" */
+const globalHits = ref([])
+const globalMeta = ref(null)
+const globalBusy = ref(false)
+let globalTimer = null
+let globalReqId = ''
+let pendingJumpId = ''
+
+const globalNote = computed(() => {
+  const d = globalMeta.value
+  if (!d) return ''
+  // 上限 note 和"某条会话没扫完"是两件事，谁在就说谁：面板不许让人以为已经看全了
+  return d.error || d.note || (d.truncated ? '有会话的扫描窗口到顶了，更早的没翻到' : '')
+})
+const globalMetaLine = computed(() => {
+  const d = globalMeta.value
+  if (!d) return globalBusy.value ? '正在翻全部会话…' : ''
+  if (d.error) return '跨会话检索没跑成'
+  const n = (d.hits || []).length
+  return `消息 ${n} 条 · 翻了 ${d.conversations}/${d.conversationsTotal} 条会话` +
+    ` · ${d.scanned} 条 · ${d.tookMs}ms · 后端 ${d.provider || '未知'}` +
+    (d.skipped ? ` · ${d.skipped} 条会话没扫动` : '')
+})
+
+function runGlobalSearch() {
+  const q = searchText.value.trim()
+  // 不设"至少几个字"这种暗门槛：会话内那一路一个字也搜，这里不一致就会让人以为没搜到=没有。
+  // 代价由后端如实报：翻了哪几条会话、有没有窗口到顶，都写在同一栏里
+  if (!q) { globalHits.value = []; globalMeta.value = null; globalBusy.value = false; return }
+  globalBusy.value = true
+  globalReqId = nextReqId('gsearch')
+  const ok = send('SEARCH_GLOBAL', { keyword: q, limit: 30, days: 30 }, globalReqId)
+  if (!ok) { globalBusy.value = false; globalMeta.value = { error: '连接断了，检索没发出去' } }
+}
+
+function finishGlobalSearch(msg) {
+  globalBusy.value = false
+  globalReqId = ''
+  const d = typeof msg.data === 'string' ? JSON.parse(msg.data) : (msg.data || {})
+  globalMeta.value = d
+  globalHits.value = Array.isArray(d.hits) ? d.hits : []
+}
+
+/* 点一条命中：先进那条会话，再把同一个词交给会话内检索 ——
+   命中列表、滚到那一条、圈出来这套已经在那一路跑通了，这里不另起一份定位逻辑。
+   跳转用的是 pendingJumpId 而不是"睡 700ms 再看"：结果回来那一刻才跳，快慢都不错位 */
+async function openGlobalHit(h) {
+  const conv = conversations.value.find(c => String(c.id) === String(h.conversationId))
+  if (!conv) { toast('这条会话已经不在列表里了', 'info'); return }
+  activeTab.value = 'chat'
+  await selectConversation(conv)
+  // 跳过去之后把列表那个搜索框清空：不清的话会话列表还在按名字筛，
+  // 而我刚进来的这条会话不一定含那个词 —— 结果就是"人已经在会话里了，左边列表却空着"。
+  // 关键词转交给会话内那一栏，跳完还能在这条会话里翻同一批命中
+  const q = searchText.value.trim()
+  searchText.value = ''
+  msgSearchText.value = q
+  msgSearchOpen.value = true
+  searchExpanded.value = true
+  pendingJumpId = String(h.messageId)
+  runMsgSearch()
+}
+
 function queueMsgSearch() {
   clearTimeout(msgSearchTimer)
   if (!msgSearchText.value.trim()) {
     msgSearchHits.value = []; msgSearchMeta.value = null; msgSearchOpen.value = false; msgSearchBusy.value = false
+    searchExpanded.value = false
     return
   }
   msgSearchBusy.value = true
@@ -1010,6 +1212,7 @@ function runMsgSearch() {
 
 function closeMsgSearch() {
   clearTimeout(msgSearchTimer)
+  searchExpanded.value = false
   msgSearchText.value = ''
   msgSearchHits.value = []
   msgSearchMeta.value = null
@@ -1053,18 +1256,25 @@ function runMsgSummary() {
 }
 
 /** 点一条结果：滚过去并闪一下。命中的那条不在已加载窗口里就直说，不偷偷改成"搜不到" */
-function jumpToMsgHit(h) {
-  const hit = messages.value.find(m => String(m.messageId) === String(h.messageId))
-  if (!hit) {
-    toast('这条不在已加载的窗口里，往上翻页到那一天再看', 'info')
-    return
+async function jumpToMsgHit(h) {
+  const want = String(h.messageId)
+  // 命中在"最近 50 条"之外是常态（会话动辄几百条）：先往前翻到它，而不是丢一句
+  // "往上翻页到那一天再看"就把人挡在那儿
+  if (!messages.value.some(m => String(m.messageId) === want)) {
+    const found = await revealMessage(want)
+    if (!found) {
+      toast('往前翻了 ' + OLDER_MAX_PAGES + ' 页还没到那条，再点一次接着翻', 'info')
+      return
+    }
   }
-  msgSearchJumped.value = String(hit.messageId)
+  msgSearchJumped.value = want
   nextTick(() => {
-    const el = document.querySelector(`.msg[data-mid="${CSS.escape(msgSearchJumped.value)}"]`)
+    // 不写死 `.msg`：系统提示行也在消息流里，它同样是 [data-mid]（只认 .msg 的话
+    // 点到这类命中就是"跳了但没落"）
+    const el = document.querySelector(`.m-body [data-mid="${CSS.escape(msgSearchJumped.value)}"]`)
     el?.scrollIntoView({ block: 'center', behavior: 'smooth' })
   })
-  setTimeout(() => { if (msgSearchJumped.value === String(h.messageId)) msgSearchJumped.value = '' }, 1800)
+  setTimeout(() => { if (msgSearchJumped.value === want) msgSearchJumped.value = '' }, 1800)
 }
 
 // 换会话就清掉上一个会话的结果：挂在 currentConversation 那个 watch 上（见下面），
@@ -1156,6 +1366,138 @@ const lkTime = computed(() => {
   const s = lkCall.value?.secs || 0
   return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`
 })
+/* 远程控制：和通话同一种样子、各说各的事。状态机在 useControl 里，
+   这里照旧一律解构成顶层变量（写成 ctl.phase 会拿到 Ref 本身，那条状态条就永远挂在界面上） */
+const {
+  phase: ctlPhase, ctl: ctlSession, label: ctlLabel, who: ctlWho, time: ctlTime,
+  request: ctlRequest, accept: ctlAccept, refuse: ctlRefuse, stop: ctlStop
+} = useControl({
+  send, onMessage,
+  // 收场时网关会往这条会话里写一句 SYSTEM，补拉一次才看得见
+  onEnded: () => {
+    const c = currentConversation.value
+    if (c) send('LOAD_MESSAGES', { conversationId: String(c.id), limit: 50 })
+  }
+})
+const ctlNoChannel = computed(() => !!(ctlSession.value && ctlSession.value.noChannel))
+const ctlTtl = computed(() => (ctlSession.value && ctlSession.value.ttlSec) || 0)
+/* ---- 会话头那一排图标 ----
+   单聊直接对对方发起；群聊先弹一个"选一个人"的框。
+   后端这四项全是 1v1 的（CALL_INVITE 只带一个 peerId，房间 EnsureRoom(room, 2)，
+   控制会话也是 controller/controlled 两个人），所以群里发起 = 从群成员里指定一个人打 1v1，
+   不是拉全群开会 —— 那需要后端先有多方房间的能力，它现在没有。
+
+   留痕写在两人的私聊会话里，不写进这个群：群里其他人没参与这件事，
+   给他们刷一句"xxx 请求远程控制 yyy 的屏幕"就是打扰。 */
+async function peerConvIdOf(peerId) {
+  const mine = conversations.value.find(c => c.type === 1 && String(c.targetId) === String(peerId))
+  if (mine) return String(mine.id)
+  try {
+    const res = await createConversation(peerId)
+    const id = String(res.conversationId ?? res.id ?? '')
+    if (id) conversations.value.unshift({ id, type: 1, targetId: peerId, name: '', avatar: '', unreadCount: 0 })
+    return id
+  } catch (e) {
+    toast('建不起你和对方的单聊，这句留痕没地方写', 'error')
+    return ''
+  }
+}
+
+/* 群成员名单原来只在切会话时按 groups 里匹配群 id 拉一次，而群会话的 id 带 g 前缀
+   （localStorage 里存的是 g+那串数字，groups 里是同一串不带 g 的），
+   匹配不上时名单就是空的 —— 选人框会开成一个"0 人"的空框。
+   所以这里按会话 id 自己去前缀拉一次，不依赖 groups 那一趟有没有成。 */
+async function ensureGroupMembers() {
+  if (groupMembers.value && groupMembers.value.length) return groupMembers.value
+  const conv = currentConversation.value
+  const raw = selectedGroup.value?.id ?? conv?.targetId ?? conv?.id ?? ''
+  const gid = String(raw).replace(/^g/, '')
+  if (!gid) return []
+  try { groupMembers.value = await getGroupMembers(gid) } catch (e) { toast('群成员名单没拉回来，选不了人', 'error') }
+  return groupMembers.value || []
+}
+
+function headAsk(kind) {
+  if (lkPhase.value !== 'idle' && (kind === 'AUDIO' || kind === 'VIDEO')) {
+    toast('你这会正有一通没挂断', 'info'); return
+  }
+  const f = selectedFriend.value
+  if (f) { runHeadAct(kind, f.id, true); return }
+  if (isGroupChat.value) {
+    pickKind.value = kind
+    ensureGroupMembers().then(() => { pickOpen.value = true })
+    return
+  }
+  toast('这条会话里没找到可以发起的对象', 'info')
+}
+
+/* 选定人之后真正做这件事。投屏特殊：屏幕轨道挂在通话上，
+   没在通话里就得先呼出去、接通那一刻自动开共享（pendingShare 就是那根线）。
+
+   sameConv 这个开关不能省：单聊时当前会话就是这两个人的，直接用它；
+   群聊才需要去找/新建两人的私聊。原来一律走 peerConvIdOf 去按 targetId 找，
+   而测试数据里同两个人之间可能有好几条私聊会话 —— find 命中哪条是随机的，
+   留痕就写到另一条会话里去了，这一条界面上看不见（门禁表现为"取消那句没落"）。 */
+async function runHeadAct(kind, peerId, sameConv = false) {
+  const conv = sameConv ? String(currentConversation.value?.id || '') : await peerConvIdOf(peerId)
+  if (kind === 'AUDIO' || kind === 'VIDEO') {
+    lkInvite(peerId, kind === 'VIDEO' ? 'VIDEO' : 'AUDIO', conv || currentConversation.value?.id)
+    return
+  }
+  if (kind === 'CONTROL') {
+    if (!conv) return
+    ctlRequest(peerId, conv)
+    return
+  }
+  if (kind === 'SHARE') {
+    if (lkPhase.value !== 'idle' && String(lkCall.value?.peerId) === String(peerId)) { lkToggleShare(); return }
+    if (lkPhase.value !== 'idle') { toast('你这会正和别人在通话，投屏先挂了那通', 'info'); return }
+    pendingSharePeer.value = peerId
+    lkInvite(peerId, 'VIDEO', conv || currentConversation.value?.id)
+  }
+}
+
+const isGroupChat = computed(() => currentConversation.value?.type === 2)
+const pickOpen = ref(false)
+const pickKind = ref('AUDIO')
+const PICK_LABEL = { AUDIO: '语音', VIDEO: '视频', SHARE: '投屏', CONTROL: '控制' }
+const pickTitle = computed(() => `和谁${PICK_LABEL[pickKind.value] || ''}`)
+/* 群成员里排除自己：给自己打电话、把自己屏幕投给自己都不是这件事 */
+const pickList = computed(() => (groupMembers.value || [])
+  .map(m => ({ userId: m.userId, name: memberName(m) }))
+  .filter(m => String(m.userId) !== String(userStore.userId)))
+function pickPeer(m) {
+  const kind = pickKind.value
+  pickOpen.value = false
+  runHeadAct(kind, m.userId)
+}
+/* 接通那一刻自动把共享开起来 —— 只认"我是主叫且这一通就是为投屏拨的"那一次 */
+const pendingSharePeer = ref(null)
+watch(lkPhase, p => {
+  if (p !== 'active' || pendingSharePeer.value == null) return
+  if (String(lkCall.value?.peerId) !== String(pendingSharePeer.value)) { pendingSharePeer.value = null; return }
+  pendingSharePeer.value = null
+  if (!lkSharing.value) lkToggleShare()
+})
+
+/* 会话流里的这句 SYSTEM 是不是通话话单：网关只写三样（通话时长 mm:ss / 未接听 / 已拒绝）。
+   拿整句等值比而不含"包含"——"已拒绝"这三个字远程控制那一路也在用（拒绝了远程控制），
+   用包含会把控制那一句也画成电话胶囊。 */
+const CALL_LOG_TEXT = /^(通话时长 \d{2}:\d{2}|未接听|已拒绝)$/
+function isCallLog(msg) {
+  return msg.messageType === 'SYSTEM' && CALL_LOG_TEXT.test((bodyText(msg) || '').trim())
+}
+/* 回拨的对象：优先用这条话单自己的发送人（网关那句 SYSTEM 的 senderId 就是当时发起的人），
+   认不出来才退回"这条会话的对方"—— 群聊里那些历史话单因此也能拨回当时那一个人，
+   而不是拨给整个群。 */
+function callBackFromMsg(msg) {
+  const s = String((msg && (msg.senderId ?? msg.sender_id)) || '')
+  if (s && s !== String(userStore.userId)) { runHeadAct('AUDIO', s); return }
+  const f = selectedFriend.value
+  if (f) { runHeadAct('AUDIO', f.id); return }
+  toast('这条话单没带对方 id，拨不出去', 'info')
+}
+
 /* 响铃时通知桌面壳把窗口抬起来（卡片是渲染端画的，"从别的程序后面出来"只有壳做得到）；
    一旦不再响铃（接了、拒了、对方撤了、超时了）就把借来的置顶和闪烁一起还回去 */
 watch(lkPhase, (p) => {
@@ -1417,6 +1759,96 @@ const listSearch = computed({
   }
 })
 const listSearchId = computed(() => `list-search-${activeTab.value}`)
+
+// 列表框里打字：会话名过滤是本地那套，消息正文这一路要问后端。
+// 这个 watch 必须放在 searchText 声明之后 —— watch 的 getter 在 setup 里就跑一次，
+// 放前面会撞 TDZ（这一页已经因为同样的顺序翻过一次车）
+watch(() => [searchText.value, activeTab.value], ([q, tab]) => {
+  clearTimeout(globalTimer)
+  if (tab !== 'chat' || !q || !q.trim()) {
+    globalHits.value = []; globalMeta.value = null; globalBusy.value = false
+    return
+  }
+  globalBusy.value = true
+  globalTimer = setTimeout(runGlobalSearch, 400)
+})
+
+/* ---- 往前翻 ----
+   游标是 (messageId, messageDate) 一对：messages 的分区键含 message_date，
+   单给一个 timeuuid 服务端定不了该从哪个分区往回走（补发那一路早就踩过这个）。
+   "翻到底"只认一个信号 —— 服务端这次一条也没给回来。它一次最多往前回 7 天，
+   所以"这批比上限少"不能当成到顶（也可能那几天本就没人说话）。 */
+const OLDER_PAGE = 50
+const OLDER_MAX_PAGES = 12
+const olderBusy = ref(false)
+const olderEnd = ref(false)
+const olderErr = ref('')
+const olderWaiters = new Map()
+
+const olderLabel = computed(() => olderBusy.value ? '正在往前翻…' : '看更早的消息')
+
+function oldestCursor() {
+  const first = messages.value.find(m => m.messageId)
+  if (!first) return null
+  return { id: String(first.messageId), date: String(first.messageDate || '') }
+}
+
+// 一次翻页：返回这次真正加进来的条数。并发只许一条在跑（按钮置灰就是它）
+async function loadOlderOnce() {
+  const conv = currentConversation.value
+  const cur = oldestCursor()
+  if (!conv || !cur) return 0
+  if (!cur.date) { olderErr.value = '最早那条没带日期，往前翻不了'; return 0 }
+  if (olderBusy.value) return 0
+  olderBusy.value = true
+  olderErr.value = ''
+  const id = nextReqId('older')
+  const wait = new Promise(res => olderWaiters.set(id, res))
+  const ok = send('LOAD_OLDER', {
+    conversationId: String(conv.id), beforeMessageId: cur.id, messageDate: cur.date, limit: OLDER_PAGE
+  }, id)
+  if (!ok) {
+    olderWaiters.delete(id); olderBusy.value = false
+    olderErr.value = '连接断了，没翻动'
+    return 0
+  }
+  const d = await wait
+  olderBusy.value = false
+  const cid = String(currentConversation.value?.id || '')
+  const all = Array.isArray(d.messages) ? d.messages : []
+  // 和 LOAD_MESSAGES 同一条规矩：回包里先按会话认一次领，别把别人的记录摆进这条会话
+  const rows = cid ? all.filter(r => String(r.conversationId) === cid) : all
+  if (all.length && rows.length !== all.length) {
+    toast(`往前翻的回包里有 ${all.length - rows.length} 条不是本会话的，已丢掉`, 'info')
+  }
+  if (d.error) { olderErr.value = d.error; return 0 }
+  if (d.exhausted || !rows.length) { olderEnd.value = true; return 0 }
+  const have = new Set(messages.value.map(m => String(m.messageId)))
+  // 服务端给回来是"从新到旧"，接到最旧那条为止；本地列表是旧→新，所以整批倒过来再往头顶接
+  const add = rows.slice().reverse().filter(m => !have.has(String(m.messageId)))
+  if (!add.length) return 0
+  const box = messagesRef.value
+  const h0 = box ? box.scrollHeight : 0
+  const t0 = box ? box.scrollTop : 0
+  messages.value = [...add, ...messages.value]
+  await nextTick()
+  // 视口锚住：往头顶加一批之后，原来那条最旧的必须还在原地附近 —— 不然一翻页
+  // 人被甩到列表顶上，正看着的那行当场跑掉（滚动条归零是这类改动最常见的假绿）
+  if (box) box.scrollTop = box.scrollHeight - h0 + t0
+  return add.length
+}
+
+// 检索命中在窗口外时先往前翻到它，再落点。翻不到就如实说翻到了哪儿
+async function revealMessage(messageId) {
+  const want = String(messageId)
+  if (messages.value.some(m => String(m.messageId) === want)) return true
+  for (let i = 0; i < OLDER_MAX_PAGES && !olderEnd.value; i++) {
+    const n = await loadOlderOnce()
+    if (messages.value.some(m => String(m.messageId) === want)) return true
+    if (!n) break
+  }
+  return messages.value.some(m => String(m.messageId) === want)
+}
 const listSearchPlaceholder = computed(() =>
   activeTab.value === 'chat' ? '搜索会话…' : activeTab.value === 'friend' ? '搜索好友…' : '搜索群组…')
 const listTitle = computed(() =>
@@ -1966,6 +2398,8 @@ onMounted(async () => {
         break
       }
       case 'SEARCH_RESULT': {
+        // 跨会话那一栏的回执走同一个帧名，按 requestId 分到这里，不许盖掉会话内的结果
+        if (msg.requestId && msg.requestId === globalReqId) { finishGlobalSearch(msg); break }
         // 只认自己刚问的那一次：换会话、连发两次时旧回执不能把新结果盖掉
         if (!msg.requestId || msg.requestId !== msgSearchReqId) break
         msgSearchBusy.value = false
@@ -1980,6 +2414,14 @@ onMounted(async () => {
         msgSearchHits.value = Array.isArray(d.hits) ? d.hits : []
         msgSearchMeta.value = d
         msgSearchOpen.value = true
+        // 从跨会话那一栏点进来的：结果一回来就定位到那一条，不靠"睡几百毫秒再看"
+        if (pendingJumpId) {
+          const want = pendingJumpId
+          pendingJumpId = ''
+          const hit = msgSearchHits.value.find(m => String(m.messageId) === want)
+          if (hit) jumpToMsgHit(hit)
+          else toast('这条消息已经不在最近的窗口里，往上翻页到那一天再看', 'info')
+        }
         break
       }
       case 'SEARCH_SUMMARY_RESULT': {
@@ -2046,6 +2488,13 @@ onMounted(async () => {
         }
         break
       }
+      case 'LOAD_OLDER_RESULT': {
+        // 只叫醒等这一页的那一次：连点两下、或检索跳转正在翻页时，旧回执不能把等待者叫错
+        const d = typeof msg.data === 'string' ? JSON.parse(msg.data) : (msg.data || {})
+        const w = olderWaiters.get(msg.requestId)
+        if (w) { olderWaiters.delete(msg.requestId); w(d) }
+        break
+      }
       case 'LOAD_MESSAGES': {
         const data = typeof msg.data === 'string' ? JSON.parse(msg.data) : msg.data
         if (Array.isArray(data)) {
@@ -2063,6 +2512,9 @@ onMounted(async () => {
             toast(`历史回包里有 ${data.length - rows.length} 条不是本会话的，已丢掉`, 'info')
           }
           messages.value = rows.reverse()
+          // 整批换掉了，"翻到底"那句就不作数了：这一轮重新从最近 50 条往前翻
+          olderEnd.value = false
+          olderErr.value = ''
           rememberCursor(currentConversation.value?.id, messages.value[messages.value.length - 1])
           // 只预热最近这段，否则一屏历史里有图就会并发拉回全部原图
           messages.value.slice(-12).forEach(ensureMedia)
@@ -2159,9 +2611,12 @@ async function selectConversation(conv) {
   clearUnread(String(conv.id))
   send('LOAD_MESSAGES', { conversationId: String(conv.id), limit: 50 })
 
-  // 抽屉「成员」页签现在承担群设置，所以切会话时要把群信息和成员名单一起同步过来
+  // 抽屉「成员」页签现在承担群设置，所以切会话时要把群信息和成员名单一起同步过来。
+  // 群会话的 id 带 g 前缀（localStorage 里存的是 g+那串数字），而 groups 里是纯数字，
+  // 直接比就永远匹配不上 —— 表现是成员页签一直写着"这个会话没有成员"，群设置那排也出不来。
   if (conv.type === 2) {
-    const group = groups.value.find(g => String(g.id) === String(conv.targetId))
+    const gid = String(conv.targetId ?? conv.id ?? '').replace(/^g/, '')
+    const group = groups.value.find(g => String(g.id) === gid)
     selectedGroup.value = group || null
     if (group) {
       // 静默加载成员数据，以便点击头像时有信息
@@ -4727,6 +5182,18 @@ async function openWithApp(r) {
 .member-info-modal {
   max-width: 340px;
 }
+/* 成员弹框底部那四颗：弹框内容宽 300px，原来写"语音通话/视频通话"四颗要 362px，
+   必然折成两行。名字缩成操作名（228px）+ 字号 14→12 + 内边距收窄 + nowrap 兜底，一行摆平 */
+.modal-foot.act4 { gap: 8px; justify-content: center; }
+.modal-foot.act4 > .btn { font-size: 12px; padding: 6px 12px; white-space: nowrap; }
+/* 群聊发起语音/视频/投屏/控制时的选人框：一列成员，点一个就发 */
+.pick-modal { width: 340px; max-width: 92vw; height: 400px; }
+.pick-body { overflow-y: auto; padding: 4px 0; }
+.pick-row { display: flex; align-items: center; gap: 10px; width: 100%; padding: 8px 20px;
+  border: none; background: transparent; color: var(--nb-text); font-size: 13px; text-align: left; cursor: pointer; }
+.pick-row:hover { background: var(--row-hover); }
+.pk-name { flex: 1 1 auto; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.pick-empty { padding: 26px 20px; text-align: center; font-size: 12px; color: var(--nb-dim-2); }
 .member-info-card {
   display: flex;
   flex-direction: column;
@@ -5017,13 +5484,42 @@ async function openWithApp(r) {
 .list-empty { padding: 22px 8px; text-align: center; color: var(--nb-dim-2); font-size: 13px; }
 
 /* ---- ③ 会话主区 ---- */
-.main { position: relative; flex: 1; min-width: 0; display: flex; flex-direction: column; background: #fff; }
+.main { position: relative; flex: 1; min-width: 0; display: flex; flex-direction: column; background: #fff;
+  /* 会话头那一排挤不挤，取决于这一栏的宽度，不取决于整窗（左边列表栏占掉多少不一定，
+     而且 560 那一档起列表栏会让位）。所以按容器宽度断，不按视口断。
+     A/B 已证明它不是"格子不出现"的原因 —— 那个是另一台登录了同一账号的设备在自动拒。 */
+  container-type: inline-size; container-name: mhead; }
 .m-head { display: flex; align-items: center; gap: 12px; padding: 12px 18px 10px; min-height: var(--head-h); border-bottom: 1px solid var(--nb-line-soft); }
 .mh-title { display: flex; align-items: center; gap: 4px; min-width: 0; }
 .mh-hash { color: var(--nb-dim-2); font-size: 17px; }
 .mh-name { font-size: 17px; font-weight: 600; color: var(--nb-text); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.mh-sub { font-size: 12px; color: var(--nb-dim); flex: 1; min-width: 0; }
-.mh-stack { display: flex; align-items: center; }
+/* 这一句原来只有 flex:1 + min-width:0，没有 nowrap —— 栏一窄它就先被压，
+   "3 位成员"就变成一字一行的竖排（截图里那个样子）。加上 nowrap + 省略号兜住，
+   真正的窄由下面的容器查询整块藏掉，不靠省略号硬撑。 */
+.mh-sub { font-size: 12px; color: var(--nb-dim); flex: 1 1 auto; min-width: 0;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+/* 头像堆和图标排不许被压：它们的尺寸是定死的（24 圆 / 30×28 命中区），
+   被 flex 压一下就是"样式乱了"，宁可让文字让位 */
+.mh-stack { display: flex; align-items: center; flex: 0 0 auto; }
+.mh-acts { display: flex; align-items: center; gap: 6px; flex: 0 0 auto; }
+/* 标题不许被压到看不见：图标那一排是定死的 240px（六颗 30×28 + 间距），
+   左边栏还开着时消息栏能剩的宽度很小，原来 flex 一压标题就成了 0 —— 会话名整个消失。
+   给它一个下限，实在放不下就走省略号。 */
+.mh-title { display: flex; align-items: center; gap: 4px; min-width: 64px; flex: 0 1 auto; }
+.mh-name { min-width: 64px; }
+/* 让位的顺序：先藏装饰性最强的叠放头像，再藏"几位成员"那句；
+   标题（可省略号）和右边那排图标（功能入口，藏了等于没做）永远留着。
+   阈值按消息栏实测宽度定的：660 那一档标题已经只剩 27px，所以头像要更早让位。 */
+@container mhead (max-width: 720px) { .mh-stack { display: none; } }
+@container mhead (max-width: 640px) { .mh-sub { display: none; } }
+/* 再窄下去与其让图标排溢出被裁掉（最右边那颗就成了"看不见的按钮"），
+   不如整排换到第二行：一个入口都不丢。
+   断点按实数定：图标排 210 + 左右 padding 36 + 标题下限 64 = 310，
+   放得下就不换行 —— 原来写 420 太早，430/660 那两档明明够宽却白白变成两行。 */
+@container mhead (max-width: 310px) {
+  .m-head { flex-wrap: wrap; }
+  .mh-acts { flex: 1 0 100%; justify-content: flex-end; }
+}
 .stack-ava {
   width: 24px; height: 24px; border-radius: 50%; background: var(--brand); color: #fff; display: grid; place-items: center;
   font-size: 11px; border: 2px solid #fff; margin-left: -7px;
@@ -5033,13 +5529,23 @@ async function openWithApp(r) {
   width: 24px; height: 24px; border-radius: 50%; background: var(--nb-bg-3); color: var(--nb-dim);
   display: grid; place-items: center; font-size: 10px; border: 2px solid #fff; margin-left: -7px;
 }
-.mh-acts { display: flex; align-items: center; gap: 6px; }
 .mh-btn { border: 1px solid var(--nb-line); background: #fff; color: var(--nb-dim); border-radius: 6px; font-size: 12px; padding: 4px 10px; cursor: pointer; }
 .mh-btn:hover { color: var(--brand); border-color: var(--brand-line); }
+/* 群聊发不起控制（没有"那一个人"可控制），但这颗不能消失：消失就没人知道有这件事。
+   置灰只改颜色和边框，尺寸一动不动，hover 也不再变蓝 */
+.mh-btn:disabled, .mh-btn:disabled:hover { color: var(--nb-dim-2); border-color: var(--nb-line-soft); cursor: not-allowed; }
+/* 往前翻那一格：挂在消息区顶上，跟着内容一起滚（它不是浮层，浮层会挡消息） */
+.older-bar { display: flex; align-items: center; justify-content: center; gap: 8px; padding: 2px 0 12px; }.older-end { font-size: 11px; color: var(--nb-dim-2); }
+.older-err { font-size: 11px; color: var(--warn); }
 /* 会话内检索：输入框在页头那一行里，结果面板挂在页头下面（.main 已经是 relative）。
    宽度给到 220px 是量过的：再窄，"命中 3 条 · 翻了 322 条 · 50ms · 后端 keyword" 那行就要折行 */
 .mh-search-wrap { position: relative; display: flex; align-items: center; }
-.mh-search { width: 220px; height: 30px; padding: 0 26px 0 10px; font-size: 12px;
+/* 高度必须和右边那排图标一模一样（28px）：原来写 30px，展开那一刻 .mh-acts 被撑到 30、
+   整条 header 从 51px 跳到 53px —— 展开一个搜索框不该让顶栏抖 2px。
+   220px 是宽窗口下的样子；窄屏那一档（≤430）展开输入框会把右边五颗挤出去，
+   所以给一个随视口收缩的上限：430px 屏上是 163px，163 + 五颗 174 + 间距 30 = 367 < 430。
+   图标的 30×28 命中区是地板，不让给它。 */
+.mh-search { width: min(220px, 38vw); height: 28px; padding: 0 26px 0 10px; font-size: 12px;
   color: var(--nb-text); background: #fff; border: 1px solid var(--nb-line); border-radius: 6px; }
 .mh-search::placeholder { color: var(--nb-dim-2); }
 .mh-search:focus { outline: none; border-color: var(--brand-line); }
@@ -5067,16 +5573,55 @@ async function openWithApp(r) {
 .ms-sum-out { margin: 6px 12px 0; padding: 7px 9px; font-size: 12px; line-height: 18px;
   color: var(--nb-text); background: var(--brand-soft); border-radius: 6px; }
 .ms-sum-out.bad { color: var(--warn); background: color-mix(in srgb, var(--warn) 10%, #fff); }
+/* 跨会话检索那一栏：贴在列表搜索框底下。会话名+时间占第一行、正文吃整行 ——
+   列表栏就那么宽，把句子塞进窄格会一句都读不完 */
+.xg-pop { flex: 0 0 auto; max-height: 268px; overflow-y: auto; border-bottom: 1px solid var(--nb-line-soft); padding: 2px 0 6px; }
+.xg-meta { padding: 4px 12px 2px; font-size: 11px; line-height: 16px; color: var(--nb-dim-2); }
+.xg-note { display: block; color: var(--warn); }
+.xg-none { padding: 10px 12px; font-size: 12px; color: var(--nb-dim-2); }
+.xg-row { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 0 8px; width: 100%;
+  padding: 7px 12px; border: 0; background: none; text-align: left; cursor: pointer; font-size: 12px; }
+.xg-row:hover { background: var(--row-hover); }
+.xg-conv { color: var(--nb-dim); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.xg-time { color: var(--nb-dim-2); font-size: 11px; }
+.xg-txt { grid-column: 1 / -1; color: var(--nb-text); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 /* 点搜索结果跳过去时闪一下：只描边不动几何，闪完自己退回去 */
 /* 命中那一圈：原来是 brand-soft（#eaf1ff），在白底上和没画一样——差只有 (21,14,0)。
    换成品牌色 45% 落卡片底，和手机端 hit_ring 同一颗混法、同一个数 */
 .msg.hit .bubble { box-shadow: 0 0 0 2px color-mix(in srgb, var(--brand) 45%, var(--nb-bg-1)); }
+/* 系统提示那一行被检索跳到时，同一颗圈、同一个数：它落在消息区底上，不是卡片底上 */
+.sys-line.hit { box-shadow: 0 0 0 2px color-mix(in srgb, var(--brand) 45%, var(--nb-bg-1)); }
 .mh-btn.icon { padding: 4px 8px; }
+/* 会话头那一排图标：44×28 的命中区（窄屏上不到 28px 的目标一律算没做），
+   图标本身 17px 线性描边、跟着文字色走；悬停只换底色和颜色，不长宽、不加光圈 */
+.mh-ico { display: inline-flex; align-items: center; justify-content: center;
+  width: 30px; height: 28px; padding: 0; border: 1px solid var(--nb-line); border-radius: 6px;
+  background: #fff; color: var(--nb-dim); cursor: pointer; }
+/* 间距由 .mh-acts 的 gap 管；这里原来还写了一条 + .mh-ico { margin-left: 6px }，
+   两道叠起来六颗图标白占 30px（实测那一排 240px，本该 210px），窄栏就是被它挤到溢出的 */
+.mh-ico:hover { color: var(--brand); border-color: var(--brand-line); }
+.mh-ico.on { color: var(--brand); border-color: var(--brand-line); }
+.mh-ico:disabled, .mh-ico:disabled:hover { color: var(--nb-dim-2); border-color: var(--nb-line-soft); cursor: not-allowed; }
+.mh-ico svg { width: 17px; height: 17px; fill: none; stroke: currentColor; stroke-width: 1.7;
+  stroke-linecap: round; stroke-linejoin: round; }
+/* 话单胶囊：通话留下的那句 SYSTEM 不再是光秃秃的一行灰字，而是微信那样一颗带电话图标的胶囊。
+   它可点 = 回拨，所以是 button 不是 span；灰字那档的字号和居中节奏沿用 .sys-line，不另起一摊 */
+.call-chip { display: inline-flex; align-items: center; gap: 6px; margin: 0 auto;
+  padding: 4px 12px; border: 1px solid var(--nb-line); border-radius: 999px;
+  background: #fff; color: var(--nb-dim); font-size: 11px; cursor: pointer; }
+.call-chip:hover { color: var(--brand); border-color: var(--brand-line); }
+.call-chip:disabled, .call-chip:disabled:hover { color: var(--nb-dim-2); border-color: var(--nb-line-soft); cursor: not-allowed; }
+.call-chip svg { width: 13px; height: 13px; fill: none; stroke: currentColor; stroke-width: 1.7;
+  stroke-linecap: round; stroke-linejoin: round; flex: 0 0 auto; }
+.call-chip .cc-t { white-space: nowrap; }
 .m-body { flex: 1; overflow-y: auto; padding: 16px 18px 40px; background: var(--nb-bg-1); }
 /* 通话条：贴在会话头下面的一条常驻状态条。分界只用一条发丝线，底色跟消息区同源 */
 .lk-bar { display: flex; align-items: center; flex-wrap: wrap; gap: 8px;
   padding: 8px 18px; background: var(--nb-bg-1); border-bottom: 1px solid var(--nb-line); }
 .lk-bar.in { background: var(--nb-bg-3); }
+/* 远程控制条上那两句补注：通道接没接、票据多久作废。这一格的"进行中"只到授权为止，
+   凭据要写在状态字旁边，别让人把"对方同意了"看成"屏幕已经过去了" */
+.ctl-note { font-size: 11px; color: var(--warn); }
 .lk-label { font-size: 13px; color: var(--nb-text); }
 .lk-peer { font-size: 13px; color: var(--nb-dim); overflow-wrap: anywhere; }
 .lk-timer { font-size: 12px; color: var(--nb-dim-2); font-variant-numeric: tabular-nums; }
@@ -5535,11 +6080,11 @@ async function openWithApp(r) {
    输入框实测 29px 宽，等于没有。所以这里改成两屏切换，并让抽屉盖住整屏。 */
 .mh-back { display: none; }   /* 桌面上这颗返回不出现，由下面的媒体查询放出来 */
 
-@media (max-width: 430px) {
-  /* 卡片本身贴边：手机上没有"窗口里一块圆角面板"这回事 */
-  .body-row { position: relative; margin: 0; border-radius: 0; }
-
-  /* 列表满屏；点开某条之后整栏让位，会话占满 */
+@media (max-width: 560px) {
+  /* 560 这一档解决的是"两栏并排放不下"：图标那一排要 210px，加上左右 padding 36 和
+     标题下限 64，消息栏至少得 310px；而列表栏还开着时它只剩 191/141 —— 物理放不下，
+     只能整排溢出被裁。所以这里起就把列表栏让出去，不再等到 430。
+     让位必须和「返回」那颗一起来：只有让位没有出口，就是把人关在会话里出不去。 */
   .body-row > .side { flex: 0 0 100%; width: 100%; min-width: 0; }
   .body-row.conv-open > .side { display: none; }
   .body-row.conv-open > .main { flex: 1 1 auto; min-width: 0; }
@@ -5554,7 +6099,7 @@ async function openWithApp(r) {
   }
   .mh-back:hover, .mh-back:focus-visible { color: var(--brand); background: var(--brand-soft); }
 
-  /* 头部：叠放头像在手机上没地方摆，位置让给标题和操作键 */
+  /* 头部：叠放头像在这一档没地方摆，位置让给标题和操作键 */
   .m-head { gap: 8px; padding: 10px 12px 8px; }
   .mh-stack { display: none; }
   .mh-btn { padding: 7px 12px; }
@@ -5566,18 +6111,24 @@ async function openWithApp(r) {
     z-index: 3; border-left: 0;
   }
 
-  /* A–Z 索引条是桌面的 12+3px 节奏，拇指按不住；手机上不出现，列表靠搜索框找。
-     联系人/群组那条（.al-rail）归 AlphaList 自己那份媒体查询管——scoped 样式够不到子组件内部节点 */
-  .alr { display: none; }
-  .side-body.has-rail { padding-right: 8px; }
-
-  /* 命中区抬到拇指下限（实测 390 下：搜索框 274x16、抽屉 ✕ 只有 11x27，
+  /* 命中区抬到下限（实测 390 下：搜索框 274x16、抽屉 ✕ 只有 11x27，
      而抽屉被我改成整屏覆盖，那颗 ✕ 是唯一出口）。
-     ＋/⋯/页签 这些尺寸桌面上是他定过的，一处不动，只在 <=430px 生效 */
+     ＋/⋯/页签 这些尺寸桌面上是他定过的，一处不动，只在这一档生效 */
   .ss-input { min-height: 30px; }
   .side-act { width: 30px; height: 30px; flex: 0 0 30px; }
   .row-more { width: 30px; height: 30px; flex: 0 0 30px; }
   .mh-btn { min-height: 30px; }
+  .mh-ico { width: 30px; height: 30px; }
   .dwt, .dw-close { min-width: 30px; min-height: 30px; padding-left: 10px; padding-right: 10px; }
+}
+
+@media (max-width: 430px) {
+  /* 卡片本身贴边：手机上没有"窗口里一块圆角面板"这回事 */
+  .body-row { position: relative; margin: 0; border-radius: 0; }
+
+  /* A–Z 索引条是桌面的 12+3px 节奏，拇指按不住；手机上不出现，列表靠搜索框找。
+     联系人/群组那条（.al-rail）归 AlphaList 自己那份媒体查询管——scoped 样式够不到子组件内部节点 */
+  .alr { display: none; }
+  .side-body.has-rail { padding-right: 8px; }
 }
 </style>

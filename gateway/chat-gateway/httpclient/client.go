@@ -117,6 +117,28 @@ func GetMessages(baseUrl string, userId int64, conversationId string, limit int)
 	return msgs, nil
 }
 
+// GetMessagesBefore 往前翻一批：从 (messageId, messageDate) 这个游标往更早的方向取。
+// 游标必须成对给 —— messages 的分区键含 message_date，单给一个 timeuuid 定不了从哪个分区起步。
+// 服务端一次最多往前回 7 天，所以"有没有翻到底"不由这一调用的条数说了算，见 handler 里那句。
+func GetMessagesBefore(baseUrl string, userId int64, conversationId, beforeId, cursorDate string, limit int) ([]MessageResponse, error) {
+	full := fmt.Sprintf("%s/api/message/history/%s?beforeMessageId=%s&messageDate=%s&limit=%d",
+		baseUrl, conversationId, url.QueryEscape(beforeId), url.QueryEscape(cursorDate), limit)
+	resp, err := do(http.MethodGet, full, nil, userId)
+	if err != nil {
+		return nil, err
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		b, _ := io.ReadAll(io.LimitReader(resp.Body, 500))
+		return nil, fmt.Errorf("history %d %s", resp.StatusCode, string(b))
+	}
+	var msgs []MessageResponse
+	if err := json.NewDecoder(resp.Body).Decode(&msgs); err != nil {
+		return nil, err
+	}
+	return msgs, nil
+}
+
 // GetMessagesAfter 补发：游标之后直到今天的消息，服务端按正序给回来。
 // 游标是 (messageId, messageDate) 一对：messages 的分区键含 message_date，
 // 单给一个 timeuuid 定不了该去哪个分区找。

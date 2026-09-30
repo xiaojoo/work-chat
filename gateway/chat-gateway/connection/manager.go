@@ -3,11 +3,14 @@ package connection
 import (
 	"chat-gateway/call"
 	"chat-gateway/config"
+	"chat-gateway/control"
 	"chat-gateway/httpclient"
 	"chat-gateway/redis"
 	"encoding/json"
 	"fmt"
 	"log"
+	"regexp"
+	"sort"
 	"strconv"
 	"strings"
 	"sync"
@@ -19,7 +22,20 @@ type Manager struct {
 	clients   map[int64]map[string]*Client
 	cfg       *config.Config
 	calls     *call.Manager
+	controls  *control.Manager
 	gatewayID string
+}
+
+// controlProvider 是 V3.0 那根可拔插的缝的唯一注入点。一期只有 none：
+// 它不给出任何"怎么连过去"的信息，但发起/同意/票据/停止这一整条控制链路照跑。
+// 名字写错不掐人 —— 按没接通道处理，并打一行说明为什么 handoff 是空的
+func controlProvider(name string) control.Provider {
+	switch name {
+	case "", "none":
+		return control.NullProvider{}
+	}
+	log.Printf("CONTROL_PROVIDER=%q 这里没有这个实现，按没接远程控制通道处理", name)
+	return control.NullProvider{}
 }
 
 var manager *Manager
@@ -29,6 +45,7 @@ func InitManager(cfg *config.Config) {
 		clients:   make(map[int64]map[string]*Client),
 		cfg:       cfg,
 		calls:     call.NewManager(cfg.LivekitUrl, cfg.LivekitApiKey, cfg.LivekitApiSecret),
+		controls:  control.NewManager([]byte(cfg.ControlSecret), controlProvider(cfg.ControlProvider)),
 		gatewayID: cfg.GatewayId,
 	}
 }
@@ -101,6 +118,15 @@ func (m *Manager) Remove(client *Client) {
 				go m.calls.DeleteRoom(s.Room)
 				m.endCall(s.Room, client.UserID, "DISCONNECTED", s.ConvId, otherOf(s, client.UserID))
 				log.Printf("Call ended by disconnect: room=%s by=%d", s.Room, client.UserID)
+			}
+		}
+		// 远程控制更是不能留：人一走，那一屏要么已经在别人手里、要么马上就要断。
+		// 网关这边收的是信令这一侧（票据立刻作废 + 通知对面），
+		// 真正掐掉像素是 Provider.Release 的事 —— 空实现下它什么都不做
+		if cs := m.controls.ByUser(client.UserID); cs != nil {
+			if ex := m.controls.ForceStop(cs.ID); ex != nil {
+				m.endControl(ex, 0, "远程控制断开了", "远程控制请求断了")
+				log.Printf("Control ended by disconnect: id=%s by=%d", ex.ID, client.UserID)
 			}
 		}
 	}
@@ -198,6 +224,10 @@ func (m *Manager) HandleMessage(client *Client, msg *Message) {
 		m.handleSyncMissing(client, msg)
 	case "SEARCH_MESSAGES":
 		m.handleSearchMessages(client, msg)
+	case "LOAD_OLDER":
+		m.handleLoadOlder(client, msg)
+	case "SEARCH_GLOBAL":
+		m.handleSearchGlobal(client, msg)
 	case "SEARCH_SUMMARY":
 		m.handleSearchSummary(client, msg)
 	case "PRESENCE_SET":
@@ -212,6 +242,14 @@ func (m *Manager) HandleMessage(client *Client, msg *Message) {
 		m.handleCallHangup(client, msg)
 	case "CALL_SHARE":
 		m.handleCallShare(client, msg)
+	case "CONTROL_REQUEST":
+		m.handleControlRequest(client, msg)
+	case "CONTROL_ACCEPT":
+		m.handleControlAccept(client, msg)
+	case "CONTROL_REJECT":
+		m.handleControlReject(client, msg)
+	case "CONTROL_STOP":
+		m.handleControlStop(client, msg)
 	default:
 		log.Printf("Unknown message type: %s", msg.Type)
 	}
@@ -601,6 +639,70 @@ func (m *Manager) handleSyncMissing(client *Client, msg *Message) {
 	client.enqueue(resp)
 }
 
+/* 往前翻。原来网页端只有"点开会话拉最近 50 条"这一条路，更早的消息在界面上根本到不了
+   （检索命中它们也只能提示"不在已加载的窗口里"）。这里补一帧 LOAD_OLDER。
+
+   成员资格必须在网关判：/history 那条 REST 只要有效令牌就能读，Java 那边的注释自己点了这个缺口 ——
+   翻页只是把"读别人的聊天记录"换成一次一次问，性质没变，别在检索上补了、在这儿漏着。
+
+   游标 (messageId, messageDate) 两个都得带：messages 的分区键含 message_date。
+   形状在这里就验掉：服务端是 UUID.fromString / LocalDate.parse，喂脏东西会回 500，
+   而 500 到了界面上就成了一句没人看得懂的"翻页失败"。 */
+var timeuuidRe = regexp.MustCompile(`^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$`)
+var dayRe = regexp.MustCompile(`^\d{4}-\d{2}-\d{2}$`)
+
+func (m *Manager) handleLoadOlder(client *Client, msg *Message) {
+	var data struct {
+		ConversationId  string `json:"conversationId"`
+		BeforeMessageId string `json:"beforeMessageId"`
+		MessageDate     string `json:"messageDate"`
+		Limit           int    `json:"limit"`
+	}
+	if err := json.Unmarshal(msg.Data, &data); err != nil || data.ConversationId == "" {
+		return
+	}
+	fail := func(why string) {
+		client.enqueue(ackFrame(msg.RequestId, "LOAD_OLDER_RESULT", map[string]interface{}{
+			"conversationId": data.ConversationId, "error": why,
+		}))
+	}
+	limit := data.Limit
+	if limit <= 0 || limit > 200 {
+		limit = 50
+	}
+	if !timeuuidRe.MatchString(data.BeforeMessageId) || !dayRe.MatchString(data.MessageDate) {
+		fail("翻页的游标不对（要一个消息 id 加一个日期），往前翻不了")
+		return
+	}
+	member, err := m.isMemberOf(client.UserID, data.ConversationId)
+	if err != nil {
+		log.Printf("load older members failed: conv=%s err=%v", data.ConversationId, err)
+		fail("查不到这条会话的成员，往前翻没做")
+		return
+	}
+	if !member {
+		log.Printf("load older denied: user=%d not a member of conv=%s", client.UserID, data.ConversationId)
+		fail("你不是这条会话的成员")
+		return
+	}
+	msgs, err := httpclient.GetMessagesBefore(m.cfg.MessageServiceUrl, client.UserID,
+		data.ConversationId, data.BeforeMessageId, data.MessageDate, limit)
+	if err != nil {
+		log.Printf("load older failed: conv=%s err=%v", data.ConversationId, err)
+		fail("往前翻没翻动：" + err.Error())
+		return
+	}
+	list, _ := json.Marshal(msgs)
+	// 服务端一次最多往前回 7 天，所以"这批比上限少"不等于到顶了（也可能是那几天本就没人说话）。
+	// 界面只认一个信号：翻出来是空 = 到最早的一条了
+	client.enqueue(ackFrame(msg.RequestId, "LOAD_OLDER_RESULT", map[string]interface{}{
+		"conversationId": data.ConversationId,
+		"messages":       json.RawMessage(list),
+		"exhausted":      len(msgs) == 0,
+	}))
+	log.Printf("load older: user=%d conv=%s 往前取了 %d 条", client.UserID, data.ConversationId, len(msgs))
+}
+
 // handleSearchMessages 会话内关键词检索。
 // 检索是所有读口里最宽的一个：一个常用字就能把整条会话翻出来，所以成员资格在这里判死
 // （成员表在用户服务/群服务那边，消息服务这一层拿不到），结果也只回给请求者本人。
@@ -652,6 +754,172 @@ func (m *Manager) handleSearchMessages(client *Client, msg *Message) {
 		Data      json.RawMessage `json:"data"`
 	}{Type: "SEARCH_RESULT", RequestId: msg.RequestId, Data: body})
 	client.enqueue(resp)
+}
+
+// handleSearchGlobal 跨会话检索。两边服务都没有"按人查所有命中"这条路：
+// 消息表的主键是 (会话, 日期)，没建全局索引，一次命中必须落在一条具体会话的分区上；
+// 而"这个人有哪些会话"只有用户服务知道。所以扇开放在网关这一层 —— 它本来就管着人脉。
+//
+// 代价要说实话：一次全局搜索 = 会话数 × 一次分区扫。并发限 8 是给消息服务留余量，
+// 扫不动的会话记进 skipped，超上限就只扫最近那几十条并在 note 里写明扫了几条。
+func (m *Manager) handleSearchGlobal(client *Client, msg *Message) {
+	var data struct {
+		Keyword string `json:"keyword"`
+		Limit   int    `json:"limit"`
+		Days    int    `json:"days"`
+	}
+	if err := json.Unmarshal(msg.Data, &data); err != nil {
+		return
+	}
+	keyword := strings.TrimSpace(data.Keyword)
+	if keyword == "" {
+		client.enqueue(ackFrame(msg.RequestId, "SEARCH_RESULT", map[string]interface{}{
+			"global": true, "error": "没给关键词，扫不了"}))
+		return
+	}
+	limit := data.Limit
+	if limit <= 0 || limit > 200 {
+		limit = 50
+	}
+	days := data.Days
+	if days <= 0 || days > 90 {
+		days = 30
+	}
+	const convCap = 80   // 一次最多扫这么多条会话（列表本身就是按最近更新排的）
+	const perConv = 10   // 每条会话最多取几条，合起来再按时间截到 limit
+	const width = 8      // 同时在扫的会话数
+
+	convs, err := httpclient.GetConversationList(m.cfg.UserServiceUrl, client.UserID)
+	if err != nil {
+		log.Printf("global search: 会话列表没取回来 user=%d err=%v", client.UserID, err)
+		client.enqueue(ackFrame(msg.RequestId, "SEARCH_RESULT", map[string]interface{}{
+			"global": true, "keyword": keyword, "error": "会话列表没取回来，检索没做：" + err.Error()}))
+		return
+	}
+	scannedConvs := convs
+	note := ""
+	if len(convs) > convCap {
+		scannedConvs = convs[:convCap]
+		note = fmt.Sprintf("只翻了最近 %d 条会话（总共 %d 条；这一版没建全局索引）", convCap, len(convs))
+	}
+
+	// 每条会话各扫各的分区：消息表主键是 (会话, 日期)，这一版没建全局索引
+	out := make([]convResult, len(scannedConvs))
+	sem := make(chan struct{}, width)
+	var wg sync.WaitGroup
+	for i, c := range scannedConvs {
+		cm, ok := c.(map[string]interface{})
+		if !ok {
+			out[i].err = "会话记录读不出字段"
+			continue
+		}
+		id := fmt.Sprintf("%v", cm["id"])
+		if id == "" || id == "<nil>" {
+			out[i].err = "这条会话没有 id"
+			continue
+		}
+		name := fmt.Sprintf("%v", cm["name"])
+		if name == "<nil>" || name == "" {
+			name = "会话 " + id
+		}
+		wg.Add(1)
+		go func(i int, id, name string) {
+			defer wg.Done()
+			sem <- struct{}{}
+			defer func() { <-sem }()
+			body, e := httpclient.SearchMessages(m.cfg.MessageServiceUrl, client.UserID, id, keyword, perConv, days)
+			if e != nil {
+				out[i].err = e.Error()
+				return
+			}
+			var parsed map[string]interface{}
+			if json.Unmarshal(body, &parsed) != nil {
+				out[i].err = "消息服务回的不是对象"
+				return
+			}
+			out[i] = convResult{convId: id, convName: name, body: parsed}
+		}(i, id, name)
+	}
+	wg.Wait()
+
+	hits, agg := mergeConvResults(out, limit)
+	agg["global"] = true
+	agg["keyword"] = keyword
+	agg["conversationsTotal"] = len(convs)
+	agg["note"] = note
+	resp, _ := json.Marshal(agg)
+	frame, _ := json.Marshal(Message{Type: "SEARCH_RESULT", RequestId: msg.RequestId, Data: resp})
+	client.enqueue(frame)
+	log.Printf("global search: user=%d keyword=%q 扫了 %v/%d 条会话 命中 %d skipped=%v",
+		client.UserID, keyword, agg["conversations"], len(convs), len(hits), agg["skipped"])
+}
+
+// convResult 一条会话的检索回执。body 是消息服务原样回的那个对象
+// （provider/hits/scanned/truncated/tookMs），err 非空就是这条没扫动。
+type convResult struct {
+	convId   string
+	convName string
+	body     map[string]interface{}
+	err      string
+}
+
+// mergeConvResults 把各会话分头扫回来的东西合成一列，顺带把那几个实数汇总。
+// 独立出来是因为这一段是全流程里最容易悄悄错的地方：次序、截断、没扫动的条数、
+// 每条命中归哪条会话 —— 拿掉任何一项，界面上都是"看着对"的假结果。
+//
+// 次序按 createTime：后端回的是 UTC 的 ISO 串，字典序就是时间序，这里不自己解析时间戳，
+// 免得"两种格式各解一半"再错一次。
+func mergeConvResults(out []convResult, limit int) ([]map[string]interface{}, map[string]interface{}) {
+	hits := make([]map[string]interface{}, 0, limit)
+	var totalScanned float64
+	var maxTook float64
+	provider := ""
+	truncated := false
+	skipped := 0
+	live := 0
+	for _, cs := range out {
+		if cs.err != "" || cs.body == nil {
+			skipped++
+			log.Printf("global search: conv=%s 没扫动 err=%s", cs.convId, cs.err)
+			continue
+		}
+		live++
+		if p, _ := cs.body["provider"].(string); p != "" {
+			provider = p
+		}
+		if n, ok := cs.body["scanned"].(float64); ok {
+			totalScanned += n
+		}
+		if t, ok := cs.body["tookMs"].(float64); ok && t > maxTook {
+			maxTook = t
+		}
+		if tr, ok := cs.body["truncated"].(bool); ok && tr {
+			truncated = true
+		}
+		list, _ := cs.body["hits"].([]interface{})
+		for _, h := range list {
+			hm, ok := h.(map[string]interface{})
+			if !ok {
+				continue
+			}
+			// 命中要带上"这条是哪条会话里的"：点进去先要能找到那条会话
+			hm["conversationId"] = cs.convId
+			hm["conversationName"] = cs.convName
+			hits = append(hits, hm)
+		}
+	}
+	sort.Slice(hits, func(i, j int) bool {
+		return fmt.Sprintf("%v", hits[i]["createTime"]) > fmt.Sprintf("%v", hits[j]["createTime"])
+	})
+	if limit > 0 && len(hits) > limit {
+		hits = hits[:limit]
+		truncated = true
+	}
+	return hits, map[string]interface{}{
+		"hits": hits, "provider": provider, "scanned": totalScanned,
+		"conversations": live, "skipped": skipped,
+		"truncated": truncated, "tookMs": maxTook,
+	}
 }
 
 // handleSearchSummary 归纳这批命中。成员资格同样先判（能归纳就等于能读出这批原文），
@@ -1071,6 +1339,207 @@ func (m *Manager) handleCallHangup(client *Client, msg *Message) {
 	go m.calls.DeleteRoom(s.Room)
 	m.endCall(s.Room, client.UserID, "HANGUP", s.ConvId, otherOf(s, client.UserID))
 	log.Printf("Call ended: room=%s by=%d", s.Room, client.UserID)
+}
+
+/* ---- V3.0 远程控制：这一期只有控制面（发起 → 对方同意 → 一次性票据 → 停止）。
+像素和鼠标键盘往哪走是 Provider 的事，一期是空实现，所以 handoff 会是空的、
+channelError 会带着 CONTROL_NOT_CONFIGURED 原样送到界面上 —— 不假装连上了。
+帧名照设计文档那四条：CONTROL_REQUEST / ACCEPT / REJECT / STOP ---- */
+
+func (m *Manager) handleControlRequest(client *Client, msg *Message) {
+	var data struct {
+		PeerId         int64  `json:"peerId"`
+		ConversationId string `json:"conversationId"`
+	}
+	if err := json.Unmarshal(msg.Data, &data); err != nil {
+		return
+	}
+	s, why := m.controls.Request(client.UserID, data.PeerId, data.ConversationId)
+	if s == nil {
+		client.enqueue(ackFrame(msg.RequestId, "CONTROL_ACK", map[string]interface{}{
+			"status": "FAILED", "error": why,
+		}))
+		return
+	}
+	// 发起也落一条事件到 chat-user（控制端）
+	go func() {
+		err := control.PostControlLedger("/api/control/request", map[string]any{
+			"targetId":   data.PeerId,
+			"sessionId":  s.ID,
+			"conversationId": data.ConversationId,
+		}, client.UserID)
+		if err != nil {
+			log.Printf("control ledger request err=%v", err)
+		}
+	}()
+	if m.deviceCount(data.PeerId) == 0 {
+		m.controls.ForceStop(s.ID)
+		client.enqueue(ackFrame(msg.RequestId, "CONTROL_ACK", map[string]interface{}{
+			"status": "FAILED", "error": "PEER_OFFLINE",
+		}))
+		return
+	}
+	m.push(data.PeerId, "CONTROL_REQUEST", map[string]interface{}{
+		"id": s.ID, "peerId": client.UserID, "conversationId": s.ConvId,
+	})
+	client.enqueue(ackFrame(msg.RequestId, "CONTROL_ACK", map[string]interface{}{
+		"status": "PENDING", "id": s.ID,
+	}))
+	m.notice(s.ConvId, client.UserID, data.PeerId, "请求远程控制你的屏幕")
+	// 没人点头就得自己收掉：界面那一格"请求中"不能靠客户端数秒，
+	// 关了页面的人更要被通知一声，否则这一场永远挂在这里，谁也发不起第二场
+	id := s.ID
+	time.AfterFunc(m.controls.PendingTTL(), func() {
+		if ex := m.controls.ExpirePending(id); ex != nil {
+			m.push(ex.ControllerId, "CONTROL_TIMEOUT", map[string]interface{}{"id": id})
+			m.notice(ex.ConvId, ex.ControlledId, ex.ControllerId, "远程控制没人同意")
+			log.Printf("Control unanswered: id=%s", id)
+		}
+	})
+	log.Printf("Control requested: id=%s %d -> %d channel=%s", id, client.UserID, data.PeerId, m.controls.ProviderName())
+}
+
+func (m *Manager) handleControlAccept(client *Client, msg *Message) {
+	var data struct {
+		Id string `json:"id"`
+	}
+	if err := json.Unmarshal(msg.Data, &data); err != nil {
+		return
+	}
+	s, why := m.controls.Accept(data.Id, client.UserID, true)
+	if s == nil {
+		client.enqueue(ackFrame(msg.RequestId, "CONTROL_ACK", map[string]interface{}{
+			"status": "FAILED", "error": orDefault(why, "NO_SUCH_SESSION"),
+		}))
+		return
+	}
+	if why != "" {
+		client.enqueue(ackFrame(msg.RequestId, "CONTROL_ACK", map[string]interface{}{
+			"status": "FAILED", "error": why,
+		}))
+		return
+	}
+	tok, err := m.controls.Issue(s)
+	if err != nil {
+		m.controls.ForceStop(s.ID)
+		client.enqueue(ackFrame(msg.RequestId, "CONTROL_ACK", map[string]interface{}{
+			"status": "FAILED", "error": "TOKEN_FAILED",
+		}))
+		return
+	}
+	hand, herr := m.controls.Handoff(s)
+	// 通道有没有、票据多久作废，两句话两边都要拿到：点头的那一方同样要知道
+	// "我同意了，但这台没接通道"，不然只有发起方看得见这句实话
+	ack := map[string]interface{}{
+		"status": "ok", "id": s.ID, "channel": s.Channel, "ttlSec": m.controls.TokenTTLSeconds(),
+	}
+	body := map[string]interface{}{
+		"id": s.ID, "peerId": client.UserID, "token": tok, "channel": s.Channel,
+		"ttlSec": m.controls.TokenTTLSeconds(), "handoff": hand,
+	}
+	if herr != nil {
+		// 对方确实点头了，是我们这边没有承载它的东西。这句话原样送到界面上，
+		// 不能把"同意"演成"连上了"
+		body["channelError"] = herr.Error()
+		ack["channelError"] = herr.Error()
+	}
+	m.push(s.ControllerId, "CONTROL_ACCEPTED", body)
+	client.enqueue(ackFrame(msg.RequestId, "CONTROL_ACK", ack))
+	m.notice(s.ConvId, client.UserID, s.ControllerId, "同意远程控制")
+	// 到最长时长强制收：两边都忘了点停止，不能让它一直开着别人的屏幕
+	id := s.ID
+	time.AfterFunc(m.controls.MaxTTL(), func() {
+		if ex := m.controls.ForceStop(id); ex != nil {
+			m.endControl(ex, 0, "远程控制到时长自动结束", "远程控制请求没人同意")
+			log.Printf("Control hit max duration: id=%s", id)
+		}
+	})
+	log.Printf("Control accepted: id=%s by=%d -> %d channel=%s handoff=%v err=%v",
+		id, client.UserID, s.ControllerId, s.Channel, hand != nil, herr)
+}
+
+func (m *Manager) handleControlReject(client *Client, msg *Message) {
+	var data struct {
+		Id string `json:"id"`
+	}
+	if err := json.Unmarshal(msg.Data, &data); err != nil {
+		return
+	}
+	s, why := m.controls.Accept(data.Id, client.UserID, false)
+	if s == nil {
+		client.enqueue(ackFrame(msg.RequestId, "CONTROL_ACK", map[string]interface{}{
+			"status": "FAILED", "error": orDefault(why, "NO_SUCH_SESSION"),
+		}))
+		return
+	}
+	if why != "" {
+		client.enqueue(ackFrame(msg.RequestId, "CONTROL_ACK", map[string]interface{}{"status": "FAILED", "error": why}))
+		return
+	}
+	m.push(s.ControllerId, "CONTROL_REJECTED", map[string]interface{}{"id": s.ID, "peerId": client.UserID})
+	client.enqueue(ackFrame(msg.RequestId, "CONTROL_ACK", map[string]interface{}{"status": "ok", "id": s.ID}))
+	m.notice(s.ConvId, client.UserID, s.ControllerId, "拒绝了远程控制")
+	log.Printf("Control rejected: id=%s by=%d", s.ID, client.UserID)
+}
+
+func (m *Manager) handleControlStop(client *Client, msg *Message) {
+	var data struct {
+		Id string `json:"id"`
+	}
+	if err := json.Unmarshal(msg.Data, &data); err != nil {
+		return
+	}
+	s, ok := m.controls.Stop(data.Id, client.UserID)
+	if !ok {
+		// 已经不在了：可能是对面先停的，也可能是超时收的。回 ok，
+		// 回 FAILED 只会让这一端的界面卡在"控制中"那一格
+		client.enqueue(ackFrame(msg.RequestId, "CONTROL_ACK", map[string]interface{}{
+			"status": "ok", "already": true,
+		}))
+		return
+	}
+	m.endControl(s, client.UserID, "远程控制结束", "取消了远程控制请求")
+	client.enqueue(ackFrame(msg.RequestId, "CONTROL_ACK", map[string]interface{}{"status": "ok", "id": s.ID}))
+	log.Printf("Control stopped: id=%s by=%d", s.ID, client.UserID)
+}
+
+// endControl 收场做两件事：给没动手的那一侧补一帧、在这条会话里留那一句。
+// 时长只从"对方点头"那一刻算起，而且**没点头就收场的根本没有时长可写** ——
+// 那一屏从没被别人动过，写成"远程控制结束 00:00"等于凭空造一条话单，
+// 所以两句文案分开给。actor=0 是系统收的（到最长时长、断线），这种没有"是谁点的停止"，
+// 那句挂到被控方名下，两侧各补一帧
+func (m *Manager) endControl(s *control.Session, actor int64, activeLabel, pendingLabel string) {
+	text := pendingLabel
+	if s.State == control.Active {
+		secs := int(time.Since(s.Since).Seconds())
+		text = fmt.Sprintf("%s %02d:%02d", activeLabel, secs/60, secs%60)
+	}
+	/* 只给没动手的那一侧补一帧。
+	   试过"两端都推，包括喊停的那一位"，在门禁上被实测打回来了：浏览器一次 Tab 可见性变化会
+	   让 useCall 重挂一次，重挂后 ctl.value 被回填成 {}（id 是空的），而 phase 还留着 active ——
+	   这一头补来的 CONTROL_STOPPED 于是靠 `!ctl.value.id` 认账，把这一端自己收场的那一帧当成
+	   "别人的那一场结束了"，跟着 reset 并把那句"对方结束了远程控制"写进会话。
+	   喊停那一侧的复位仍然靠本地 reset()；它真卡住的话，靠的是发起时那一次租约回收，不是这一帧。 */
+	for _, uid := range []int64{s.ControllerId, s.ControlledId} {
+		if uid == actor {
+			continue
+		}
+		m.push(uid, "CONTROL_STOPPED", map[string]interface{}{"id": s.ID, "peerId": actor})
+	}
+	who, peer := actor, s.ControllerId
+	if actor == 0 {
+		who = s.ControlledId
+	} else if actor == s.ControllerId {
+		peer = s.ControlledId
+	}
+	m.notice(s.ConvId, who, peer, text)
+}
+
+func orDefault(v, def string) string {
+	if v == "" {
+		return def
+	}
+	return v
 }
 
 // splitConversationId 解析一对一会话ID
