@@ -90,6 +90,10 @@
               <div class="ava" :class="{ group: conv.type === 2 }">
                 <img v-if="conv.avatar" :src="conv.avatar" alt="" />
                 <span v-else>{{ conv.name?.charAt(0)?.toUpperCase() }}</span>
+                <!-- 单聊这一行的名字就是对方，所以点画他的状态；群会话不画（群不是一个人），
+                     在线也不画（见 presenceOf 那条口径） -->
+                <i v-if="conv.type !== 2 && presenceOf(conv.targetId)" class="pres" :class="presenceOf(conv.targetId)"
+                   :title="presTitle(presenceOf(conv.targetId))" />
               </div>
               <!-- 右侧是一列：第一行和会话名同一基线（免打扰铃铛 + 时间），第二行是未读角标。
                    做成 3 列 2 行的网格而不是 flex，是为了让这两行和左边的名字/摘要共用行轨，
@@ -122,6 +126,7 @@
                 <div class="ava">
                   <img v-if="friend.avatar" :src="friend.avatar" alt="" />
                   <span v-else>{{ friendName(friend).charAt(0).toUpperCase() }}</span>
+                  <i v-if="presenceOf(friend.friendId)" class="pres" :class="presenceOf(friend.friendId)" :title="presTitle(presenceOf(friend.friendId))" />
                 </div>
                 <div class="row-main">
                   <div class="row-top"><span class="row-name">{{ friendName(friend) }}</span></div>
@@ -172,6 +177,9 @@
         <div class="mh-title">
           <span v-if="currentConversation?.type === 2" class="mh-hash">#</span>
           <span class="mh-name">{{ currentConversation?.name || '' }}</span>
+          <!-- 单聊才有点：这一格的名字就是对方的昵称，他的在线状态挂在名字后面读得通。
+               群聊没有"在不在线"这回事（群不是一个人），所以群聊这里什么都不画。 -->
+          <i v-if="headPeerPresence" class="pres inline" :class="headPeerPresence" :title="presTitle(headPeerPresence)" />
         </div>
         <div class="mh-sub">{{ headSub }}</div>
         <!-- 叠放头像取真实群成员（名字走 loadMemberNames 的缓存）；单聊没成员可摆，整块不出现，
@@ -312,10 +320,12 @@
 
       <div class="m-body" ref="messagesRef" @contextmenu.prevent="openBgMenu($event)">
         <!-- 往前翻：一开会话只拉最近 50 条，更早的原来在界面上根本到不了（检索命中它们也只能提示一句
-             "不在已加载的窗口里"）。翻到底就把那句写死在这儿，不藏起来 —— 消失会让人以为还能再点 -->
-        <div v-if="currentConversation" class="older-bar">
+             "不在已加载的窗口里"）。翻到底就把那句写死在这儿，不藏起来 —— 消失会让人以为还能再点。
+             但这一条整块只在"确实可能有更早的"时出现：一条都没有的会话、以及后端一次就把整条
+             会话给完了（回来的批不满一页）的会话，摆一颗点了什么也不会发生的按钮等于骗人。 -->
+        <div v-if="currentConversation && messages.length && (historyFull || olderEnd)" class="older-bar">
           <button v-if="!olderEnd" type="button" class="btn btn-neutral"
-                  :disabled="olderBusy || !messages.length" @click="loadOlderOnce()">{{ olderLabel }}</button>
+                  :disabled="olderBusy" @click="loadOlderOnce()">{{ olderLabel }}</button>
           <span v-else class="older-end">到最早的一条了</span>
           <span v-if="olderErr" class="older-err">{{ olderErr }}</span>
         </div>
@@ -458,7 +468,7 @@
           <div class="mp-list">
             <button v-for="(m, i) in mentionList" :key="m.userId" type="button" class="mp-row"
                     :class="{ on: i === mentionIndex }" @click="pickMention(m)">
-              <span class="mp-av">{{ m.name.charAt(0).toUpperCase() }}</span>
+              <span class="mp-av">{{ m.name.charAt(0).toUpperCase() }}<i v-if="presenceOf(m.userId)" class="pres" :class="presenceOf(m.userId)" :title="presTitle(presenceOf(m.userId))" /></span>
               <span class="mp-nm">{{ m.name }}</span>
             </button>
             <p v-if="!mentionList.length" class="mp-empty">没有匹配的成员</p>
@@ -585,13 +595,17 @@
 
           <div class="gs-grid">
             <div v-for="m in filteredGroupMembers" :key="m.userId" class="gs-cell"
-                 :class="{ picking: removeMode && canRemoveMember(m), picked: manageMode && String(m.userId) === managedUserId }"
-                 @click="onMemberCell(m)">
+                 :class="{ picking: removeMode && canRemoveMember(m) }"
+                 @click="onMemberCell(m)" @contextmenu.prevent.stop="openMemberMenu($event, m)">
               <div class="gs-ava">
                 <span class="gs-init">{{ memberName(m).charAt(0).toUpperCase() }}</span>
                 <span v-if="removeMode && canRemoveMember(m)" class="gs-minus"><Minus theme="outline" size="11" /></span>
                 <span v-else-if="!removeMode && m.role === 2" class="gs-tag owner">群主</span>
                 <span v-else-if="!removeMode && m.role === 1" class="gs-tag admin">管理员</span>
+                <!-- 状态点挂在头像右上角：右下角那一角是"群主/管理员"和移出模式那颗红减号的。
+                     画在角里而不是探出去，是因为 .ava 那格 overflow:hidden（为了裁头像图的圆角），
+                     探出去会被切掉半个；.gs-ava 这格没有 overflow，但为了和别的列表一致也走角里。 -->
+                <i v-if="presenceOf(m.userId)" class="pres" :class="presenceOf(m.userId)" :title="presTitle(presenceOf(m.userId))" />
               </div>
               <div class="gs-name">{{ memberName(m) }}</div>
             </div>
@@ -603,35 +617,8 @@
                     :disabled="!groupMembers.some(m => canRemoveMember(m))" @click="toggleRemoveMode">
               <span class="gs-box">－</span><em>移出</em>
             </button>
-            <!-- 设管理员/禁言/转让群主的接口后端一直有，此前前端一次都没调过 -->
-            <button v-if="selectedGroup" type="button" class="gs-tile" :class="{ on: manageMode }" title="成员管理"
-                    :disabled="!canManageAnyone" @click="toggleManageMode">
-              <span class="gs-box">⋯</span><em>管理</em>
-            </button>
-          </div>
-
-          <!-- 管理模式：点一个成员在这里出操作条。够不着的项置灰不消失，并写清是谁的权限挡着 -->
-          <div v-if="manageMode && managedMember" class="gs-manage">
-            <div class="gs-mg-head">
-              <span class="gs-mg-name">{{ memberName(managedMember) }}</span>
-              <span v-if="managedMember.role === 2" class="gs-tag owner">群主</span>
-              <span v-else-if="managedMember.role === 1" class="gs-tag admin">管理员</span>
-              <span v-else class="gs-mg-role">普通成员</span>
-              <span v-if="managedMember.muted" class="gs-mg-muted">禁言中</span>
-            </div>
-            <div class="gs-mg-acts">
-              <button type="button" class="btn btn-neutral" :disabled="!canSetRole(managedMember)"
-                      @click="handleSetRole(managedMember, managedMember.role === 1 ? 0 : 1)">
-                {{ managedMember.role === 1 ? '取消管理员' : '设为管理员' }}
-              </button>
-              <button type="button" class="btn btn-neutral" :disabled="!canMute(managedMember)"
-                      @click="handleMute(managedMember, managedMember.muted ? null : 10)">
-                {{ managedMember.muted ? '解除禁言' : '禁言 10 分钟' }}
-              </button>
-              <button type="button" class="btn btn-danger" :disabled="!canTransfer(managedMember)"
-                      @click="handleTransferOwner(managedMember)">转让群主</button>
-            </div>
-            <div v-if="myGroupRole < 2" class="gs-note">只有群主能设管理员和转让群主，你能做的只有禁言普通成员</div>
+            <!-- 设管理员/禁言/转让群主改到格子上右键（原来这里是一颗「管理」开关 + 底下一条操作条）。
+                 这三项没有图标（客户端只画了自己那几支），所以这一份菜单不带图标，行只有文字 -->
           </div>
           <div v-if="!filteredGroupMembers.length" class="list-empty">
             {{ drawerMembers.length ? '没有匹配的成员' : (selectedGroup ? '这个群还没有成员' : '这个会话没有成员') }}
@@ -639,22 +626,24 @@
 
           <template v-if="selectedGroup">
             <!-- 群聊名称 / 群公告：PUT /group/{id} 真的收 name、announcement。
-                 做成常驻表单而不是"点行展开"：名称必填带红星，两个框各带字数计数器 -->
+                 做成常驻表单而不是"点行展开"：名称必填带红星，两个框各带字数计数器。
+                 计数器挂在标签那一行的右端，不在输入框里面 —— 它原来虽然也是绝对定位，
+                 但输入框为此让出 54px 右内距，等于替它占了宽度（他 2026-10-02 点名要撤） -->
             <div class="gs-form">
               <div class="gs-field">
-                <div class="gs-lab">群聊名称<span class="gs-req">＊</span></div>
+                <div class="gs-lab">群聊名称<span class="gs-req">＊</span>
+                  <span class="gs-count">{{ (groupNameDraft || '').length }}/50</span></div>
                 <div class="gs-field-box">
                   <input v-model="groupNameDraft" class="gs-in" type="text" maxlength="50" autocomplete="off"
                          :disabled="!canEditGroupInfo" placeholder="例如：产品策划讨论群" />
-                  <span class="gs-count">{{ (groupNameDraft || '').length }}/50</span>
                 </div>
               </div>
               <div class="gs-field">
-                <div class="gs-lab">群公告<span class="gs-opt">（选填）</span></div>
+                <div class="gs-lab">群公告<span class="gs-opt">（选填）</span>
+                  <span class="gs-count">{{ (groupAnnDraft || '').length }}/200</span></div>
                 <div class="gs-field-box ta">
                   <textarea v-model="groupAnnDraft" class="gs-in" rows="3" maxlength="200"
                             :disabled="!canEditGroupInfo" placeholder="简要描述群聊的用途和规则..."></textarea>
-                  <span class="gs-count">{{ (groupAnnDraft || '').length }}/200</span>
                 </div>
               </div>
               <!-- 没改动、或者没权限（后端要 role>=1）时置灰不消失 -->
@@ -711,7 +700,7 @@
     <!-- 会话右键菜单 -->
     <div
       v-if="convMenuVisible"
-      class="conv-context-menu"
+      class="conv-context-menu conv-menu-pop"
       :style="{ left: convMenuX + 'px', top: convMenuY + 'px' }"
     >
       <div class="conv-menu-list">
@@ -756,6 +745,19 @@
           <span>{{ it.name }}</span>
           <span class="cm-kb">{{ it.kb }}</span>
         </div>
+      </div>
+    </div>
+
+    <!-- 成员格子的右键菜单：设管理员 / 禁言 / 转让群主。这三项没有对应的图标（客户端只画了自己那几支），
+         所以这份菜单不带图标，行只有文字。够不着的置灰不消失，最后一行写清是谁的权限挡着。 -->
+    <div v-if="memberMenuVisible" class="conv-context-menu member-menu-pop" role="menu"
+         :style="{ left: memberMenuX + 'px', top: memberMenuY + 'px' }">
+      <div class="conv-menu-list">
+        <div v-for="it in memberMenu" :key="it.k" class="conv-menu-item" role="menuitem"
+             :class="{ off: it.off, danger: it.danger }" @click="runMemberMenu(it)">
+          <span>{{ it.name }}</span>
+        </div>
+        <div v-if="memberMenuNote" class="conv-menu-note">{{ memberMenuNote }}</div>
       </div>
     </div>
 
@@ -816,7 +818,7 @@
           <div v-if="!pickList.length" class="pick-empty">这个群里没有别的成员可选</div>
           <button v-for="m in pickList" :key="m.userId" class="pick-row" type="button"
                   @click="pickPeer(m)">
-            <span class="ava">{{ (m.name || '?').charAt(0).toUpperCase() }}</span>
+            <span class="ava">{{ (m.name || '?').charAt(0).toUpperCase() }}<i v-if="presenceOf(m.userId)" class="pres" :class="presenceOf(m.userId)" :title="presTitle(presenceOf(m.userId))" /></span>
             <span class="pk-name">{{ m.name }}</span>
           </button>
         </div>
@@ -1355,7 +1357,7 @@ const {
   // 收线后网关会往这条会话里写一句 SYSTEM，补拉一次才看得见
   onEnded: () => {
     const c = currentConversation.value
-    if (c) send('LOAD_MESSAGES', { conversationId: String(c.id), limit: 50 })
+    if (c) send('LOAD_MESSAGES', { conversationId: String(c.id), limit: MSG_PAGE })
   }
 })
 const lkName = computed(() => {
@@ -1376,7 +1378,7 @@ const {
   // 收场时网关会往这条会话里写一句 SYSTEM，补拉一次才看得见
   onEnded: () => {
     const c = currentConversation.value
-    if (c) send('LOAD_MESSAGES', { conversationId: String(c.id), limit: 50 })
+    if (c) send('LOAD_MESSAGES', { conversationId: String(c.id), limit: MSG_PAGE })
   }
 })
 const ctlNoChannel = computed(() => !!(ctlSession.value && ctlSession.value.noChannel))
@@ -1778,10 +1780,16 @@ watch(() => [searchText.value, activeTab.value], ([q, tab]) => {
    单给一个 timeuuid 服务端定不了该从哪个分区往回走（补发那一路早就踩过这个）。
    "翻到底"只认一个信号 —— 服务端这次一条也没给回来。它一次最多往前回 7 天，
    所以"这批比上限少"不能当成到顶（也可能那几天本就没人说话）。 */
+/* 一次打开会话拉多少条。八处 LOAD_MESSAGES 都从这里取，判"还有没有更早的"也用它 ——
+   写死两处迟早对不上（一边改了另一边就把按钮永久藏掉）。 */
+const MSG_PAGE = 50
 const OLDER_PAGE = 50
 const OLDER_MAX_PAGES = 12
 const olderBusy = ref(false)
 const olderEnd = ref(false)
+/* 后端这一次是不是把整页都填满了：不满页说明这条会话从头到尾就这么多条，
+   根本没有"更早的"可翻 —— 那一颗「看更早的消息」就不该摆着。 */
+const historyFull = ref(false)
 const olderErr = ref('')
 const olderWaiters = new Map()
 
@@ -2095,6 +2103,14 @@ const bgMenuVisible = ref(false)
 const bgMenuX = ref(0)
 const bgMenuY = ref(0)
 
+/* 成员格子的右键菜单（设管理员/禁言/转让群主）。开关这四个必须写在下面那张 popups 表**之前**：
+   那张表是对象字面量、当场取这些 ref 的值，声明在后面就是 TDZ —— setup 直接抛错、整页空白。
+   配套的 memberMenu / openMemberMenu 在文件后面「成员管理」那一节。 */
+const memberMenuVisible = ref(false)
+const memberMenuX = ref(0)
+const memberMenuY = ref(0)
+const memberMenuTarget = ref(null)
+
 // 已清屏的会话（本地标记，仅影响自己这边的显示，对方不受影响）
 // 存储格式：localStorage 'chat_cleared_conversations' = JSON数组
 const clearedConversations = ref(new Set(loadClearedConversations()))
@@ -2231,13 +2247,30 @@ onUnmounted(() => {
 /* 窗口回到前台：正开着的这条此刻就在眼前，把隐藏期间攒下的角标抹掉并同步给服务端。
    不补这一笔的话，"最小化时来消息→亮角标"和"回来之后红点还挂着"会同时发生。 */
 function onRefocus() {
+  if (document.hidden) return
+  /* 回到前台先补一次在线表：30s 一轮太慢，"人刚上线我这儿还看不到"就是这种时候 */
+  refreshOnline()
   const conv = currentConversation.value
-  if (document.hidden || !conv || !conv.unreadCount) return
+  if (!conv || !conv.unreadCount) return
   conv.unreadCount = 0
   clearUnread(String(conv.id))
 }
 onMounted(() => document.addEventListener('visibilitychange', onRefocus))
 onUnmounted(() => document.removeEventListener('visibilitychange', onRefocus))
+
+/* 任何一处滚动都要把右键菜单收掉：菜单是 position:fixed 钉在点击那一刻的视口坐标上，
+   底下的列表/抽屉一滚，锚着的那格就走了，菜单还留在原地——看着像挂在半空。
+   scroll 事件不冒泡，所以必须 capture:true 才收得到任意一个滚动容器（会话列表、消息区、抽屉都算）。
+   菜单自己 overflow:hidden、内部不滚，不会被自己关掉。 */
+onMounted(() => document.addEventListener('scroll', closeAllMenus, true))
+onUnmounted(() => document.removeEventListener('scroll', closeAllMenus, true))
+
+/* 在线表没有推送：别人改状态（或他断开连接）时网关只动 Redis，不会通知任何客户端。
+   不重拉的话，会话头和成员宫格那两颗点会一直停在进页面那一刻的样子——人早下线了这儿还绿着，
+   那比没有点更糟。30s 一次，页面在后台不查（切回前台由上面那个监听补一次）。 */
+let onlineTimer = 0
+onMounted(() => { onlineTimer = setInterval(() => { if (!document.hidden) refreshOnline() }, 30000) })
+onUnmounted(() => clearInterval(onlineTimer))
 
 onMounted(async () => {
   /* 真处理器要 await 六个接口才挂上，这中间到的帧以前是没人接的：
@@ -2284,7 +2317,7 @@ onMounted(async () => {
       conv.unreadCount = 0
       clearUnread(String(conv.id))
       // 等待连接建立后发送
-      sendWhenConnected('LOAD_MESSAGES', { conversationId: String(conv.id), limit: 50 })
+      sendWhenConnected('LOAD_MESSAGES', { conversationId: String(conv.id), limit: MSG_PAGE })
         .catch(() => console.warn('Failed to load messages: WebSocket not connected'))
     }
   }
@@ -2523,6 +2556,7 @@ onMounted(async () => {
           messages.value = rows.reverse()
           // 整批换掉了，"翻到底"那句就不作数了：这一轮重新从最近 50 条往前翻
           olderEnd.value = false
+          historyFull.value = data.length >= MSG_PAGE
           olderErr.value = ''
           rememberCursor(currentConversation.value?.id, messages.value[messages.value.length - 1])
           // 只预热最近这段，否则一屏历史里有图就会并发拉回全部原图
@@ -2609,16 +2643,15 @@ async function selectConversation(conv) {
   // 发错人比丢一张还没发出去的图严重得多（文字草稿可以继续留着，那是他自己打的）
   clearPending()
   closeMention()
-  // 抽屉「成员」页签的两个临时态不该跟着换会话留下来：正在勾选移出、正在改群名
+  // 抽屉「成员」页签的临时态不该跟着换会话留下来：正在勾选移出、正在改群名、右键菜单还开着
   removeMode.value = false
-  manageMode.value = false
-  managedUserId.value = ''
+  closeAllMenus()
   groupMemberSearchText.value = ''
   localStorage.setItem('chat_currentConversation', String(conv.id))
   // 清除未读数
   conv.unreadCount = 0
   clearUnread(String(conv.id))
-  send('LOAD_MESSAGES', { conversationId: String(conv.id), limit: 50 })
+  send('LOAD_MESSAGES', { conversationId: String(conv.id), limit: MSG_PAGE })
 
   // 抽屉「成员」页签现在承担群设置，所以切会话时要把群信息和成员名单一起同步过来。
   // 群会话的 id 带 g 前缀（localStorage 里存的是 g+那串数字），而 groups 里是纯数字，
@@ -2676,7 +2709,7 @@ async function startChatWithFriend(friend) {
     activeTab.value = 'chat'
     localStorage.setItem('chat_currentConversation', String(convId))
     localStorage.setItem('chat_activeTab', 'chat')
-    send('LOAD_MESSAGES', { conversationId: String(convId), limit: 50 })
+    send('LOAD_MESSAGES', { conversationId: String(convId), limit: MSG_PAGE })
   } catch (e) {
     toast('创建会话失败', 'error')
   }
@@ -2706,7 +2739,7 @@ async function startChatWithGroup(group) {
   activeTab.value = 'chat'
   localStorage.setItem('chat_currentConversation', convId)
   localStorage.setItem('chat_activeTab', 'chat')
-  send('LOAD_MESSAGES', { conversationId: convId, limit: 50 })
+  send('LOAD_MESSAGES', { conversationId: convId, limit: MSG_PAGE })
 
   // 群会话要把群信息和成员名单准备好，抽屉的「成员」页签直接用
   selectedGroup.value = group
@@ -2951,7 +2984,8 @@ function handleFileUpload(e) {
 // 所以新增一个弹层只要往这里加一行，不会出现"忘了关别的、两个叠着显示"
 const popups = {
   msg: msgMenuVisible, bg: bgMenuVisible, conv: convMenuVisible,
-  input: inputMenuVisible, rail: railMenuOpen, emoji: showEmojiPicker
+  input: inputMenuVisible, rail: railMenuOpen, emoji: showEmojiPicker,
+  member: memberMenuVisible
 }
 
 // 关闭所有右键菜单
@@ -2968,7 +3002,7 @@ function openMsgMenu(event, msg) {
   msgMenuX.value = event.clientX
   msgMenuY.value = event.clientY
   msgMenuVisible.value = true
-  clampMenuY(msgMenuY, '.msg-menu-pop', msgMenuX)
+  placeMenu(msgMenuY, '.msg-menu-pop', msgMenuX)
 }
 
 const REVOKE_WINDOW_MS = 2 * 60 * 1000
@@ -3140,20 +3174,22 @@ let offTrayPresence = null
 
 // 弹层的越界夹取按真实尺寸算，不按项数猜。
 // 必须用 offsetHeight：getBoundingClientRect 量的是变换后的盒子，而弹层带 0.15s 的
-// scale(0.95→1) 入场动画，nextTick 时正处在 0.95 —— 高度会少读 5%（443 读成 421），
-// 留的余量不够，最后一行就被窗口底边切掉。offsetHeight 是布局值，不受 transform 影响。
-// above=true：底边贴到光标上方（输入框在窗口最底下，往下开会把输入框和工具栏整块盖住）
-async function clampMenuY(posRef, sel, xRef, above) {
+/* 右键菜单统一"右上角跟鼠标点击的位置"：菜单从点击点向左长，顶边还是点击点那一行。
+   原来按左上角跟鼠标，而这几个菜单的点击物多半在内容区右边（成员格在抽屉里、会话行贴着列表右沿），
+   菜单整块被推到点击物右边去，窗口放不下还要再夹一次 —— 看着就是"弹在我点的东西旁边一大截"。
+   宽度要渲染出来才知道，所以先按左上角放、nextTick 之后按真实 offsetWidth 把 left 挪到左边。
+   左边放不下（比如点击点很靠窗左）就贴窗口左沿 8px，宁可右上角不贴着光标，也不让菜单被切掉。
+   above=true：底边贴到光标上方（输入框在窗口最底下，往下开会把输入框和工具栏整块盖住）。
+   入场动画是 scale(0.95→1)，nextTick 时正处在 0.95 —— 高度会少读 5%（443 读成 421），
+   留的余量不够，最后一行就被窗口底边切掉。offsetHeight/offsetWidth 是布局值，不受 transform 影响。 */
+async function placeMenu(posRef, sel, xRef, above) {
   await nextTick()
   const el = document.querySelector(sel)
   if (!el) return
   if (above) posRef.value = Math.max(8, Math.round(posRef.value - el.offsetHeight - 6))
   const maxY = window.innerHeight - el.offsetHeight - 8
   if (posRef.value > maxY) posRef.value = Math.max(8, Math.round(maxY))
-  if (xRef !== undefined) {
-    const maxX = window.innerWidth - el.offsetWidth - 8
-    if (xRef.value > maxX) xRef.value = Math.max(8, Math.round(maxX))
-  }
+  if (xRef !== undefined) xRef.value = Math.max(8, Math.round(xRef.value - el.offsetWidth))
 }
 
 // 背景右键菜单（清屏）
@@ -3167,7 +3203,7 @@ function openBgMenu(event) {
   bgMenuX.value = event.clientX
   bgMenuY.value = event.clientY
   bgMenuVisible.value = true
-  clampMenuY(bgMenuY, '.bg-menu-pop', bgMenuX)
+  placeMenu(bgMenuY, '.bg-menu-pop', bgMenuX)
 }
 
 // 清屏功能：本地标记该会话已清屏，仅隐藏自己的历史消息显示，对方不受影响
@@ -3185,7 +3221,7 @@ function restoreScreen() {
   if (!currentConversation.value) return
   unmarkConversationCleared(currentConversation.value.id)
   messages.value = []
-  send('LOAD_MESSAGES', { conversationId: String(currentConversation.value.id), limit: 50 })
+  send('LOAD_MESSAGES', { conversationId: String(currentConversation.value.id), limit: MSG_PAGE })
   toast('已恢复显示历史消息', 'success')
 }
 
@@ -3217,7 +3253,7 @@ function refreshMessages() {
   const conv = currentConversation.value
   if (!conv) return
   messages.value = []
-  send('LOAD_MESSAGES', { conversationId: String(conv.id), limit: 50 })
+  send('LOAD_MESSAGES', { conversationId: String(conv.id), limit: MSG_PAGE })
   toast('已刷新', 'success')
 }
 
@@ -3353,6 +3389,21 @@ function backToList() {
 // —— 组织架构 / 在线状态：创建群聊与添加用户两个弹窗的数据源 ——
 const orgData = ref([])
 const onlineUsers = ref([])   // [{ userId, status: 'ONLINE'|'BUSY' }]，不在里面就是离线
+/* 状态点的口径（他 2026-10-02 定的）：点只当"异常标记"用 —— 在线返回空串=什么都不画，
+   忙碌=黄、离线=灰，两个色和 ☰ 菜单里那三颗同一套令牌。
+   代价写在这里：一屏人全在线时这一列是空的，那不是漏做，是这条口径本来的样子。
+   userId 从接口回来是 JSON 数字，两边都转成字符串再比，不然永远匹配不上。 */
+const presenceOf = uid => {
+  const s = onlineUsers.value.find(u => String(u.userId) === String(uid))?.status
+  if (s === 'BUSY') return 'BUSY'
+  /* 在线表里查得到且是 ONLINE → 什么都不画；查不到才是"离线"（网关在最后一台设备断开时删键），
+     这两种情形不能混：漏了下面这条，整列离线的人就都不画了 */
+  if (s === 'ONLINE') return ''
+  return 'OFFLINE'
+}
+const presTitle = s => ({ BUSY: '忙碌', OFFLINE: '离线' })[s] || ''
+/* 单聊的会话名就是对方，所以这一点画的是他的状态；群聊（selectedFriend 为空）不画，群不是一个人 */
+const headPeerPresence = computed(() => (selectedFriend.value ? presenceOf(selectedFriend.value.id) : ''))
 const showAddMembers = ref(false)
 
 // 弹框和右键菜单不能叠着出现。联系人/群组行上那颗 ⋯ 带 @click.stop，打开弹框的那一下点击
@@ -3480,23 +3531,21 @@ const groupDirty = computed(() => {
   return groupNameDraft.value.trim() !== (g.name || '') || groupAnnDraft.value.trim() !== (g.announcement || '')
 })
 
-// 移出模式下点格子就是移出这个人；管理模式下选中这个人展开操作条；否则还是看这个人是谁
+// 移出模式下点格子就是移出这个人；否则还是看这个人是谁。
+// 改角色/禁言/转让走右键（openMemberMenu），不再需要先开一个"管理模式"
 function onMemberCell(m) {
   if (removeMode.value && canRemoveMember(m)) { handleRemoveMember(m); return }
-  if (manageMode.value) { managedUserId.value = String(m.userId); return }
   showMemberInfo(m)
 }
 
-/* ---- 成员管理：设管理员 / 禁言 / 转让群主 ---- */
-const manageMode = ref(false)
-const managedUserId = ref('')
-
+/* ---- 成员管理：设管理员 / 禁言 / 转让群主 —— 右键在谁身上就改谁 ----
+   原来这三项是「管理」开关 + 网格底下一条操作条：开开关、点人、再在下面找按钮，三步。
+   现在右键点那个人直接出这三项。够不着的照旧置灰不消失，最后一行写清是谁的权限挡着。
+   （开关那四个 ref 在文件前面，popups 表要当场读它们。） */
 const myGroupRole = computed(() => {
   const me = groupMembers.value.find(m => String(m.userId) === String(userStore.userId))
   return me ? Number(me.role) : -1
 })
-const managedMember = computed(() =>
-  groupMembers.value.find(m => String(m.userId) === managedUserId.value) || null)
 
 // 后端 setMemberRole 只认群主，且改不了 role=2；muteMember 要求操作人 role>=1 且目标角色更低
 const canSetRole = m => selectedGroup.value && myGroupRole.value === 2
@@ -3505,22 +3554,42 @@ const canMute = m => selectedGroup.value && myGroupRole.value >= 1
   && Number(m.role) < myGroupRole.value
 const canTransfer = m => selectedGroup.value && myGroupRole.value === 2
   && Number(m.role) !== 2 && String(m.userId) !== String(userStore.userId)
-const canManageAnyone = computed(() => groupMembers.value.some(m => canSetRole(m) || canMute(m) || canTransfer(m)))
 
-// 和移出模式互斥：两个模式同时开着时，点一格到底算哪个说不清
-function toggleManageMode() {
-  manageMode.value = !manageMode.value
-  if (manageMode.value) {
-    removeMode.value = false
-    managedUserId.value = ''
-  }
+const memberMenu = computed(() => {
+  const m = memberMenuTarget.value
+  if (!m) return []
+  return [
+    { k: 'role', name: Number(m.role) === 1 ? '取消管理员' : '设为管理员', off: !canSetRole(m),
+      run: () => handleSetRole(m, Number(m.role) === 1 ? 0 : 1) },
+    { k: 'mute', name: m.muted ? '解除禁言' : '禁言 10 分钟', off: !canMute(m),
+      run: () => handleMute(m, m.muted ? null : 10) },
+    { k: 'own', name: '转让群主', danger: true, off: !canTransfer(m), run: () => handleTransferOwner(m) }
+  ]
+})
+const memberMenuNote = computed(() => (myGroupRole.value < 2
+  ? '只有群主能设管理员和转让群主，你能做的只有禁言普通成员' : ''))
+
+function openMemberMenu(event, m) {
+  // 单聊抽屉里那两格（我 + 对方）没有"群角色"可改，右键不出菜单
+  if (!selectedGroup.value) return
+  closeAllMenus()
+  memberMenuTarget.value = m
+  memberMenuX.value = event.clientX
+  memberMenuY.value = event.clientY
+  memberMenuVisible.value = true
+  placeMenu(memberMenuY, '.member-menu-pop', memberMenuX)
 }
+
+function runMemberMenu(it) {
+  if (it.off) return
+  closeAllMenus()
+  it.run()
+}
+
+// 移出模式和成员菜单互斥：红减号亮着的时候右键弹层压在它上面，点哪一边说不清
 function toggleRemoveMode() {
   removeMode.value = !removeMode.value
-  if (removeMode.value) {
-    manageMode.value = false
-    managedUserId.value = ''
-  }
+  if (removeMode.value) closeAllMenus()
 }
 
 // 后端收的是 LocalDateTime.parse：没有时区、按服务器本地时钟解释，所以这里给本地时间
@@ -3810,11 +3879,12 @@ function openConvMenu(event, conv) {
   closeAllMenus()
 
   selectedConv.value = conv
-  const x = Math.min(event.clientX, window.innerWidth - 200)
-  const y = Math.min(event.clientY, window.innerHeight - 320)
-  convMenuX.value = x
-  convMenuY.value = y
+  // 位置交给 placeMenu：它按真实尺寸夹。原来这里写死 200/320 猜宽高，
+  // 而这一份菜单六项实测 200×221 —— 320 那个猜值会提前把菜单往上抬一截
+  convMenuX.value = event.clientX
+  convMenuY.value = event.clientY
   convMenuVisible.value = true
+  placeMenu(convMenuY, '.conv-menu-pop', convMenuX)
 }
 
 function handleConvTop() {
@@ -3889,7 +3959,7 @@ function openInputMenu(event) {
   inputMenuX.value = event.clientX
   inputMenuY.value = event.clientY
   inputMenuVisible.value = true
-  clampMenuY(inputMenuY, '.input-menu-pop', inputMenuX, true)
+  placeMenu(inputMenuY, '.input-menu-pop', inputMenuX, true)
 }
 
 function runInputMenu(it) {
@@ -4812,8 +4882,10 @@ async function openWithApp(r) {
   position: fixed;
   background: rgba(255, 255, 255, 0.97);
   border: 0;
-  border-radius: 12px;
-  /* 同上：参考图量出来的边缘 13% 黑、14px 铺开 */
+  /* 圆角 12 → 8（他 2026-10-02 说"圆角小一点"，没给数：取 2/3，正好落到行/格子/表情面板都在用的那一档 8px） */
+  border-radius: 8px;
+  /* 边上那条"框"其实是这层阴影 + 下面的毛玻璃，不是 border（border 是 0）：
+     参考图量出来的边缘 13% 黑、14px 铺开 */
   box-shadow: 0 2px 14px rgba(20, 32, 56, 0.13);
   backdrop-filter: blur(8px);
   z-index: 9999;
@@ -4871,9 +4943,23 @@ async function openWithApp(r) {
   color: #d94860;
 }
 
+/* 菜单末尾那句"是谁的权限挡着"：不是第三颗按钮，所以不吃 hover、不可点，
+   上面拉一条分界线和项分开。原来这句话是操作条底下的一行，挪进菜单里得自己带一档间距 */
+.conv-menu-note {
+  padding: 8px 16px 10px; margin-top: 4px;
+  border-top: 1px solid var(--nb-line-soft);
+  font-size: 11px; line-height: 1.5; color: var(--nb-dim-2);
+  max-width: 208px;
+}
+
 .conv-menu-item.danger:hover {
   background: rgba(217, 72, 96, 0.08);
 }
+
+/* 置灰的项即使带 danger 也不许看着能点：颜色回到灰、hover 那层红底也不给。
+   .danger 写在 .off 后面，同权时它赢 —— 原来"转让群主"灰着也是红的，量到 #d94860。 */
+.conv-menu-item.off.danger { color: var(--nb-dim-2); }
+.conv-menu-item.off.danger:hover { background: none; }
 
 .conv-menu-divider {
   height: 1px;
@@ -5435,11 +5521,23 @@ async function openWithApp(r) {
    这里按 20% 重混：比 hover 那档深一档，也不会和 --row-hover 撞色 */
 .row.active { background: color-mix(in srgb, var(--brand) 20%, var(--nb-bg-1)); }
 .ava {
+  position: relative;
   width: 38px; height: 38px; flex: 0 0 38px; border-radius: 9px; background: var(--brand);
   color: #fff; display: grid; place-items: center; font-size: 14px; overflow: hidden;
 }
 .ava.group { background: #4f86f5; border-radius: 11px; }
 .ava img { width: 100%; height: 100%; object-fit: cover; }
+/* ===== 状态点：所有"按人列一行/一格"的地方共用这一套 =====
+   只当"异常标记"用 —— 在线什么都不画（口径见 presenceOf），忙碌=--warn、离线=--nb-dim-2，
+   和 ☰ 菜单里那三颗同一支。芯一律 8px。
+   位置：画在头像里面、离右上角那条边 3px —— 既不贴着边（顶到角上会读成"长在头像上"），
+   也不探到头像外面（探出去会读成"和头像没关系的一颗"）。这两头他各打过一次。
+   点只有本体这一种颜色，不描白圈（他 2026-10-02 看着放大图说"外面的白圈去掉，只保留原点的颜色"）。
+   头像那格 overflow:hidden（要裁图的圆角），所以点只能画在角里。 */
+.pres { width: 8px; height: 8px; border-radius: 50%; background: var(--nb-dim-2); flex: 0 0 auto; }
+.pres.BUSY { background: var(--warn); }
+.pres.inline { display: inline-block; }
+.ava .pres, .gs-ava .pres, .mp-av .pres { position: absolute; top: 3px; right: 3px; }
 /* 会话行专用：3 列（头像 / 文字 / 右侧状态）2 行（名字行 / 摘要行）。
    只有这一处用，其他页签的行仍走上面那条 flex 规则，不动它们已认可的渲染 */
 .row.conv-row {
@@ -5881,7 +5979,11 @@ async function openWithApp(r) {
    所以悬停反馈只留给颜色这一档 */
 .rz-grip:hover, .rz-grip:focus-visible, .m-input.rzging .rz-grip { background: var(--brand) content-box; }
 .m-input.rzging { cursor: row-resize; }
-.bar { display: flex; align-items: center; justify-content: space-between; border-top: 1px solid var(--nb-line); padding-top: 8px; }
+/* 窄窗口下这条会溢出：左边七颗工具 230px 不缩、右边"字数位 158 + 发送 78"也不缩，
+   消息列一窄就整条撑出去，把「发送」画到抽屉上（量到视口 980 超界 37px、900 超界 117px、820 超界 197px，
+   拐点在消息列 ≈508px 那里）。改成挤不下就换行，而不是横向溢出。 */
+.bar { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between;
+  gap: 8px 0; border-top: 1px solid var(--nb-line); padding-top: 8px; }
 .bar-tools { display: flex; align-items: center; gap: 2px; }
 .tool-wrap { position: relative; display: flex; }
 .tool {
@@ -5907,7 +6009,7 @@ async function openWithApp(r) {
 .mp-row { display: flex; align-items: center; gap: 8px; width: 100%; padding: 4px 6px; border: 0;
   border-radius: 7px; background: transparent; color: var(--nb-text); font: inherit; font-size: 13px; text-align: left; cursor: pointer }
 .mp-row:hover, .mp-row.on { background: var(--brand-soft) }
-.mp-av { width: 22px; height: 22px; flex: none; border-radius: 6px; background: var(--brand-soft);
+.mp-av { position: relative; width: 22px; height: 22px; flex: none; border-radius: 6px; background: var(--brand-soft);
   color: var(--brand-strong); font-size: 11px; font-weight: 600; display: grid; place-items: center }
 .mp-nm { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap }
 .mp-empty { padding: 10px 6px; font-size: 12px; color: var(--nb-dim); text-align: center }
@@ -5925,10 +6027,20 @@ async function openWithApp(r) {
 .emoji-cell { padding: 3px; font-size: 18px; text-align: center; cursor: pointer; border-radius: 4px; }
 .emoji-cell:hover { background: var(--brand-soft); }
 .emoji-hint { margin-top: 4px; padding-top: 6px; border-top: 1px solid var(--nb-line); font-size: 11px; color: var(--nb-dim); }
-.bar-right { display: flex; align-items: center; gap: 10px; }
+/* margin-left:auto：换行之后这一组要贴右，不然独占一行时 space-between 会把它甩到左边。
+   min-width:0：这一组自己的最小宽度默认等于内容宽（158+10+78=246），消息列窄到 163px 那一档时
+   它会整组溢出；放开之后由里面那格字数位先让位（量到 820/760 视口原来分别超界 39/99px） */
+.bar-right { display: flex; align-items: center; gap: 10px; margin-left: auto; min-width: 0; }
 /* 字数槽常驻、只切 visibility，宽度按最长那一档（4 位数 + "· 将以 txt 发送"）量出来定死，
    所以打字过程中「发送」那颗不会左右跳 */
-.bar-cnt { visibility: hidden; flex: none; min-width: 158px; text-align: right; font-size: 12px; color: var(--nb-dim); }
+/* 158px 是"字数提示"常年占的位子：它一出现就把发送往左推的话，打字时按钮会跳。
+   占位要写在 width 上，不能只写 flex-basis —— 试过 flex:0 1 158px + min-width:0，
+   父容器 .bar-right 按内容定宽时不把 basis 算进去，先被压成 109 再反过来把这格挤成 21px，
+   打字时发送照样跳（量到：空草稿 21px / 300 字 34px）。
+   width 给死 158，min-width:0 让它只在整行真放不下时才让位。 */
+.bar-cnt { visibility: hidden; flex: 0 1 auto; width: 158px; min-width: 0;
+  overflow: hidden; white-space: nowrap; text-overflow: ellipsis;
+  text-align: right; font-size: 12px; color: var(--nb-dim); }
 .bar-cnt.show { visibility: visible }
 .bar-cnt.over { color: var(--warn) }
 .bar-warn { font-size: 12px; color: var(--warn); }
@@ -5985,26 +6097,15 @@ async function openWithApp(r) {
   color: #fff; font-size: 9px; line-height: 13px;
 }
 .gs-tag.owner { background: var(--warn); }
-.gs-tag.admin { background: var(--brand); }
+/* 管理员角标原来吃 --brand —— 和头像那一格是同一支蓝（离头像蓝 = 0），白字压上去糊成一团。
+   换成 --nb-text：离头像蓝 194、白字对比 15.57；层级也顺 —— 群主=琥珀最醒目、管理员=深色中性、普通成员无标 */
+.gs-tag.admin { background: var(--nb-text); }
 /* 移出模式：只有真的能被移走的那个人显示红减号；命中区=看得见的凸块本身 */
 .gs-minus {
   position: absolute; right: -4px; bottom: -4px; width: 16px; height: 16px; border-radius: 50%;
   background: var(--danger); color: #fff; display: grid; place-items: center; line-height: 0;
 }
 .gs-cell.picking .gs-init { outline: 2px solid var(--danger); outline-offset: 1px; }
-/* 管理模式选中的那一格：中性蓝，红只留给"要被移走" */
-.gs-cell.picked .gs-init { outline: 2px solid var(--brand); outline-offset: 1px; }
-/* 成员操作条 */
-.gs-manage { margin-top: 12px; padding: 10px; border: 1px solid var(--nb-line); border-radius: 8px;
-  background: var(--nb-bg-1); }
-.gs-mg-head { display: flex; align-items: center; gap: 6px; }
-.gs-mg-name { font-size: 13px; color: var(--nb-text); overflow-wrap: anywhere; }
-.gs-mg-role { font-size: 11px; color: var(--nb-dim-2); }
-.gs-mg-muted { font-size: 11px; color: var(--warn); }
-/* .gs-tag 本来是头像角上那个绝对定位的小牌，挪到这一行里要改回流内 */
-.gs-mg-head .gs-tag { position: static; }
-.gs-mg-acts { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 10px; }
-.gs-manage .gs-note { margin-top: 8px; }
 .gs-tile { display: flex; flex-direction: column; align-items: center; gap: 4px;
   border: 0; background: none; padding: 0; cursor: pointer; }
 .gs-box { width: 44px; height: 44px; border-radius: 8px; border: 1px dashed var(--nb-dim-2);
@@ -6019,7 +6120,7 @@ async function openWithApp(r) {
 /* 群名/群公告：常驻表单，不是一行行的可点条目。名称必填带红星，两个框各带字数计数器 */
 .gs-form { margin-top: 18px; }
 .gs-field + .gs-field { margin-top: 14px; }
-.gs-lab { font-size: 13px; color: var(--nb-text); margin-bottom: 6px; }
+.gs-lab { display: flex; align-items: baseline; font-size: 13px; color: var(--nb-text); margin-bottom: 6px; }
 .gs-req { color: var(--danger); margin-left: 2px; }
 .gs-opt { color: var(--nb-dim-2); font-size: 12px; font-weight: 400; }
 .gs-field-box { position: relative; display: flex; align-items: center; min-height: 34px;
@@ -6027,11 +6128,11 @@ async function openWithApp(r) {
 .gs-field-box.ta { align-items: flex-start; }
 .gs-field-box:focus-within { border-color: var(--brand-line); }
 .gs-in { flex: 1; min-width: 0; width: 100%; border: 0; outline: none; background: transparent;
-  color: var(--nb-text); font: inherit; font-size: 13px; line-height: 1.6; padding: 7px 54px 7px 10px;
+  color: var(--nb-text); font: inherit; font-size: 13px; line-height: 1.6; padding: 7px 10px;
   resize: none; }
-.gs-count { position: absolute; right: 10px; top: 50%; transform: translateY(-50%);
-  font-size: 11px; color: var(--nb-dim-2); pointer-events: none; }
-.gs-field-box.ta .gs-count { top: auto; bottom: 7px; transform: none; }
+/* 计数器挂在标签那一行的右端（margin-left:auto 吃掉富余），不再进输入框的盒子：
+   原来它虽然是绝对定位不占布局，但输入框为此写了 54px 的右内距，那 54px 就是它占掉的宽度 */
+.gs-count { margin-left: auto; font-size: 11px; color: var(--nb-dim-2); }
 /* 禁用态要自己给底色：input 的底色在 .gs-field-box 上，浏览器置灰只会灰掉输入区 */
 .gs-in:disabled { background: transparent; color: var(--nb-dim); cursor: default; }
 .gs-field-box:has(.gs-in:disabled) { background: var(--nb-bg-3); }
@@ -6053,9 +6154,14 @@ async function openWithApp(r) {
    左右各留 10px 放得下（沿用 .btn 的 18px 会挤掉 6.5px）。
    这里不用 flex:1 1 0 去分：描边那颗会多出自身边框那 2px（实测 114.5 / 112.5），
    直接按 (100% - 间隙)/2 定宽才真的等宽 */
-.gs-btns { display: flex; gap: 8px; margin: 18px -16px 0;
+/* 出滚动条时这一行会窄一截，「清空聊天记录」六个字被挤成两行（他 2026-10-02 的图）。
+   标签不许折行；挤不下就让 flex-wrap 把第二颗顶到下一行，宁可两行各占满，也不要"清空聊天记/录" */
+.gs-btns { display: flex; flex-wrap: wrap; gap: 8px; margin: 18px -16px 0;
   padding: 14px 16px 0; border-top: 1px solid var(--nb-line-soft); }
-.gs-btns .btn { flex: 0 0 calc((100% - 8px) / 2); min-width: 0; padding: 2px 10px 0; }
+/* 基准还是各占一半（平时量出来等宽）。这里不能写 min-width:0 —— 那条会允许 flex 项缩到比字还窄，
+   nowrap 的字就直接溢出按钮外面（压窄到 150px 量到过：两颗各 55px、字溢出）。
+   留着默认的 min-width:auto，缩不下就整颗换到下一行 */
+.gs-btns .btn { flex: 1 1 calc((100% - 8px) / 2); white-space: nowrap; padding: 2px 10px 0; }
 .doc-card { display: flex; align-items: center; gap: 10px; }
 .dc-ico { width: 38px; height: 44px; flex: 0 0 38px; border-radius: 6px; background: var(--brand); color: #fff; display: grid; place-items: center; font-size: 11px; font-weight: 600; }
 .dc-main { flex: 1; min-width: 0; }

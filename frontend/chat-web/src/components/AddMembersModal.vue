@@ -51,7 +51,7 @@
             <div class="list">
               <button v-for="m in candidates" :key="m.id" type="button" class="mrow" :aria-pressed="has(m)" @click="toggle(m)">
                 <span class="cb" :class="{ on: has(m) }" aria-hidden="true">{{ has(m) ? '✓' : '' }}</span>
-                <span class="av">{{ initial(m) }}<i v-if="presenceOf(m)" class="dot" :class="presenceOf(m)" :title="presenceOf(m) === 'BUSY' ? '忙碌' : '在线'" /></span>
+                <span class="av">{{ initial(m) }}<i v-if="presenceOf(m)" class="dot" :class="presenceOf(m)" :title="presTitle(presenceOf(m))" /></span>
                 <span class="mcol">
                   <b>{{ m.nickname || m.username }}</b>
                   <small>{{ m.position || m.department || '未填写职位' }}</small>
@@ -142,7 +142,11 @@ watch(() => props.open, (v) => {
 const kw = computed(() => q.value.trim().toLowerCase())
 const excluded = computed(() => new Set(props.excludeIds.map(String)))
 const initial = (m) => String(m.nickname || m.username || '?').charAt(0).toUpperCase()
-const presenceOf = (m) => props.online.find(u => String(u.userId) === String(m.id))?.status || ''
+/* 点只当"异常标记"：在线返回空串=不画，忙碌=黄、离线=灰（和 Chat.vue 的 presenceOf 同一条口径） */
+const presenceOf = (m) => { const s = props.online.find(u => String(u.userId) === String(m.id))?.status
+  if (s === 'BUSY') return 'BUSY'
+  return s === 'ONLINE' ? '' : 'OFFLINE' }
+const presTitle = (s) => ({ BUSY: '忙碌', OFFLINE: '离线' })[s] || ''
 const has = (m) => picked.value.some(p => String(p.id) === String(m.id))
 const usable = (m) => !excluded.value.has(String(m.id)) && !String(m.id).startsWith('local-')
 const kwHit = (m) => !kw.value || [m.nickname, m.username, m.position, m.department, m.email]
@@ -250,7 +254,8 @@ function submit() {
 .cb { display: grid; place-items: center; width: 16px; height: 16px; font-size: 11px; color: #fff; border: 1.5px solid var(--nb-line); border-radius: 5px; background: var(--nb-bg-1); }
 .cb.on { background: var(--brand); border-color: var(--brand); }
 .av { position: relative; display: grid; place-items: center; width: 28px; height: 28px; font-size: 12px; font-weight: 600; color: var(--brand-strong); background: var(--brand-soft); border-radius: 50%; }
-.dot { position: absolute; right: -1px; bottom: -1px; width: 8px; height: 8px; background: var(--ok); border: 1.5px solid var(--nb-bg-2); border-radius: 50%; }
+/* 默认那颗是"离线"（灰，和 ☰ 菜单同支）；在线根本不画，见 presenceOf */
+.dot { position: absolute; right: -1px; bottom: -1px; width: 8px; height: 8px; background: var(--nb-dim-2); border: 1.5px solid var(--nb-bg-2); border-radius: 50%; }
 .dot.BUSY { background: var(--warn); }
 .mcol { min-width: 0; }
 .mcol b { display: block; font-size: 13px; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
