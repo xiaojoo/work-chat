@@ -188,7 +188,7 @@
           <span v-for="m in memberStackReal" :key="m.userId" class="stack-ava">{{ m.ch }}</span>
           <span v-if="memberStackMore" class="stack-more">+{{ memberStackMore }}</span>
         </div>
-        <div class="mh-acts">
+        <div class="mh-acts" :class="{ exp: searchExpanded }">
           <!-- 会话内检索的入口常驻在这一行，不藏进 ☰ 也不藏右键菜单（藏起来等于没做）。
                自己画的清空叉，不用 type=search：原生那颗 ✕ 是 UA 的样式，改不动 -->
           <!-- 会话内检索的入口常驻在这一行（藏进 ☰ 或右键菜单等于没做），但那一格输入框不再常驻：
@@ -196,11 +196,11 @@
                清空、按 ESC、或点 ✕ 都收回去。从跨会话那一栏点进来时会自动展开（见 jumpFromGlobalSearch），
                否则人跳过来了、关键词却藏在一颗图标后面看不见。
                自己画的清空叉，不用 type=search：原生那颗 ✕ 是 UA 的样式，改不动 -->
-          <button v-if="!searchExpanded" class="mh-ico" type="button" :title="'搜索本会话'"
+          <button class="mh-ico" type="button" :title="'搜索本会话'"
                   aria-label="搜索本会话" @click="openMsgSearch">
             <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="10.8" cy="10.8" r="6.3"/><path d="M15.4 15.4 20 20"/></svg>
           </button>
-          <div v-else class="mh-search-wrap">
+          <div v-if="searchExpanded" class="mh-search-wrap">
             <input ref="msgSearchInputRef" class="mh-search" type="text" v-model="msgSearchText" placeholder="搜索本会话"
                    aria-label="搜索本会话" autocomplete="off" spellcheck="false"
                    @input="queueMsgSearch" @keydown.esc="closeMsgSearch" @focus="msgSearchOpen = !!msgSearchHits.length" />
@@ -488,9 +488,11 @@
             <div class="tool-wrap" @mouseenter="openEmojiPicker" @mouseleave="showEmojiPicker = false">
               <!-- 不挂 title：uaTip 全局接管 title，挂了就会在弹框旁边再飘一个重复气泡；名字改挂 aria-label。
                    悬停区域绑在 .tool-wrap 上而不是按钮上：弹框是这个容器的后代，从按钮移进弹框
-                   不算离开，所以不用留"宽限计时器"去赌那几像素的缝 -->
+                   不算离开，所以不用留"宽限计时器"去赌那几像素的缝。
+                   @click.stop：不拦的话这一下点击冒到 document 那条 closeAllMenus，
+                   按钮自己开的弹框被同一次点击关掉（量到：悬停开着 true → 真点一下 false） -->
               <button class="tool" aria-label="表情" aria-haspopup="true" :aria-expanded="showEmojiPicker"
-                      :class="{ open: showEmojiPicker }" @click="openEmojiPicker"><MessageEmoji theme="outline" size="17" /></button>
+                      :class="{ open: showEmojiPicker }" @click.stop="openEmojiPicker"><MessageEmoji theme="outline" size="17" /></button>
               <div v-if="showEmojiPicker" class="emoji-pop">
                 <div class="emoji-grid">
                   <!-- .stop：选一个就把弹层关掉的话，想连选得反复点开；点外面才收（document 那个监听走 closeAllMenus） -->
@@ -504,7 +506,8 @@
                  私聊没有"群里的人"可 @，所以置灰不消失。开面板的控件不挂 title，名字走 aria-label -->
             <button class="tool at" :class="{ open: mentionOpen }" :disabled="!canMention"
                     aria-label="提及群成员" @click="insertMentionAt">@</button>
-            <button class="tool ai" title="AI 结果">✦</button>
+            <!-- 原来这里还有一颗「✦ AI 结果」：它没有任何 handler，点了不动，是排在这条上的死控件；
+                 2026-10-02 借着"发送按钮别换行"这一条撤掉，腾出来的 32px 正好给字数提示 -->
             <input ref="imageInput" id="image-upload" type="file" accept="image/*" multiple style="display:none" @change="handleImageUpload" />
             <input ref="fileInput" id="file-upload" type="file" multiple style="display:none" @change="handleFileUpload" />
           </div>
@@ -512,10 +515,11 @@
             <span v-if="!connected" class="bar-warn">连接已断开，正在重连…</span>
             <span v-else-if="!currentConversation" class="bar-warn">选择一个会话后才能发送</span>
             <span v-else-if="pendingFiles.length" class="pend-n">{{ pendingFiles.length }} 个附件待发送</span>
-            <!-- 字数一直占着那条位子（隐藏不显示是 visibility，不是 v-if）：
-                 它一出现就把「发送」往左推的话，打字时按钮会跳 -->
+            <!-- 字数那一格平时是 visibility:hidden 的"0 字"，不占位子（占位子会把这一行顶到换行，
+                 见样式里 .bar-right 那条）；「发送」钉在行右沿，所以它爱长多长都不推按钮。
+                 后面那半句长提示只在超过 1000 字时出现，窄到放不下整句时由 .bc-tail 自己收掉，不截半句 -->
             <span class="bar-cnt" :class="{ show: !!inputMessage.length, over: inputMessage.length > TEXT_FILE_MIN }"
-                  aria-hidden="true">{{ inputMessage.length }} 字{{ inputMessage.length > TEXT_FILE_MIN ? ' · 将以 txt 发送' : '' }}</span>
+                  aria-hidden="true">{{ inputMessage.length }} 字<span v-if="inputMessage.length > TEXT_FILE_MIN" class="bc-tail"> · 将以 txt 发送</span></span>
             <button class="send" @click="sendMessage"
                     :disabled="!connected || !currentConversation || pendingSending || (!inputMessage.trim() && !pendingFiles.length)">
               {{ pendingSending ? '发送中…' : '发送' }}<span v-if="pendingFiles.length && !pendingSending" class="snd-n">（{{ (inputMessage.trim() ? 1 : 0) + pendingFiles.length }}）</span>
@@ -2261,9 +2265,9 @@ onUnmounted(() => document.removeEventListener('visibilitychange', onRefocus))
 /* 任何一处滚动都要把右键菜单收掉：菜单是 position:fixed 钉在点击那一刻的视口坐标上，
    底下的列表/抽屉一滚，锚着的那格就走了，菜单还留在原地——看着像挂在半空。
    scroll 事件不冒泡，所以必须 capture:true 才收得到任意一个滚动容器（会话列表、消息区、抽屉都算）。
-   菜单自己 overflow:hidden、内部不滚，不会被自己关掉。 */
-onMounted(() => document.addEventListener('scroll', closeAllMenus, true))
-onUnmounted(() => document.removeEventListener('scroll', closeAllMenus, true))
+   例外是 pinnedPopups 里那几份，见下面那张表的注释。 */
+onMounted(() => document.addEventListener('scroll', closeDriftingMenus, true))
+onUnmounted(() => document.removeEventListener('scroll', closeDriftingMenus, true))
 
 /* 在线表没有推送：别人改状态（或他断开连接）时网关只动 Redis，不会通知任何客户端。
    不重拉的话，会话头和成员宫格那两颗点会一直停在进页面那一刻的样子——人早下线了这儿还绿着，
@@ -2950,7 +2954,11 @@ async function sendMediaFile(file, type) {
   })
   const reqId = nextReqId('send')
   const localId = `local-${Date.now()}`
-  send('MESSAGE_SEND', { conversationId: convId, messageType: type, content: payload }, reqId)
+  /* 这个返回值不能丢：outbox 那次改造把 const sent = send(...) 改成了裸调用，
+     末尾的 return sent 就成了野名字 —— 函数跑到这儿必抛 ReferenceError，
+     async 把它变成 reject，调用方 await 就整条中断：待发送条那格永远不掉、
+     发送按钮永远停在「发送中…」禁用，而消息其实已经发出去了。 */
+  const sent = send('MESSAGE_SEND', { conversationId: convId, messageType: type, content: payload }, reqId)
   const local = {
     messageId: localId,
     conversationId: convId,
@@ -2991,6 +2999,16 @@ const popups = {
 // 关闭所有右键菜单
 function closeAllMenus() {
   for (const k in popups) popups[k].value = false
+}
+
+/* emoji 那份是这张表里的例外：它 absolute 钉在工具栏上，底下的列表怎么滚它都不跟丢，
+   而它自己那一格超高要滚（表情有一百多个）。按"任意滚动即收"一起收掉，就等于
+   在弹框里滚一下滚动条、弹框把自己关了——鼠标还停在框内，得移出去再移回来才叫得回。
+   新增弹层默认不进这个名单：只有"不钉在点击坐标上、并且内部要滚"的才写进来。 */
+const pinnedPopups = ['emoji']
+
+function closeDriftingMenus() {
+  for (const k in popups) if (!pinnedPopups.includes(k)) popups[k].value = false
 }
 
 function openMsgMenu(event, msg) {
@@ -5658,15 +5676,23 @@ async function openWithApp(r) {
 .older-bar { display: flex; align-items: center; justify-content: center; gap: 8px; padding: 2px 0 12px; }.older-end { font-size: 11px; color: var(--nb-dim-2); }
 .older-err { font-size: 11px; color: var(--warn); }
 /* 会话内检索：输入框在页头那一行里，结果面板挂在页头下面（.main 已经是 relative）。
-   宽度给到 220px 是量过的：再窄，"命中 3 条 · 翻了 322 条 · 50ms · 后端 keyword" 那行就要折行 */
+   面板宽 420px 是量过的：再窄，"命中 3 条 · 翻了 322 条 · 50ms · 后端 keyword" 那行就要折行 */
 .mh-search-wrap { position: relative; display: flex; align-items: center; }
 /* 高度必须和右边那排图标一模一样（28px）：原来写 30px，展开那一刻 .mh-acts 被撑到 30、
    整条 header 从 51px 跳到 53px —— 展开一个搜索框不该让顶栏抖 2px。
-   220px 是宽窗口下的样子；窄屏那一档（≤430）展开输入框会把右边五颗挤出去，
-   所以给一个随视口收缩的上限：430px 屏上是 163px，163 + 五颗 174 + 间距 30 = 367 < 430。
-   图标的 30×28 命中区是地板，不让给它。 */
-.mh-search { width: min(220px, 38vw); height: 28px; padding: 0 26px 0 10px; font-size: 12px;
+   宽度就是"这一排有多宽就铺多宽"（下面 .exp 把框绝对定位铺满 .mh-acts），
+   原来那个 min(220px, 38vw) 的收缩上限是给五颗图标抢地方用的，现在不再需要。 */
+.mh-search { width: 100%; height: 28px; padding: 0 26px 0 10px; font-size: 12px;
   color: var(--nb-text); background: #fff; border: 1px solid var(--nb-line); border-radius: 6px; }
+/* 展开时搜索框"向右长"：它从原来放大镜那一格的位置长满整排图标，把那五颗盖在下面
+   （他 2026-10-02 要的）。做法是给这一排当定位参照、框绝对定位铺满它 ——
+   所以"不越界"是结构保证的：框的右沿就是这一排自己的右沿（头部右内沿），不是算宽度算出来的。
+   原来那版是框和五颗并排抢地方：220 + 五颗 174 + 间距 30 在窄窗口下直接把图标顶出内沿。 */
+.mh-acts { position: relative; }
+.mh-acts.exp .mh-search-wrap { position: absolute; inset: 0; z-index: 2; }
+/* 展开时放大镜那颗不再当按钮，但要留在原位占着那一格：撤掉它整排会往右缩 34px，
+   框的左沿跟着跳（量到 449 → 483），看着像框长歪了。visibility:hidden 既留位置又退出 tab 序 */
+.mh-acts.exp .mh-ico:first-child { visibility: hidden; pointer-events: none; }
 .mh-search::placeholder { color: var(--nb-dim-2); }
 .mh-search:focus { outline: none; border-color: var(--brand-line); }
 .ms-busy, .ms-x { position: absolute; right: 8px; font-size: 11px; color: var(--nb-dim-2); }
@@ -5860,14 +5886,30 @@ async function openWithApp(r) {
 /* 引用的是图片/文件：名字和缩略图/文件片排一行，放不下就折，别把图挤扁 */
 .msg-quote.q-media { display: flex; align-items: center; flex-wrap: wrap; gap: 6px; white-space: normal }
 .mq-name { flex: none }
-.mq-th { max-width: 132px; max-height: 88px; border-radius: 8px; object-fit: cover; cursor: zoom-in; box-shadow: var(--shadow-1) }
+/* 引用行的宽是 fit-content，父级（.msg-main）的宽度在这之前就已经定下来了，
+   所以这里的 100% 取得到定值 —— 和上面 .b-img 那个坑不是一回事。
+   量过（A/B，自然宽 1600 的图被引用、视口 2400）：这一行宽 169.7px、缩略图 117.3px，
+   把这里换成绝对 132px 之后两个数一个都没动；940/1360/2400 三档"行的右沿 − 缩略图右沿"都是 0px。
+   这个 100% 是窄窗口下不裁图的那一半，留着。 */
+.mq-th { max-width: min(132px, 100%); max-height: 88px; border-radius: 8px; object-fit: cover; cursor: zoom-in; box-shadow: var(--shadow-1) }
 .mq-wait { flex: none; color: var(--nb-dim-2) }
 /* 引用里的文件片只改尺寸，形状/描边/点开行为跟正文里那张是同一个 .b-file */
 .mq-file { max-width: 220px; padding: 4px 8px }
 .mention { color: var(--brand); font-weight: 500; }
 .msg.self .mention { color: #dbe7ff; }
 .b-del { color: var(--nb-dim-2); font-style: italic; }
-.b-img { display: block; max-width: 280px; border-radius: 10px; cursor: zoom-in; box-shadow: var(--shadow-1); }
+/* 图片消息：280px 这个上限写在气泡上、不写在 img 上。
+   写在 img 上（哪怕写成 min(280px, 100%)）会被图片的内在尺寸顶穿 —— 百分比在算内在宽度时
+   取不到定值，Chrome 就按图片自然宽报给父级，宽视口下 .msg-main 跟着变宽，
+   气泡留在左边、头像在右边，中间空一大块（他 2026-10-02 圈的就是这个）。
+   上限给气泡（绝对 px，参与内在尺寸是定值），图自己只说"不超父级"：
+   窄窗口下气泡按 shrink-to-fit 收到父级那么宽、图跟着收，既不裁也不越界；小图不会被拉大。
+   高度方向另说：竖着的长截图（手机截屏 1080×8000 那一类）封在 280 宽之后高会到几千像素，
+   一整屏都是这一条，所以高度也上一道 280 —— 同一颗数，方图时两边一起封住，
+   宽图不吃这条、竖图按等比缩（replaced element 的 max-height 会连宽一起缩，不会拉扁）。
+   不设最小宽高：小图照原尺寸贴头像，拉大只会糊，没有要它撑开的场景。 */
+.bubble.b-media { max-width: 280px; }
+.b-img { display: block; max-width: 100%; max-height: 280px; border-radius: 10px; cursor: zoom-in; box-shadow: var(--shadow-1); }
 /* ---- 图片查看器 ---- */
 .img-view {
   position: fixed; inset: 0; z-index: 10000; background: rgba(12, 18, 30, .86);
@@ -5914,6 +5956,8 @@ async function openWithApp(r) {
 /* 气泡已经是灰底了，里面这颗文件片得反过来用白底才分得开（原来是灰片在白气泡上）。
    文字颜色必须写死：片子底永远是白的，跟着气泡 inherit 的话自己发的那条就是白字落白底
    （实测名字对底 Δ0，只剩右边那个灰色的"5 B"看得见） */
+/* 上限写绝对 px：这一族是 shrink-to-fit（inline-flex / 块级），父级窄到多少它就收到多少，
+   不需要再挂一个 100% —— 挂了反而让内在宽度算不出定值（同 .b-img 那条坑） */
 .b-file { display: inline-flex; align-items: center; gap: 8px; max-width: 240px; padding: 6px 10px; border: 1px solid var(--nb-line); border-radius: 8px; background: var(--nb-bg-1); color: var(--nb-text); text-decoration: none; cursor: pointer; }
 .b-file:hover { border-color: var(--brand); }
 .b-file-nm { overflow: hidden; white-space: nowrap; text-overflow: ellipsis; font-size: 13px; }
@@ -5979,12 +6023,14 @@ async function openWithApp(r) {
    所以悬停反馈只留给颜色这一档 */
 .rz-grip:hover, .rz-grip:focus-visible, .m-input.rzging .rz-grip { background: var(--brand) content-box; }
 .m-input.rzging { cursor: row-resize; }
-/* 窄窗口下这条会溢出：左边七颗工具 230px 不缩、右边"字数位 158 + 发送 78"也不缩，
-   消息列一窄就整条撑出去，把「发送」画到抽屉上（量到视口 980 超界 37px、900 超界 117px、820 超界 197px，
-   拐点在消息列 ≈508px 那里）。改成挤不下就换行，而不是横向溢出。 */
+/* 这一行不许横向溢出（溢出那段会画到抽屉上：改之前量到视口 980 超界 37px、900 超界 117px、
+   820 超界 197px，拐点在消息列 ≈508px），所以挤不下就换行。
+   但换行的判据只能是"看得见的东西放不下"：左边那排工具按颗数定宽（桌面壳 5 颗 158px）不缩，
+   右边最少要 88px（发送 78 + 缝 10），加起来 246px 才换行——字数那一格平时不计入，见下面 .bar-right。 */
 .bar { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between;
   gap: 8px 0; border-top: 1px solid var(--nb-line); padding-top: 8px; }
-.bar-tools { display: flex; align-items: center; gap: 2px; }
+/* flex:none：整行挤不下时也不许把工具按钮压窄（30px 是按压区下限），让位的是右边那一组 */
+.bar-tools { flex: none; display: flex; align-items: center; gap: 2px; }
 .tool-wrap { position: relative; display: flex; }
 .tool {
   width: 30px; height: 30px; border: 0; border-radius: 7px; background: transparent;
@@ -5995,7 +6041,6 @@ async function openWithApp(r) {
 .tool:disabled { color: var(--nb-dim-2); cursor: default; }
 .tool:disabled:hover { background: transparent; color: var(--nb-dim-2); }
 .tool.at { font-size: 17px; }
-.tool.ai { color: var(--brand); }
 /* @ 成员名单：挂在输入区上、往上开（输入区贴着窗口底，往下开就出屏了）。
    外壳和表情框同一套：白底、10px 圆角、软阴影、一条线描边 */
 .mention-pop {
@@ -6027,23 +6072,34 @@ async function openWithApp(r) {
 .emoji-cell { padding: 3px; font-size: 18px; text-align: center; cursor: pointer; border-radius: 4px; }
 .emoji-cell:hover { background: var(--brand-soft); }
 .emoji-hint { margin-top: 4px; padding-top: 6px; border-top: 1px solid var(--nb-line); font-size: 11px; color: var(--nb-dim); }
-/* margin-left:auto：换行之后这一组要贴右，不然独占一行时 space-between 会把它甩到左边。
-   min-width:0：这一组自己的最小宽度默认等于内容宽（158+10+78=246），消息列窄到 163px 那一档时
-   它会整组溢出；放开之后由里面那格字数位先让位（量到 820/760 视口原来分别超界 39/99px） */
-.bar-right { display: flex; align-items: center; gap: 10px; margin-left: auto; min-width: 0; }
-/* 字数槽常驻、只切 visibility，宽度按最长那一档（4 位数 + "· 将以 txt 发送"）量出来定死，
-   所以打字过程中「发送」那颗不会左右跳 */
-/* 158px 是"字数提示"常年占的位子：它一出现就把发送往左推的话，打字时按钮会跳。
-   占位要写在 width 上，不能只写 flex-basis —— 试过 flex:0 1 158px + min-width:0，
-   父容器 .bar-right 按内容定宽时不把 basis 算进去，先被压成 109 再反过来把这格挤成 21px，
-   打字时发送照样跳（量到：空草稿 21px / 300 字 34px）。
-   width 给死 158，min-width:0 让它只在整行真放不下时才让位。 */
-.bar-cnt { visibility: hidden; flex: 0 1 auto; width: 158px; min-width: 0;
+/* 这一组改成"吃掉整行剩下的宽度、内容贴右"（flex:1 1 0 + justify-content:flex-end），
+   不再靠 margin-left:auto 贴右。差别全在换行的判据上：flex-basis 给 0，这一组对"要不要换行"
+   只贡献它缩不下去的那 88px（发送 78 + 缝 10；字数那格自己 min-width:0，不计进来），于是
+   1) 「发送」只由行的右沿定位，字数格往左长，打字时按钮不跳——原来定死 158px 就是为了这一条，
+      却把看不见的位子也算进了换行判据；
+   2) 空草稿那一格是 visibility:hidden 的"0 字"，看不见却常年占着 158px，
+      所以 190+158+10+78=436 就换行，可他那一行看得见的内容只要 190+78=268，
+      中间那 42px 空档就是这么来的（他 2026-10-02 那张图量的：bar 可用 310、工具右沿到发送左沿 42）。
+   这里别写 min-width:0，也别把 container-type 挂在这一组上：两者都会把"缩不下去的地板"拆成 0，
+   整行挤不下时发送就直接横过去压工具（量到 bar 收到 229 时压 7px）。地板由自动最小宽度给：88px。 */
+.bar-right { display: flex; align-items: center; gap: 10px; flex: 1 1 0; justify-content: flex-end; }
+/* 字数那一格：位子按文案实际要多宽就给多宽，不给看不见的状态预留（原来定死 158px 的来由见上面那条）。
+   flex:1 1 0 = 只吃这一组剩下的 slack，所以既推不走发送，也是整行里第一个让位的。
+   容器查询挂在它自己身上（这一格里面没有定位元素，不会把表情弹框的层序带坏），
+   下面那条 @container 判的就是"这一格实际分到多宽"。 */
+.bar-cnt { visibility: hidden; flex: 1 1 0; min-width: 0; container-type: inline-size; container-name: bcnt;
   overflow: hidden; white-space: nowrap; text-overflow: ellipsis;
   text-align: right; font-size: 12px; color: var(--nb-dim); }
 .bar-cnt.show { visibility: visible }
 .bar-cnt.over { color: var(--warn) }
-.bar-warn { font-size: 12px; color: var(--warn); }
+/* "1200 字 · 将以 txt 发送" 整句量到 114px。这一格分不到 114px 就把后半句收掉、只报字数：
+   宁可少一句提示，也不在发送左边截出"将以 txt 发…"那种半句
+   （量过：不收的时候那 114px 会横过去压住表情和 @ 两颗，压住 50px）。 */
+@container bcnt (max-width: 113px) { .bc-tail { display: none } }
+/* 断线提示和附件计数是看得见的字，宽度按文案给足、不换行也不被压扁：
+   挤不下时由 .bar 把整组挪到下一行（和改这一组之前的行为一致） */
+.bar-warn { font-size: 12px; color: var(--warn); flex: none; white-space: nowrap; }
+.pend-n { flex: none; white-space: nowrap; }
 .send {
   height: 30px; min-width: 78px; padding: 0 16px; border: 0; border-radius: 7px;
   background: var(--brand); color: #fff; font-size: 13px; letter-spacing: 2px; cursor: pointer;
