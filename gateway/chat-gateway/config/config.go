@@ -34,6 +34,13 @@ type Config struct {
 	// 来连就会被这一条挡掉；原生客户端不发 Origin，那一类单独放行（见 handler.originAllowed）。
 	// 没配 = 本机开发那几种开法；上生产要么换成真域名，要么明确知道自己在放行什么
 	WSAllowedOrigins []string
+	// 厂商推送（一期只做小米，其余先不做）。四个都不给默认值：没配 = 不启用，
+	// 离线的人回到应用靠 SYNC_MISSING 补发，只是不会有系统通知。
+	// PushBase 是留给自测的口子：指到本地假服务器就能验请求形状，不需要真凭据
+	PushProvider   string
+	PushAppPackage string
+	PushSecret     string
+	PushBase       string
 }
 
 // 开发期默认放行的来源：vite dev 的两种写法 + 桌面壳的自定义方案 app://chat + 直接 file:// 打开
@@ -83,6 +90,11 @@ func Load() *Config {
 		GatewayId: getEnv("GATEWAY_ID", "gateway-01"),
 		// 没给 WS_ALLOWED_ORIGINS 就是开发期那一组（见 devWSOrigins）
 		WSAllowedOrigins: originList(getEnv("WS_ALLOWED_ORIGINS", "")),
+		// 没配 PUSH_PROVIDER 就是 none：这条通道当它不存在（不报错、不重试、不占日志）
+		PushProvider:   getEnv("PUSH_PROVIDER", ""),
+		PushAppPackage: getEnv("PUSH_APP_PACKAGE", ""),
+		PushSecret:     getEnv("PUSH_APP_SECRET", ""),
+		PushBase:       getEnv("PUSH_BASE", ""),
 	}
 }
 

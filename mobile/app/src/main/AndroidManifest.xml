@@ -16,7 +16,8 @@
         android:theme="@style/Theme.ChatMobile"
         android:usesCleartextTraffic="true">
         <!-- 开发机上后端是 http://192.168.x.x:8081，走明文是常态，usesCleartextTraffic 就是为这个开的 -->
-        <activity android:name=".LoginActivity" android:exported="true">
+        <activity android:name=".LoginActivity" android:exported="true"
+                  android:windowSoftInputMode="adjustResize">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LAUNCHER" />

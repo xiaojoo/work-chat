@@ -5,6 +5,7 @@ import (
 	"chat-gateway/config"
 	"chat-gateway/control"
 	"chat-gateway/httpclient"
+	"chat-gateway/push"
 	"chat-gateway/redis"
 	"chat-gateway/safego"
 	"encoding/json"
@@ -221,6 +222,8 @@ func (m *Manager) HandleMessage(client *Client, msg *Message) {
 		m.handleSyncConversations(client, msg)
 	case "LOAD_MESSAGES":
 		m.handleLoadMessages(client, msg)
+	case "PUSH_REG":
+		m.handlePushReg(client, msg)
 	case "SYNC_MISSING":
 		m.handleSyncMissing(client, msg)
 	case "SEARCH_MESSAGES":
@@ -421,6 +424,7 @@ func (m *Manager) deliverToPrivate(client *Client, conversationId string, messag
 	for _, uid := range userIds {
 		if uid != client.UserID {
 			m.SendToUser(uid, receiveFrame(conversationId, messageId, client.UserID, data))
+			m.notifyOffline(uid, conversationId, data.Content)
 		}
 	}
 }
@@ -436,6 +440,37 @@ func (m *Manager) deliverToGroup(client *Client, conversationId string, messageI
 		}
 	}
 	m.SendToUsers(ids, frame)
+	for _, uid := range ids {
+		m.notifyOffline(uid, conversationId, data.Content)
+	}
+}
+
+/* notifyOffline 只在"这个人全局一台设备都不在线"时才走厂商推送。
+   判在线不能看 m.deviceCount —— 那只是本实例的连接表，多实例部署时他明明连在另一台网关上，
+   我们照样会推一条过去。redis 里那张 user:online:<uid> 是跨实例写的，用它的长度判。
+   没配推送时 push.Enabled() 就是 false，这一路整个不存在（不报错、不重试、不占日志）。 */
+func (m *Manager) notifyOffline(uid int64, convId, text string) {
+	if !push.Enabled() {
+		return
+	}
+	if len(redis.GetUserOnline(uid)) > 0 {
+		return
+	}
+	safego.Run("push-notify", func() { push.Notify(uid, convId, "新消息", text) })
+}
+
+// handlePushReg 客户端从小米推送 SDK 拿到 regId 之后上报这一条。
+// 一个人可以有多台设备，所以是累加进 set、不是覆盖。
+func (m *Manager) handlePushReg(client *Client, msg *Message) {
+	var data struct {
+		RegId string `json:"regId"`
+	}
+	if err := json.Unmarshal(msg.Data, &data); err != nil || data.RegId == "" {
+		return
+	}
+	redis.PushRemember(client.UserID, data.RegId)
+	client.enqueue(ackFrame(msg.RequestId, "PUSH_REG_ACK", map[string]interface{}{"status": "ok"}))
+	log.Printf("push regId registered: user=%d", client.UserID)
 }
 
 func (m *Manager) handleMessageDelete(client *Client, msg *Message) {

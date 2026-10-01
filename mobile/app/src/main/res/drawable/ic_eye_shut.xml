@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 密码隐藏态：同一只眼睛压一道斜杠，位置、描边、颜色都和 ic_eye_open 逐字相同，
+   这样切的时候只有那道杠在动，眼睛不会跳位 -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="24dp" android:height="24dp"
+    android:viewportWidth="24" android:viewportHeight="24">
+    <path android:pathData="M2.6 12C5.1 7.4 8.4 5.1 12 5.1s6.9 2.3 9.4 6.9c-2.5 4.6-5.8 6.9-9.4 6.9S5.1 16.6 2.6 12z"
+        android:strokeColor="#69788F" android:strokeWidth="1.8" android:fillColor="#00000000"/>
+    <path android:pathData="M12 9.4a2.6 2.6 0 1 0 0 5.2 2.6 2.6 0 0 0 0-5.2z"
+        android:fillColor="#69788F"/>
+    <path android:pathData="M4.4 19.6 19.6 4.4"
+        android:strokeColor="#69788F" android:strokeWidth="1.8" android:strokeLineCap="round"/>
+</vector>

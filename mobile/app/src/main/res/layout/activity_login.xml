@@ -1,54 +1,180 @@
 <?xml version="1.0" encoding="utf-8"?>
-<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+<!-- 登录页。原来是一屏平台默认控件：三根平台下划线 + 一颗灰底 Button，
+     和这个 app 其余页面（会话/设置/我的）那套 surface 胶囊 + 品牌蓝按钮不是一套东西。
+     这里全部改用同一批料：@drawable/field_pill、@drawable/btn_brand、@color 里那几个令牌。
+     整页套 ScrollView：设置里字体调到最大档（ScaleActivity 换 fontScale）时，
+     不滚动的话「登录」那颗会被顶出屏幕，人就卡在这一页。 -->
+<ScrollView xmlns:android="http://schemas.android.com/apk/res/android"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
-    android:orientation="vertical"
-    android:padding="20dp">
+    android:background="@color/page_bg"
+    android:fillViewport="true"
+    android:scrollbars="none">
 
-    <TextView
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:text="Chat"
-        android:textSize="28sp"
-        android:textStyle="bold"
-        android:paddingBottom="18dp" />
-
-    <EditText
-        android:id="@+id/server"
+    <LinearLayout
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:hint="@string/server_hint"
-        android:inputType="textUri"
-        android:minHeight="48dp" />
+        android:orientation="vertical"
+        android:gravity="center_horizontal"
+        android:paddingStart="24dp"
+        android:paddingEnd="24dp"
+        android:paddingTop="56dp"
+        android:paddingBottom="28dp">
 
-    <EditText
-        android:id="@+id/account"
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:hint="@string/username_hint"
-        android:inputType="text"
-        android:minHeight="48dp" />
+        <ImageView
+            android:layout_width="60dp"
+            android:layout_height="60dp"
+            android:src="@drawable/ic_chat_brand"
+            android:contentDescription="@null" />
 
-    <EditText
-        android:id="@+id/password"
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:hint="@string/password_hint"
-        android:inputType="textPassword"
-        android:minHeight="48dp" />
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="14dp"
+            android:text="@string/app_name"
+            android:textColor="@color/ink"
+            android:textSize="26sp"
+            android:textStyle="bold" />
 
-    <Button
-        android:id="@+id/submit"
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:minHeight="48dp"
-        android:text="@string/login" />
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="6dp"
+            android:text="@string/login_subtitle"
+            android:textColor="@color/ink_dim"
+            android:textSize="13sp" />
 
-    <TextView
-        android:id="@+id/status"
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:paddingTop="14dp"
-        android:textSize="14sp" />
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="44dp"
+            android:text="@string/username_hint"
+            android:textColor="@color/ink_dim"
+            android:textSize="13sp" />
 
-</LinearLayout>
+        <EditText
+            android:id="@+id/account"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="6dp"
+            android:background="@drawable/field_pill"
+            android:imeOptions="actionNext"
+            android:inputType="textNoSuggestions"
+            android:hint="@null"
+            android:maxLines="1"
+            android:minHeight="48dp"
+            android:paddingStart="14dp"
+            android:paddingEnd="14dp"
+            android:paddingTop="12dp"
+            android:paddingBottom="12dp"
+            android:textColor="@color/ink"
+            android:textColorHint="@color/ink_dim2"
+            android:textSize="15sp" />
+
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="16dp"
+            android:text="@string/password_hint"
+            android:textColor="@color/ink_dim"
+            android:textSize="13sp" />
+
+        <FrameLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="6dp">
+
+            <EditText
+                android:id="@+id/password"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:background="@drawable/field_pill"
+                android:hint="@null"
+                android:imeOptions="actionDone"
+                android:inputType="textPassword"
+                android:maxLines="1"
+                android:minHeight="48dp"
+                android:paddingStart="14dp"
+                android:paddingEnd="56dp"
+                android:paddingTop="12dp"
+                android:paddingBottom="12dp"
+                android:textColor="@color/ink"
+                android:textColorHint="@color/ink_dim2"
+                android:textSize="15sp" />
+
+            <!-- 48dp 一方：拇指落点下限，也是"看得见/看不见"这格该有的命中面积 -->
+            <ImageButton
+                android:id="@+id/togglePass"
+                android:layout_width="48dp"
+                android:layout_height="48dp"
+                android:layout_gravity="end|center_vertical"
+                android:layout_marginEnd="2dp"
+                android:background="?attr/selectableItemBackgroundBorderless"
+                android:contentDescription="@string/login_toggle_pass"
+                android:src="@drawable/ic_eye_shut" />
+        </FrameLayout>
+
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="16dp"
+            android:text="@string/login_server_label"
+            android:textColor="@color/ink_dim"
+            android:textSize="13sp" />
+
+        <EditText
+            android:id="@+id/server"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="6dp"
+            android:background="@drawable/field_pill"
+            android:hint="@string/server_hint"
+            android:imeOptions="actionDone"
+            android:inputType="textUri"
+            android:maxLines="1"
+            android:minHeight="48dp"
+            android:paddingStart="14dp"
+            android:paddingEnd="14dp"
+            android:paddingTop="12dp"
+            android:paddingBottom="12dp"
+            android:textColor="@color/ink"
+            android:textColorHint="@color/ink_dim2"
+            android:textSize="13sp" />
+
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="6dp"
+            android:text="@string/login_server_note"
+            android:textColor="@color/ink_dim2"
+            android:textSize="12sp" />
+
+        <Button
+            android:id="@+id/submit"
+            android:layout_width="match_parent"
+            android:layout_height="48dp"
+            android:layout_marginTop="30dp"
+            android:background="@drawable/btn_brand"
+            android:enabled="false"
+            android:stateListAnimator="@null"
+            android:text="@string/login"
+            android:textColor="#FFFFFF"
+            android:textSize="16sp" />
+
+        <!-- 结果那一行：颜色按语义走（成功 ok / 失败 danger / 过程 ink_dim），
+             不靠"同一句灰字"表达三种事。
+             这里**不挂 accessibilityLiveRegion**：挂了之后这句在 uiautomator 的 dump 里永远是
+             text=""（内容走无障碍播报事件，不进节点属性），实测屏幕上有墨、读数为空，
+             量具直接瞎掉。播报改在 say() 里显式 announceForAccessibility 给。 -->
+        <TextView
+            android:id="@+id/status"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="16dp"
+            android:minHeight="20dp"
+            android:gravity="center_horizontal"
+            android:textColor="@color/ink_dim"
+            android:textSize="13sp" />
+
+    </LinearLayout>
+</ScrollView>

@@ -6,6 +6,10 @@
     <string name="password_hint">密码</string>
     <string name="login">登录</string>
     <string name="logging_in">登录中…</string>
+    <string name="login_subtitle">企业内网 IM · 手机端</string>
+    <string name="login_server_label">后端地址（可留空）</string>
+    <string name="login_server_note">留空就用项目配置里烘进包的那个地址；填了只记在本机，换机器临时连一下用，不用重打包。</string>
+    <string name="login_toggle_pass">显示或隐藏密码</string>
     <string name="conversations_title">会话</string>
     <string name="reload">刷新</string>
     <string name="logout">退出</string>

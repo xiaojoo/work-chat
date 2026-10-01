@@ -6,6 +6,7 @@ import (
 	"chat-gateway/control"
 	"chat-gateway/handler"
 	"chat-gateway/httpclient"
+	"chat-gateway/push"
 	"chat-gateway/redis"
 	"chat-gateway/router"
 	"chat-gateway/safego"
@@ -31,6 +32,9 @@ func main() {
 	}
 
 	redis.Init(cfg.RedisAddr, cfg.RedisPassword)
+
+	// 厂商推送（一期只做小米）。放在 redis 之后：regId 台账在 redis 里
+	push.Init(cfg.PushProvider, cfg.PushAppPackage, cfg.PushSecret, cfg.PushBase)
 
 	connection.InitManager(cfg)
 

@@ -75,10 +75,31 @@ class SettingsActivity : EdgeBackActivity() {
         Rows.endGroup(groups)
 
         Rows.gap(groups)
+        /* 状态栏那条「消息通道」不是我们想摆着好看：Android 8 起前台服务必须挂一条通知，
+           平台没给应用任何隐藏它的 API —— 能做的只有把渠道压到 IMPORTANCE_MIN（不响不弹不震动）
+           + FOREGROUND_SERVICE_DEFAULT（应用在自己前台时不显示）。所以只能把选择权交出来：
+           留着这条 = 锁屏、退到桌面也收得到；关掉 = 状态栏干净，但一退后台这条连接就断。 */
+        val svc = Cfg.svcEnabled(this)
+        Rows.toggle(groups, "后台常驻收消息",
+            on = svc, enabled = true, labelSp = 13f) { setSvc(true) }
+        Rows.toggle(groups, "只在前台收（状态栏不留常驻）",
+            on = !svc, enabled = true, labelSp = 13f) { setSvc(false) }
+        Rows.endGroup(groups)
+
+        Rows.gap(groups)
         Rows.row(groups, "退出登录", "", danger = true) { confirmLogout() }
         Rows.endGroup(groups)
 
-        status.text = "这三档和字号都存本机（后端没有对应字段），杀掉重进还在。"
+        status.text = "这几档都存本机（后端没有对应字段），杀掉重进还在。" +
+                "「只在前台收」关掉的是那条常驻通知，代价是退出应用就收不到新消息，" +
+                "回到应用才会重新收到。"
+    }
+
+    /** 换这一档当场就要见效：开=起服务（那条常驻通知回来），关=停服务（它跟着没） */
+    private fun setSvc(on: Boolean) {
+        Cfg.setSvcEnabled(this, on)
+        if (on) NotifyService.start(this) else NotifyService.stop(this)
+        render()
     }
 
     /** 存下来再交给 AppCompat：换肤真的发生时它会自己重建这一页。

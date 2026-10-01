@@ -59,10 +59,17 @@ object Notify {
             NotificationManager.IMPORTANCE_MIN).apply {
                 description = "后台那条长连接，不响不弹横幅、不震动"
                 setShowBadge(false)
-                /* MIUI 硬伤：IMPORTANCE_MIN 的渠道在这台 MIUI 14 上仍会占一条"前台服务"通知，
-                 *  折叠/隐藏都没有公开 API（NotificationChannel 上没有 setShowAsCollapsed 这类开关，
-                 *  上一版照着印象写了一行，编译直接 unresolved reference）。
-                 *  要彻底藏掉只能用户手动：设置→应用管理→聊天→通知→关闭"后台横幅/常驻"。 */
+                /* 锁屏上**整条都不画**。原来这里没写，渠道默认 -1000=PRIVATE：
+                   "私密"只是"锁屏上显示但遮内容"，而这条通知的标题本身就没有内容可遮，
+                   于是 MIUI 把「消息通道 / 已连接」整张卡片摆在锁屏上（2026-10-01 他截的那张）。
+                   SECRET(-2000) 才是"锁屏不给看"。通知那侧也各写一遍，两边口径一致。 */
+                lockscreenVisibility = Notification.VISIBILITY_SECRET
+                /* 下拉里那一行还是藏不掉：IMPORTANCE_MIN 的渠道在这台 MIUI 14 上仍占一条
+                 * "前台服务"通知，折叠/隐藏它没有任何公开 API（NotificationChannel 上没有
+                 * setShowAsCollapsed 这类开关，上一版照着印象写了一行，编译直接 unresolved reference）。
+                 * 能做的到这就为止：锁屏不画、不响、不弹横幅、不震动、不占角标。
+                 * 要连下拉那行都不要，只有两条路——设置里选"只在前台收"，或者接厂商推送（那才是微信、
+                 * 抖音那批的做法：它们手机上没有常驻的 socket，所以不需要前台服务）。 */
             })
     }
 

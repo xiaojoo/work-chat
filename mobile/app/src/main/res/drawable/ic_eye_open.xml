@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 密码那格的"看得见/看不见"。不用平台自带那颗：它的尺寸和描边跟这套描点图标不是一套，
+     而且换不了颜色。24dp 画布、1.8 描边、和 ic_person 同一口径 -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="24dp" android:height="24dp"
+    android:viewportWidth="24" android:viewportHeight="24">
+    <path android:pathData="M2.6 12C5.1 7.4 8.4 5.1 12 5.1s6.9 2.3 9.4 6.9c-2.5 4.6-5.8 6.9-9.4 6.9S5.1 16.6 2.6 12z"
+        android:strokeColor="#69788F" android:strokeWidth="1.8" android:fillColor="#00000000"/>
+    <path android:pathData="M12 9.4a2.6 2.6 0 1 0 0 5.2 2.6 2.6 0 0 0 0-5.2z"
+        android:fillColor="#69788F"/>
+</vector>

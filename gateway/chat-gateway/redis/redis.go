@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"log"
+	"strconv"
 	"time"
 
 	"github.com/redis/go-redis/v9"
@@ -107,5 +108,37 @@ func IdemFinish(key, messageId string, ttl time.Duration) {
 func IdemRelease(key string) {
 	if err := rdb.Del(ctx, idemPrefix+key).Err(); err != nil {
 		log.Printf("idem release failed: %s err=%v", key, err)
+	}
+}
+
+/* ==== 厂商推送的 regId 台账 ====
+   一个人可以有多台设备（手机 A、平板 B），所以是一个 set；
+   放 Redis 不放进程内存：多网关实例都要查得到，重启也不用等客户端重新上报。 */
+
+func pushKey(userID int64) string { return "push:reg:" + strconv.FormatInt(userID, 10) }
+
+func PushRemember(userID int64, regID string) {
+	if regID == "" {
+		return
+	}
+	if err := rdb.SAdd(ctx, pushKey(userID), regID).Err(); err != nil {
+		log.Printf("push regId 没存进去: user=%d err=%v", userID, err)
+	}
+}
+
+func PushRegIds(userID int64) []string {
+	v, err := rdb.SMembers(ctx, pushKey(userID)).Result()
+	if err != nil {
+		log.Printf("push regId 没读出来: user=%d err=%v", userID, err)
+		return nil
+	}
+	return v
+}
+
+// 小米说某个 regId 已失效（卸载、换机、号被回收）时摘掉那一条，
+// 不然每次投递都带着一个死号
+func PushForget(userID int64, regID string) {
+	if err := rdb.SRem(ctx, pushKey(userID), regID).Err(); err != nil {
+		log.Printf("push regId 没摘掉: user=%d err=%v", userID, err)
 	}
 }

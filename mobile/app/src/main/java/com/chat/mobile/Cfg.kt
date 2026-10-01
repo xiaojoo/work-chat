@@ -128,6 +128,19 @@ object Cfg {
         return fresh
     }
 
+    /** 后台常驻收消息那一档，存本机。
+     *  开着：长连接挂在前台服务上，锁屏、退到桌面都收得到 —— 代价是 Android 8 起
+     *  前台服务必须挂一条常驻通知，这条**平台没给应用任何隐藏它的 API**（只能用户自己去
+     *  设置里关掉「消息通道」那个渠道）。
+     *  关掉：状态栏干净，但应用一退到后台这条连接就断，回到前台才重新收。默认开着。 */
+    fun svcEnabled(ctx: Context): Boolean =
+        ctx.getSharedPreferences(PREF, Context.MODE_PRIVATE).getBoolean("svc_on", true)
+
+    fun setSvcEnabled(ctx: Context, on: Boolean) {
+        ctx.getSharedPreferences(PREF, Context.MODE_PRIVATE).edit()
+            .putBoolean("svc_on", on).apply()
+    }
+
     /** 设置页「字体大小」那一档：1.0=标准、1.15=大、1.3=特大。存本机。 */
     fun fontScale(ctx: Context): Float =
         ctx.getSharedPreferences(PREF, Context.MODE_PRIVATE).getFloat("font_scale", 1f)

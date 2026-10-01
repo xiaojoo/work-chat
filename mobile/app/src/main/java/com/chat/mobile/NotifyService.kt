@@ -83,7 +83,18 @@ class NotifyService : Service() {
             .setContentTitle("消息通道")
             .setContentText(state)
             .setContentIntent(open)
-            .setOngoing(true)
+            /* 不再 setOngoing(true)。这条以前是 0x62 = ONGOING|NO_CLEAR|FOREGROUND_SERVICE：
+               划不掉、又一直摆在下拉最上面 —— 而它只是"进程活着"的凭证，不是正在发生的事件，
+               没有资格占住最上面那一格。Android 13 起前台服务的通知**允许用户自己划掉**，
+               前提就是别写 ongoing；划掉之后连接照旧活着，只有服务重启才会再出现一次。
+               （系统自己加的 FOREGROUND_SERVICE 那个 flag 去不掉，那是法定凭证；
+               应用自己一条都抹掉也没有公开 API —— 想彻底没有，走设置里"只在前台收"那档。） */
+            /* 锁屏那一份整条不画：默认 PRIVATE(-1000) 的语义是"锁屏上显示、只遮内容"，
+               而这条的内容就是标题那两句，没东西可遮，于是整张卡片照摆。SECRET(-2000) 才是不给看。
+               注意这只管锁屏；下拉栏里那一行靠上面那条（可划掉）+ 渠道 MIN（归到下面那组）。 */
+            .setVisibility(NotificationCompat.VISIBILITY_SECRET)
+            // 这条不是事件，没有"什么时候发生"可报：去掉右上角那个"33分钟"
+            .setShowWhen(false)
             /* DEFAULT = app 在前台时这条不显示，只有退到后台/锁屏才出现在下拉最底下。
                （IMMEDIATE 是"立刻显示"，上一版写错了，所以你在应用里也看得到它。）
                聊天类的前台服务不在系统"可以完全不显示通知"的豁免名单里（那份只有媒体播放、
@@ -160,6 +171,9 @@ class NotifyService : Service() {
 
         fun start(ctx: Context) {
             if (Cfg.token(ctx).isEmpty()) return
+            // 设置里选了"只在前台收"，这条服务就不起：状态栏不留那条常驻通知。
+            // 界面自己的连接不受这条影响（前台照常收），少的是"退了后台还能收"
+            if (!Cfg.svcEnabled(ctx)) return
             Notify.ensureChannels(ctx)
             ContextCompat.startForegroundService(ctx, Intent(ctx, NotifyService::class.java))
         }

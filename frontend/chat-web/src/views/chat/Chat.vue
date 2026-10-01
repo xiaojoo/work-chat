@@ -5501,7 +5501,13 @@ async function openWithApp(r) {
      A/B 已证明它不是"格子不出现"的原因 —— 那个是另一台登录了同一账号的设备在自动拒。 */
   container-type: inline-size; container-name: mhead; }
 .m-head { display: flex; align-items: center; gap: 12px; padding: 12px 18px 10px; min-height: var(--head-h); border-bottom: 1px solid var(--nb-line-soft); }
-.mh-title { display: flex; align-items: center; gap: 4px; min-width: 0; }
+/* 标题这一块的宽度只写一次：原来这里还有一条同名的 .mh-title（min-width:64px），
+   后写的盖掉先写的，那条 64px 的下限就是"两个字的名字"和后面那句之间的空 —— 名字
+   实测墨迹只有 34px，被 min-width 硬撑到 64px，多出来的 30px 全成了间隙。
+   下限不该由盒子写死：图标排自己收一档的那条容器查询（下面 max-width:360 那条）已经保证
+   收到 360 时不换行也放得下 —— 那一档里返回 30 + 间距 12 + 图标排 200 + 左右内边距 36 = 278，
+   标题至少还剩 82px，够摆一个短名字。所以这里 min-width:0 让它按内容走，真放不下才走省略号。 */
+.mh-title { display: flex; align-items: center; gap: 4px; min-width: 0; flex: 0 1 auto; }
 .mh-hash { color: var(--nb-dim-2); font-size: 17px; }
 .mh-name { font-size: 17px; font-weight: 600; color: var(--nb-text); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 /* 这一句原来只有 flex:1 + min-width:0，没有 nowrap —— 栏一窄它就先被压，
@@ -5512,24 +5518,29 @@ async function openWithApp(r) {
 /* 头像堆和图标排不许被压：它们的尺寸是定死的（24 圆 / 30×28 命中区），
    被 flex 压一下就是"样式乱了"，宁可让文字让位 */
 .mh-stack { display: flex; align-items: center; flex: 0 0 auto; }
-.mh-acts { display: flex; align-items: center; gap: 6px; flex: 0 0 auto; }
-/* 标题不许被压到看不见：图标那一排是定死的 240px（六颗 30×28 + 间距），
-   左边栏还开着时消息栏能剩的宽度很小，原来 flex 一压标题就成了 0 —— 会话名整个消失。
-   给它一个下限，实在放不下就走省略号。 */
-.mh-title { display: flex; align-items: center; gap: 4px; min-width: 64px; flex: 0 1 auto; }
-.mh-name { min-width: 64px; }
+/* 图标那一排钉在右边：靠 margin-left:auto 吃掉标题和它之间的全部富余，
+   视口变窄先吃掉这段富余（也就是"左边的间隙"变小），间隙没了才轮到标题走省略号。
+   原来只写了 flex:0 0 auto，等于"紧跟着左边那截排"，富余全甩到了右边 —— 窄一点就整排靠左。 */
+.mh-acts { display: flex; align-items: center; gap: 6px; flex: 0 0 auto; margin-left: auto; }
+/* 会话名整个消失那件事不再靠给标题写死下限来防（那正是短名字后面多出一道间隙的原因）：
+   改由下面那条换行阈值保证 —— 不换行的时候标题一定还有 ≥76px 可用，
+   再窄图标排就整排换到第二行，标题独占一行。 */
 /* 让位的顺序：先藏装饰性最强的叠放头像，再藏"几位成员"那句；
    标题（可省略号）和右边那排图标（功能入口，藏了等于没做）永远留着。
    阈值按消息栏实测宽度定的：660 那一档标题已经只剩 27px，所以头像要更早让位。 */
 @container mhead (max-width: 720px) { .mh-stack { display: none; } }
 @container mhead (max-width: 640px) { .mh-sub { display: none; } }
-/* 再窄下去与其让图标排溢出被裁掉（最右边那颗就成了"看不见的按钮"），
-   不如整排换到第二行：一个入口都不丢。
-   断点按实数定：图标排 210 + 左右 padding 36 + 标题下限 64 = 310，
-   放得下就不换行 —— 原来写 420 太早，430/660 那两档明明够宽却白白变成两行。 */
-@container mhead (max-width: 310px) {
-  .m-head { flex-wrap: wrap; }
-  .mh-acts { flex: 1 0 100%; justify-content: flex-end; }
+/* 再窄也**不换行**（他 2026-10-01 点名：图标排不许掉到第二行）。
+   原来这里写的是"到 364 就整排换到第二行"，代价是会话头凭空高出一行 —— 不要。
+   改为让图标自己收一档：30×28 → 28×28、间距 6 → 4，一排省 22px；
+   28px 是窄屏命中区的下限，再小就是"看不见的按钮"。
+   省完还放不下时，让位的是标题（走省略号，min-width:0），不是图标。
+   量到的下限：主栏 284px（视口 340）起一行放得下；再往下到视口 300（主栏 244）差 26px，
+   最右那颗会被顶出内沿 —— 这一档超出所有真实场景（桌面壳 minWidth=940、手机判据 390），
+   要保住它只能让图标排横向滑（露半颗=看不见的按钮）或撤掉窄屏那颗返回键，两条都没选。 */
+@container mhead (max-width: 360px) {
+  .mh-acts { gap: 4px; }
+  .mh-ico { width: 28px; }
 }
 .stack-ava {
   width: 24px; height: 24px; border-radius: 50%; background: var(--brand); color: #fff; display: grid; place-items: center;
