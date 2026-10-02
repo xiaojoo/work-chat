@@ -74,8 +74,10 @@ export function confirmBox(options = {}) {
     modal.innerHTML = `
       <div class="nebula-confirm-mask"></div>
       <div class="nebula-confirm-panel">
-        <div class="nebula-confirm-ico ico-${type}">${type === 'warning' ? '⚠' : '◈'}</div>
-        <div class="nebula-confirm-title"></div>
+        <div class="nebula-confirm-hd">
+          <div class="nebula-confirm-ico ico-${type}">${type === 'warning' ? '⚠' : '◈'}</div>
+          <div class="nebula-confirm-title"></div>
+        </div>
         <div class="nebula-confirm-msg"></div>
         <div class="nebula-confirm-btns">
           <button class="nebula-btn ghost" data-act="cancel"></button>
@@ -87,8 +89,6 @@ export function confirmBox(options = {}) {
     modal.querySelector('[data-act="cancel"]').textContent = cancelText
     modal.querySelector('[data-act="ok"]').textContent = confirmText
     document.body.appendChild(modal)
-
-    requestAnimationFrame(() => modal.classList.add('show'))
 
     modal.querySelector('.nebula-confirm-mask').addEventListener('click', () => close(false))
     modal.querySelector('[data-act="cancel"]').addEventListener('click', () => close(false))
@@ -144,62 +144,61 @@ export function confirmBox(options = {}) {
 .nebula-confirm { position: fixed; inset: 0; z-index: 99998; display: flex; align-items: center; justify-content: center; }
 .nebula-confirm-mask {
   position: absolute; inset: 0;
-  background: rgba(3,6,18,.72);
-  backdrop-filter: blur(2px);
 }
 .nebula-confirm-panel {
   position: relative;
   width: 380px;
   max-width: 92vw;
-  padding: 26px 26px 22px;
-  border-radius: 12px;
-  background:
-    radial-gradient(300px 150px at 85% 6%, rgba(168,85,247,.16), transparent 60%),
-    linear-gradient(150deg, #070b20 0%, #0b1030 55%, #120a2e 100%);
-  border: 1px solid rgba(0,240,255,.28);
-  box-shadow: 0 24px 80px rgba(0,0,0,.65), 0 0 50px rgba(0,240,255,.09);
-  text-align: center;
-  opacity: 0;
-  transform: translateY(14px) scale(.97);
-  transition: opacity .22s, transform .22s;
+  padding: 22px 24px;
+  background: var(--nb-panel-solid, #fff);
+  text-align: left;
 }
-.nebula-confirm.show .nebula-confirm-panel { opacity: 1; transform: translateY(0) scale(1); }
-.nebula-confirm-ico { font-size: 34px; margin-bottom: 10px; }
-.nebula-confirm-ico.ico-warning { color: #ffb02e; filter: drop-shadow(0 0 10px rgba(255,176,46,.7)); }
-.nebula-confirm-ico.ico-info { color: #00f0ff; filter: drop-shadow(0 0 10px rgba(0,240,255,.7)); }
+/* 那道边和入场由 nebula.css 的 .modal/.dlg/.nebula-confirm-panel/.token-expired-modal 共用规则给，这里不再各写一份 */
+/* 正文上下两道间隙按"看得见的空白"对齐，不是按 margin 对齐：
+   标题行盒在墨迹下面还留 2.5px、正文行盒在墨迹上面留 5.5px、下面留 5.4px，
+   所以 margin 写 16/16 时实测上 24.0 下 21.5。上边收到 13.5 才是 21.5/21.5。 */
+.nebula-confirm-hd { display: flex; align-items: center; gap: 8px; margin-bottom: 13.5px; }
+.nebula-confirm-ico { font-size: 18px; line-height: 1; flex: none; }
+/* 这两个符号在 YaHei 里的墨迹和汉字墨迹不在一条中线上，flex 的 align-items 只居中盒子居中不了墨迹。
+   补偿值按 dpr=2 全高扫描量到（判据：图标墨迹中线 = 标题墨迹中线）：
+   ⚠ 自然位高 1.5px 要压下去；◈ 自然位已经正中，不给补偿。换字号或换字体栈要重量 */
+.nebula-confirm-ico.ico-warning { color: var(--warn, #b76e10); transform: translateY(1.5px); }
+.nebula-confirm-ico.ico-info { color: var(--brand, #2b6be8); }
 .nebula-confirm-title {
   font-family: 'Orbitron','Rajdhani','Microsoft YaHei',sans-serif;
   font-size: 16px;
   font-weight: 700;
-  color: #fff;
+  color: var(--nb-text, #1b2434);
   letter-spacing: 2px;
-  margin-bottom: 8px;
+  min-width: 0;
 }
-.nebula-confirm-msg { font-size: 13.5px; color: #b6c2e6; line-height: 1.7; margin-bottom: 22px; }
-.nebula-confirm-btns { display: flex; justify-content: center; gap: 12px; }
-.nebula-btn {
-  padding: 9px 24px;
-  border-radius: 12px;
+.nebula-confirm-msg { font-size: 13.5px; color: var(--nb-dim, #69788f); line-height: 1.7; margin-bottom: 16px; }
+.nebula-confirm-btns { display: flex; justify-content: flex-end; gap: 12px; }
+/* 全部带 .nebula-confirm-btns 前缀：.nebula-btn 这个名字 theme.css 也有一份定义，
+   不带前缀改会连带改到别的界面 */
+.nebula-confirm-btns .nebula-btn {
+  padding: 8px 16px;
+  border-radius: 6px;
   cursor: pointer;
-  font-size: 13px;
-  letter-spacing: 1.5px;
+  font-size: 13.5px;
+  letter-spacing: normal;
   font-family: 'Rajdhani','Microsoft YaHei',sans-serif;
-  transition: all .2s;
+  transition: background .2s, border-color .2s;
 }
-.nebula-btn.primary {
-  border: none;
-  background: linear-gradient(90deg, #ff2ec4, #a855f7);
+.nebula-confirm-btns .nebula-btn.primary {
+  border: 1px solid var(--brand, #2b6be8);
+  background: var(--brand, #2b6be8);
   color: #fff;
   font-weight: 600;
-  box-shadow: 0 0 18px rgba(255,46,196,.4);
+  box-shadow: none;
 }
-.nebula-btn.primary:hover { filter: brightness(1.15); box-shadow: 0 0 26px rgba(255,46,196,.65); }
-.nebula-btn.ghost {
-  background: transparent;
-  border: 1px solid rgba(255,46,196,.4);
-  color: #ff8ad8;
+.nebula-confirm-btns .nebula-btn.primary:hover { background: var(--brand-strong, #1f56c4); border-color: var(--brand-strong, #1f56c4); filter: none; box-shadow: none; }
+.nebula-confirm-btns .nebula-btn.ghost {
+  background: var(--nb-bg-1, #fff);
+  border: 1px solid var(--nb-line, #e2e7f0);
+  color: var(--nb-text, #1b2434);
 }
-.nebula-btn.ghost:hover { background: rgba(255,46,196,.1); color: #fff; box-shadow: 0 0 12px rgba(255,46,196,.4); }
+.nebula-confirm-btns .nebula-btn.ghost:hover { background: var(--nb-bg-3, #f0f3f8); color: var(--nb-text, #1b2434); box-shadow: none; }
 `
   document.head.appendChild(style)
 })()

@@ -559,7 +559,9 @@ td em { margin-left: 7px; font-size: 11.5px; font-style: normal; color: var(--nb
 .gtab.on { background: var(--brand); color: #fff; font-weight: 600; }
 .search { flex: 1; min-width: 120px; padding: 7px 10px; font: inherit; font-size: 12.5px; color: var(--nb-text); background: var(--nb-bg-2); border: 1px solid var(--nb-line); border-radius: 9px; outline: none; }
 .search:focus { border-color: var(--brand); }
-.btn { padding: 7px 13px; font: inherit; font-size: 12.5px; border-radius: 9px; border: 1px solid var(--nb-line); background: var(--nb-bg-1); color: var(--nb-text); cursor: pointer; }
+/* 中文字体打头：font: inherit 原本走 body 的 Rajdhani 栈，行盒量拉丁度量、字形却是回退的中文，
+   墨迹在按钮里偏上。完整理由见 styles/nebula.css 的 .btn 和 SettingsModal.vue 的 .btn。 */
+.btn { padding: 7px 13px; font: inherit; font-size: 12.5px; border-radius: 9px; border: 1px solid var(--nb-line); background: var(--nb-bg-1); color: var(--nb-text); cursor: pointer; font-family: 'Microsoft YaHei', 'PingFang SC', 'Rajdhani', sans-serif; }
 .btn.pri { border-color: var(--brand); background: var(--brand); color: #fff; font-weight: 600; }
 .btn:disabled { opacity: .55; cursor: not-allowed; }
 

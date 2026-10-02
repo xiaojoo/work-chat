@@ -188,8 +188,8 @@ function submit() {
 </script>
 
 <style scoped>
-.ov { position: fixed; inset: 0; z-index: 90; display: flex; align-items: center; justify-content: center; padding: 24px; background: rgba(16, 24, 40, .42); overflow: hidden; }
-.dlg { width: min(720px, 100%); height: min(640px, calc(100vh - 48px)); display: flex; flex-direction: column; background: var(--nb-bg-1); border: 1px solid var(--nb-line); border-radius: 8px; box-shadow: 0 24px 60px rgba(16, 24, 40, .22); overflow: hidden; }
+.ov { position: fixed; inset: 0; z-index: 90; display: flex; align-items: center; justify-content: center; padding: 24px; overflow: hidden; }
+.dlg { width: min(720px, 100%); height: min(640px, calc(100vh - 48px)); display: flex; flex-direction: column; background: var(--nb-bg-1); overflow: hidden; }
 .hd { display: grid; grid-template-columns: auto 1fr auto; gap: 12px; align-items: start; padding: 16px 18px 13px; border-bottom: 1px solid var(--nb-line); }
 .hd-ic { display: grid; place-items: center; width: 38px; height: 38px; border-radius: 11px; background: var(--brand-soft); color: var(--brand); }
 .hd-tx h2 { margin: 1px 0 2px; font-size: 16px; font-weight: 600; color: var(--nb-text); }
@@ -200,7 +200,7 @@ function submit() {
 /* 下划线只画在文字那一段上：按钮左右各有 12px 内边距，用 ::after 卡在这两段内边距之间，
    宽度就等于文字宽（原来整条 border-bottom 会把那 24px 也涂进去）。
    2px 的透明边框留着撑高度，不然换画法会让页签条矮 2px */
-.tab { position: relative; padding: 8px 12px 10px; font: inherit; font-size: 13.5px; color: var(--nb-dim); background: none; border: 0; border-bottom: 2px solid transparent; cursor: pointer; }
+.tab { position: relative; padding: 8px 12px 10px; font: inherit; font-size: 13.5px; line-height: 19px; color: var(--nb-dim); background: none; border: 0; border-bottom: 2px solid transparent; cursor: pointer; }
 .tab:hover { color: var(--nb-text); }
 .tab.on { color: var(--brand); font-weight: 600; }
 .tab.on::after { content: ""; position: absolute; left: 12px; right: 12px; bottom: -2px; height: 2px; background: var(--brand); }
@@ -270,10 +270,14 @@ function submit() {
 .shell code { padding: 1px 5px; font-size: 11.5px; background: var(--nb-bg-3); border-radius: 5px; }
 .dis { max-width: 460px; opacity: .62; }
 .dis .ipt { padding-right: 92px; cursor: not-allowed; }
-.btn.mini { position: absolute; right: 6px; top: 50%; transform: translateY(-50%); padding: 5px 10px; font-size: 12px; border-radius: 8px; border: 1px solid var(--nb-line); background: var(--nb-bg-1); color: var(--nb-text); }
+/* 行高写死 17px：这一族改成中文字体打头之后 normal 会从 18 降到 17，那颗按钮跟着矮一行；
+   「复制链接」的墨迹是 11 行，29 行的框里正好 9/9，掉到 28 就变成 9/8（量到偏下 0.5px）。 */
+.btn.mini { position: absolute; right: 6px; top: 50%; transform: translateY(-50%); padding: 5px 10px; font-size: 12px; line-height: 17px; border-radius: 8px; border: 1px solid var(--nb-line); background: var(--nb-bg-1); color: var(--nb-text); }
 .ft { display: flex; justify-content: flex-end; padding: 12px 18px; border-top: 1px solid var(--nb-line); background: var(--nb-bg-2); }
 .ft-btns { display: flex; gap: 9px; }
-.btn { padding: 8px 15px; font: inherit; font-size: 13.5px; border-radius: 10px; cursor: pointer; border: 1px solid var(--nb-line); background: var(--nb-bg-1); color: var(--nb-text); }
+/* 中文字体打头：font: inherit 原本走 body 的 Rajdhani 栈，行盒量拉丁度量、字形却是回退的中文，
+   墨迹在按钮里偏上 1.0px。完整理由见 styles/nebula.css 的 .btn 和 SettingsModal.vue 的 .btn。 */
+.btn { padding: 9px 15px 7px; font: inherit; font-size: 13.5px; border-radius: 10px; cursor: pointer; border: 1px solid var(--nb-line); background: var(--nb-bg-1); color: var(--nb-text); font-family: 'Microsoft YaHei', 'PingFang SC', 'Rajdhani', sans-serif; }
 .btn.ghost:hover { background: var(--nb-bg-3); }
 .btn.pri { border-color: var(--brand); background: var(--brand); color: #fff; font-weight: 600; }
 .btn.pri:hover:not(:disabled) { background: var(--brand-strong); border-color: var(--brand-strong); }

@@ -6193,13 +6193,12 @@ async function openWithApp(r) {
 .gs-in:disabled { background: transparent; color: var(--nb-dim); cursor: default; }
 .gs-field-box:has(.gs-in:disabled) { background: var(--nb-bg-3); }
 .gs-save { width: 100%; margin-top: 14px; }
-/* 三个按钮锁 38px 高，并额外压 1px 上内边距。
-   flex 居中的是"行盒"，行盒居中不等于"字的墨迹"居中：标签是纯中文，行高度量却来自拉丁字体
-   Rajdhani，逐像素量下来墨迹离上边比离下边少 1.5px（三个按钮 -1.50 / -1.25 / -1.75）。
-   DPR=1 下基线只会吸附到整像素，所以可达的位置只有两档：padTop 0 → 差 -1.5，padTop 1 → 差 +0.5；
-   取 1px 这一档（残留 0.25~0.75px = 一个像素行）。改成中文字体优先也是同一档，不额外换字体。
-   getBoundingClientRect / Range 量出来永远是 10/10（那是行盒），量不到这个偏差 */
-.gs-save, .gs-btns .btn { height: 38px; line-height: 38px; padding: 2px 18px 0; }
+/* 锁 38px 这条不能删：.btn-neutral 那颗带 1px 描边，删掉特例之后整行从 38 长成 40
+   （量过：清空聊天记录 / 退出群聊 都变 40，.gs-btns 容器 53 -> 55）。
+   盒高 38 + 行高 38 + 上下内边距 0：内容盒正好等于行盒，描边与否都不再改变墨迹位置。
+   「保存」的墨迹 13 行放进 38 行是 12/13（偏上半格），要它 12/12 得把盒高改成奇数，
+   可同一行的「清空聊天记录」「解散群聊」是 12 行、正好在 38 里对平——一颗换两颗，不换。 */
+.gs-save, .gs-btns .btn { height: 38px; line-height: 38px; padding: 0 18px; }
 /* 中性动作用自己这套描边按钮，不用 .btn-ghost：那个类在这套浅色主题下是坏的
    （底色只有 10% 粉、hover 把字改成白色），白抽屉上点一下字就看不见了 */
 .btn-neutral { border: 1px solid var(--nb-line); background: var(--nb-bg-1); color: var(--nb-text); }
@@ -6217,7 +6216,7 @@ async function openWithApp(r) {
 /* 基准还是各占一半（平时量出来等宽）。这里不能写 min-width:0 —— 那条会允许 flex 项缩到比字还窄，
    nowrap 的字就直接溢出按钮外面（压窄到 150px 量到过：两颗各 55px、字溢出）。
    留着默认的 min-width:auto，缩不下就整颗换到下一行 */
-.gs-btns .btn { flex: 1 1 calc((100% - 8px) / 2); white-space: nowrap; padding: 2px 10px 0; }
+.gs-btns .btn { flex: 1 1 calc((100% - 8px) / 2); white-space: nowrap; padding: 0 10px; }
 .doc-card { display: flex; align-items: center; gap: 10px; }
 .dc-ico { width: 38px; height: 44px; flex: 0 0 38px; border-radius: 6px; background: var(--brand); color: #fff; display: grid; place-items: center; font-size: 11px; font-weight: 600; }
 .dc-main { flex: 1; min-width: 0; }

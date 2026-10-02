@@ -266,8 +266,8 @@ async function save() {
 </script>
 
 <style scoped>
-.ov { position: fixed; inset: 0; z-index: 95; display: flex; align-items: center; justify-content: center; padding: 24px; background: rgba(16, 24, 40, .42); overflow: hidden; }
-.dlg { width: min(680px, 100%); height: min(640px, calc(100vh - 48px)); display: flex; flex-direction: column; background: var(--nb-bg-1); border: 1px solid var(--nb-line); border-radius: 8px; box-shadow: 0 24px 60px rgba(16, 24, 40, .22); overflow: hidden; }
+.ov { position: fixed; inset: 0; z-index: 95; display: flex; align-items: center; justify-content: center; padding: 24px; overflow: hidden; }
+.dlg { width: min(680px, 100%); height: min(640px, calc(100vh - 48px)); display: flex; flex-direction: column; background: var(--nb-bg-1); overflow: hidden; }
 .hd { display: flex; align-items: center; justify-content: space-between; padding: 15px 18px; border-bottom: 1px solid var(--nb-line); }
 .hd h2 { margin: 0; font-size: 15.5px; font-weight: 600; color: var(--nb-text); }
 .x { border: 0; background: none; color: var(--nb-dim); font-size: 14px; cursor: pointer; padding: 4px 6px; border-radius: 8px; }
@@ -325,7 +325,14 @@ async function save() {
 .status.bad { color: var(--danger); background: rgba(217, 72, 96, .1); }
 
 .ft { display: flex; justify-content: flex-end; gap: 9px; padding: 12px 18px; border-top: 1px solid var(--nb-line); background: var(--nb-bg-2); }
-.btn { padding: 8px 15px; font: inherit; font-size: 13.5px; letter-spacing: normal; border-radius: 10px; cursor: pointer; border: 1px solid var(--nb-line); background: var(--nb-bg-1); color: var(--nb-text); }
+/* 两步修，缺一不可。① 中文字体提到栈首：font: inherit 原本走 body 的 Rajdhani 栈，
+   行盒量第一个可用字体、字形却来自回退的中文字体，逐像素量到「保存」离顶 11 离底 13，偏 1.0px。
+   ② 行高写死 19px、上下内边距做成 9/7：光换字体会让 normal 从 19 掉到 18，按钮矮一行、
+   「保存」还剩 0.5px；钉成 37 行的盒子之后它是 12/12 = 0.00，盒高也回到改前的 37。
+   同一行「取消」的墨迹只有 12 行，37 行的盒子对不平，落在 13/12 = 0.5px——
+   13 行和 12 行的两种字不可能在同一个盒子里都对平，这一排他点的是「保存」，所以保它。
+   字体栈那半的完整理由见 styles/nebula.css 的 .btn。 */
+.btn { padding: 9px 15px 7px; font: inherit; font-size: 13.5px; line-height: 19px; letter-spacing: normal; border-radius: 10px; cursor: pointer; border: 1px solid var(--nb-line); background: var(--nb-bg-1); color: var(--nb-text); font-family: 'Microsoft YaHei', 'PingFang SC', 'Rajdhani', sans-serif; }
 .btn.ghost:hover { background: var(--nb-bg-3); }
 .btn.pri { border-color: var(--brand); background: var(--brand); color: #fff; font-weight: 600; }
 .btn.pri:hover:not(:disabled) { background: var(--brand-strong); border-color: var(--brand-strong); }

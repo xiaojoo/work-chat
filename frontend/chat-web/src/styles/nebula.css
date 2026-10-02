@@ -156,11 +156,28 @@ body::after {
   padding: 9px 18px;
   font-size: 14px;
   letter-spacing: 1px;
-  font-family: 'Rajdhani', 'Microsoft YaHei', sans-serif;
+  /* 中文字体必须排在拉丁字体前面。行盒的高度量取的是"字体栈里第一个可用字体"的
+     ascent/descent，而字形本身来自后面那个：标签是中文、度量却来自 Rajdhani，
+     两套字体的上下不对称不一样，flex 把行盒居中之后墨迹就偏上。
+     逐像素量下来（以画出来的药丸为参照，14px 那颗）：拉丁优先时墨迹离顶 11 行、离底 15 行，
+     偏上 2px；换成中文优先是 13/13，正中。
+     中文和 ✕ 这类符号的字形一颗都没变（两种栈的墨迹逐行像素数完全一致），
+     因为这些字 Rajdhani 本来就没有、早就在回退；只有将来按钮里出现拉丁字母时才会跟着换字。 */
+  font-family: 'Microsoft YaHei', 'PingFang SC', 'Rajdhani', sans-serif;
   color: var(--nb-text);
   background: transparent;
   transition: all 0.2s;
+  /* 行高取整：1.4 在 14px 上是 19.6，整颗按钮算下来 37.59，压在半像素上 ——
+     同一颗按钮在页面上挪动半格，画出来就会在 37 行和 38 行之间换档，
+     文字离上边/离下边跟着从 13/13 跳成 13/12（看着就是"有时居中有时不居中"）。
+     round(nearest,1.4em,1px) 把行盒钉成整数：14px->20、13px->18、12px->17，
+     配上本来就是整数的上下内边距，盒高恒为 38.00 / 28.00 / 29.00，三档逐像素量到 dy=0。
+     步长必须是 1px：写成 2px 会把 12px 那档钉成 28 行，而「语音」的墨迹是 11 行，
+     28 行里对不平（量到 dy=+1），29 行才是 9/9。
+     上面那条 1.4 是兜底，必须留着：不认 round() 的浏览器会把下面整条丢掉，
+     那样 .btn 就没有 line-height 了，按钮高度会跟着抖。 */
   line-height: 1.4;
+  line-height: round(nearest, 1.4em, 1px);
 }
 .btn:disabled {
   opacity: 0.55;
@@ -373,8 +390,7 @@ body::after {
   position: fixed;
   inset: 0;
   z-index: 3000;
-  background: rgba(3, 6, 18, 0.72);
-  backdrop-filter: blur(2px);
+  /* 没有暗底，但这层必须留着：它铺满视口，"点空白关闭"和"底下点不动"都挂在这里 */
   display: flex;
   align-items: center;
   justify-content: center;
@@ -387,13 +403,17 @@ body::after {
   display: flex;
   flex-direction: column;
   background: linear-gradient(150deg, #ffffff 0%, #ffffff 55%, #f0f3f8 100%);
+  color: var(--nb-text);
+}
+/* 弹框面板那道边和那个入场只写一份：.modal（好友/成员/群组/选人）、.dlg（创建群聊、
+   添加成员与转群、设置）、确认框、Token 过期这四族共用，改这里五家一起动 */
+.modal, .dlg, .nebula-confirm-panel, .token-expired-modal {
   border: 1px solid rgba(43, 107, 232, 0.25);
   border-radius: 8px;
   box-shadow:
     0 0 0 1px rgba(43, 107, 232, 0.05),
     0 24px 80px rgba(0, 0, 0, 0.65),
     0 0 60px rgba(43, 107, 232, 0.08);
-  color: var(--nb-text);
   animation: modalIn 0.22s ease-out;
 }
 @keyframes modalIn {
@@ -473,15 +493,8 @@ body::after {
 /* ============================================================
    Token 过期弹窗（TokenExpiredModal.vue 类名覆盖）
    ============================================================ */
-.token-expired-overlay {
-  background: rgba(3, 6, 18, 0.75) !important;
-  backdrop-filter: blur(3px);
-}
 .token-expired-modal {
   background: linear-gradient(150deg, #ffffff, #f0f3f8) !important;
-  border: 1px solid rgba(43, 107, 232, 0.3) !important;
-  border-radius: 8px;
-  box-shadow: 0 24px 80px rgba(0, 0, 0, 0.65), 0 0 50px rgba(43, 107, 232, 0.1) !important;
   color: var(--nb-text) !important;
 }
 .token-expired-modal h2 {

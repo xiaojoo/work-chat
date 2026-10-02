@@ -141,8 +141,8 @@ function submit() {
 </script>
 
 <style scoped>
-.ov { position: fixed; inset: 0; z-index: 90; display: flex; align-items: center; justify-content: center; padding: 24px; background: rgba(16, 24, 40, .42); overflow: hidden; }
-.dlg { width: min(560px, 100%); height: min(640px, calc(100vh - 48px)); display: flex; flex-direction: column; background: var(--nb-bg-1); border: 1px solid var(--nb-line); border-radius: 8px; box-shadow: 0 24px 60px rgba(16, 24, 40, .22); overflow: hidden; }
+.ov { position: fixed; inset: 0; z-index: 90; display: flex; align-items: center; justify-content: center; padding: 24px; overflow: hidden; }
+.dlg { width: min(560px, 100%); height: min(640px, calc(100vh - 48px)); display: flex; flex-direction: column; background: var(--nb-bg-1); overflow: hidden; }
 .hd { display: grid; grid-template-columns: auto 1fr auto; gap: 12px; align-items: start; padding: 18px 18px 14px; border-bottom: 1px solid var(--nb-line); }
 .hd-ic { display: grid; place-items: center; width: 40px; height: 40px; border-radius: 11px; background: var(--brand-soft); color: var(--brand); }
 .hd-tx h2 { margin: 1px 0 2px; font-size: 16px; font-weight: 600; color: var(--nb-text); }
@@ -183,7 +183,9 @@ function submit() {
 .pin input { accent-color: var(--brand); }
 .pin em { padding: 1px 6px; font-size: 11px; font-style: normal; color: var(--nb-dim); background: var(--nb-bg-3); border: 1px solid var(--nb-line); border-radius: 999px; }
 .ft-btns { display: flex; gap: 9px; }
-.btn { padding: 8px 15px; font: inherit; font-size: 13.5px; border-radius: 10px; cursor: pointer; border: 1px solid var(--nb-line); background: var(--nb-bg-1); color: var(--nb-text); }
+/* 中文字体打头：font: inherit 原本走 body 的 Rajdhani 栈，行盒量拉丁度量、字形却是回退的中文，
+   墨迹在按钮里偏上 1.0px。完整理由见 styles/nebula.css 的 .btn 和 SettingsModal.vue 的 .btn。 */
+.btn { padding: 9px 15px 7px; font: inherit; font-size: 13.5px; line-height: 19px; border-radius: 10px; cursor: pointer; border: 1px solid var(--nb-line); background: var(--nb-bg-1); color: var(--nb-text); font-family: 'Microsoft YaHei', 'PingFang SC', 'Rajdhani', sans-serif; }
 .btn.ghost:hover { background: var(--nb-bg-3); }
 .btn.pri { border-color: var(--brand); background: var(--brand); color: #fff; font-weight: 600; }
 .btn.pri:hover:not(:disabled) { background: var(--brand-strong); border-color: var(--brand-strong); }
